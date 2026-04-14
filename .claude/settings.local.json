@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p ~/.claude/agents/legacy)",
+      "Bash(mv ~/.claude/agents/architect.md ~/.claude/agents/legacy/)",
+      "Bash(mv ~/.claude/agents/build-error-resolver.md ~/.claude/agents/legacy/)",
+      "Bash(mv ~/.claude/agents/chief-of-staff.md ~/.claude/agents/legacy/)",
+      "Bash(mv ~/.claude/agents/code-architect.md ~/.claude/agents/legacy/)",
+      "Bash(ls:*)"
+    ]
+  }
+}
