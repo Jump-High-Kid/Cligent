@@ -39,6 +39,14 @@ def generate_conversation_flow(keyword: str, api_key: str) -> list[dict]:
         )
 
         text = message.content[0].text.strip()
+
+        # 마크다운 코드블록으로 감싸진 경우 제거 (```json ... ``` 또는 ``` ... ```)
+        if text.startswith("```"):
+            text = text.split("```")[1]
+            if text.startswith("json"):
+                text = text[4:]
+            text = text.strip()
+
         flow = json.loads(text)
 
         # 유효성 검사: 리스트이고 각 항목에 id/message/options 있는지 확인
