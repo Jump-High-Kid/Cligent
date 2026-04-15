@@ -166,29 +166,34 @@ def test_generate_empty_keyword():
     assert "주제" in error_events[0]["error"]
 
 
-# ── 테스트 6: 질문 생성 성공 ─────────────────────────────────────────────────
+# ── 테스트 6: 대화 흐름 생성 성공 ───────────────────────────────────────────
 
-def test_questions_generated():
-    """질문 생성 엔드포인트 — 3개 질문 반환"""
+def test_conversation_flow_generated():
+    """/conversation-flow — 질문+선택지 목록 반환"""
+    mock_flow = [
+        {"id": "tone", "message": "어떤 톤으로 쓸까요?", "options": ["전문적", "친근한", "설명적"]},
+        {"id": "audience", "message": "주요 독자는 누구인가요?", "options": ["만성 환자", "처음 내원 고려 중", "일반인"]},
+    ]
     mock_message = MagicMock()
-    mock_message.content = [MagicMock(text='["증상이 얼마나 됐나요?", "평소 식습관은?", "치료 경험이 있나요?"]')]
+    mock_message.content = [MagicMock(text=__import__('json').dumps(mock_flow, ensure_ascii=False))]
 
-    with patch("question_generator.anthropic.Anthropic") as mock_client_cls:
+    with patch("conversation_flow.anthropic.Anthropic") as mock_client_cls:
         mock_client_cls.return_value.messages.create.return_value = mock_message
         with patch("main.os.getenv", return_value="sk-ant-test"):
-            res = client.post("/questions", json={"keyword": "소화불량"})
+            res = client.post("/conversation-flow", json={"keyword": "소화불량"})
 
     assert res.status_code == 200
     data = res.json()
     assert "questions" in data
-    assert len(data["questions"]) == 3
+    assert len(data["questions"]) == 2
+    assert data["questions"][0]["id"] == "tone"
 
 
-# ── 테스트 7: 질문 생성 — 빈 keyword ─────────────────────────────────────────
+# ── 테스트 7: 대화 흐름 — 빈 keyword ────────────────────────────────────────
 
-def test_questions_empty_keyword():
-    """/questions에 빈 keyword → 오류 응답"""
-    res = client.post("/questions", json={"keyword": ""})
-    assert res.status_code == 200  # FastAPI는 200으로 반환 (오류는 JSON body에)
+def test_conversation_flow_empty_keyword():
+    """/conversation-flow에 빈 keyword → 오류 응답"""
+    res = client.post("/conversation-flow", json={"keyword": ""})
+    assert res.status_code == 200
     data = res.json()
     assert "error" in data

@@ -8,7 +8,9 @@
       "Bash(mv ~/.claude/agents/code-architect.md ~/.claude/agents/legacy/)",
       "Bash(ls:*)",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(python3 -m pytest tests/ -v -x)",
+      "Bash(python3 -m pytest tests/ -v)"
     ]
   }
 }

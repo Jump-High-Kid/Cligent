@@ -13,4 +13,5 @@ blog:
 
 prompts:
   questions: "prompts/questions.txt"
+  conversation: "prompts/conversation.txt"
   blog: "prompts/blog.txt"

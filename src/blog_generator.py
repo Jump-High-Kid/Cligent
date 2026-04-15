@@ -31,22 +31,25 @@ def generate_blog_stream(
     """
     config = load_config()
 
+    # 톤: 대화에서 선택한 값 우선, 없으면 config 기본값
+    tone = answers.get("tone", config["blog"]["tone"]) if answers else config["blog"]["tone"]
+
     # 프롬프트 파일 로드 후 설정값 삽입
     prompt_template = load_prompt("blog")
     system_prompt = prompt_template.format(
         min_chars=config["blog"]["min_chars"],
         max_chars=config["blog"]["max_chars"],
-        tone=config["blog"]["tone"],
+        tone=tone,
     )
 
-    # Q&A 답변을 컨텍스트로 구성 (답변이 있는 항목만 포함)
+    # Q&A 답변을 컨텍스트로 구성 (tone 제외, 답변이 있는 항목만 포함)
     qa_text = ""
     if answers:
-        filled = {q: a for q, a in answers.items() if a.strip()}
+        filled = {k: v for k, v in answers.items() if k != "tone" and str(v).strip()}
         if filled:
             qa_text = "\n\n## 추가 정보 (아래 내용을 블로그에 반영해주세요)\n"
-            for question, answer in filled.items():
-                qa_text += f"- {question}: {answer}\n"
+            for key, value in filled.items():
+                qa_text += f"- {key}: {value}\n"
 
     user_message = f"블로그 주제: {keyword}{qa_text}"
 

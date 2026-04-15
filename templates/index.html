@@ -15,159 +15,142 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 40px 20px;
+      padding: 40px 20px 80px;
     }
 
-    h1 {
-      font-size: 1.5rem;
-      font-weight: 700;
-      color: #1a5f5a;
-      margin-bottom: 8px;
-    }
-    .subtitle { color: #888; font-size: 0.9rem; margin-bottom: 32px; }
+    h1 { font-size: 1.5rem; font-weight: 700; color: #1a5f5a; margin-bottom: 6px; }
+    .subtitle { color: #888; font-size: 0.88rem; margin-bottom: 28px; }
 
     /* 단계 표시 */
-    .steps {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 32px;
-    }
+    .steps { display: flex; gap: 6px; margin-bottom: 28px; }
     .step {
-      padding: 6px 16px;
-      border-radius: 20px;
-      font-size: 0.85rem;
-      background: #ddd;
-      color: #999;
+      padding: 5px 14px; border-radius: 20px;
+      font-size: 0.82rem; background: #ddd; color: #999;
     }
-    .step.active {
-      background: #1a5f5a;
-      color: #fff;
-      font-weight: 600;
-    }
-    .step.done {
-      background: #a8d5d1;
-      color: #1a5f5a;
-    }
+    .step.active { background: #1a5f5a; color: #fff; font-weight: 600; }
+    .step.done { background: #a8d5d1; color: #1a5f5a; }
 
     /* 카드 */
     .card {
-      background: #fff;
-      border-radius: 16px;
-      padding: 32px;
-      width: 100%;
-      max-width: 680px;
+      background: #fff; border-radius: 16px; padding: 28px;
+      width: 100%; max-width: 680px;
       box-shadow: 0 2px 16px rgba(0,0,0,0.06);
     }
 
-    label {
-      display: block;
-      font-size: 0.9rem;
-      font-weight: 600;
-      color: #555;
-      margin-bottom: 8px;
-    }
+    label { display: block; font-size: 0.9rem; font-weight: 600; color: #555; margin-bottom: 8px; }
 
     textarea, input[type="text"] {
-      width: 100%;
-      border: 1.5px solid #ddd;
-      border-radius: 8px;
-      padding: 12px 14px;
-      font-size: 1rem;
-      font-family: inherit;
-      resize: vertical;
-      outline: none;
-      transition: border-color 0.2s;
+      width: 100%; border: 1.5px solid #ddd; border-radius: 8px;
+      padding: 12px 14px; font-size: 1rem; font-family: inherit;
+      resize: vertical; outline: none; transition: border-color 0.2s;
     }
-    textarea:focus, input[type="text"]:focus {
-      border-color: #1a5f5a;
-    }
+    textarea:focus, input[type="text"]:focus { border-color: #1a5f5a; }
 
     .btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 12px 28px;
-      border-radius: 8px;
-      border: none;
-      cursor: pointer;
-      font-size: 1rem;
-      font-weight: 600;
-      font-family: inherit;
-      transition: opacity 0.2s;
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 11px 24px; border-radius: 8px; border: none;
+      cursor: pointer; font-size: 0.95rem; font-weight: 600;
+      font-family: inherit; transition: opacity 0.2s;
     }
     .btn:hover { opacity: 0.85; }
     .btn:disabled { opacity: 0.4; cursor: not-allowed; }
     .btn-primary { background: #1a5f5a; color: #fff; }
     .btn-secondary { background: #eee; color: #555; }
+    .btn-generate { background: #1a5f5a; color: #fff; width: 100%; justify-content: center; margin-top: 6px; font-size: 1rem; padding: 14px; }
 
-    /* 질문 카드 */
-    .question-block { margin-bottom: 20px; }
-    .question-text {
-      font-size: 0.95rem;
-      font-weight: 600;
-      margin-bottom: 6px;
-      color: #333;
+    .error-msg {
+      color: #c0392b; font-size: 0.88rem; margin-top: 10px;
+      padding: 10px 14px; background: #fdf0ef; border-radius: 8px;
+    }
+    .hidden { display: none; }
+
+    /* ── 채팅 UI ─────────────────────────────────────── */
+    #chatArea {
+      display: flex; flex-direction: column; gap: 16px;
+      max-height: 480px; overflow-y: auto;
+      padding: 4px 2px 12px; margin-bottom: 8px;
+      scroll-behavior: smooth;
+    }
+
+    /* AI 버블 (왼쪽) */
+    .bubble-row-ai { display: flex; align-items: flex-start; gap: 10px; }
+
+    .avatar {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: #1a5f5a; color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.75rem; font-weight: 700; flex-shrink: 0;
+    }
+
+    .bubble-ai {
+      background: #f0f4f3; border-radius: 0 12px 12px 12px;
+      padding: 12px 14px; max-width: 80%;
+      font-size: 0.93rem; line-height: 1.55; color: #222;
+      animation: fadeSlideIn 0.25s ease;
+    }
+
+    /* 사용자 버블 (오른쪽) */
+    .bubble-row-user { display: flex; justify-content: flex-end; }
+
+    .bubble-user {
+      background: #1a5f5a; color: #fff;
+      border-radius: 12px 0 12px 12px;
+      padding: 10px 14px; max-width: 75%;
+      font-size: 0.92rem; line-height: 1.5;
+      animation: fadeSlideIn 0.2s ease;
+    }
+
+    /* 선택지 칩 */
+    .options-wrap { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 7px; }
+
+    .chip {
+      padding: 7px 14px; border-radius: 20px; border: 1.5px solid #cce0de;
+      background: #fff; color: #1a5f5a; font-size: 0.85rem; font-weight: 600;
+      cursor: pointer; font-family: inherit; transition: all 0.15s;
+    }
+    .chip:hover { background: #e8f4f3; border-color: #1a5f5a; }
+    .chip.skip { border-color: #ddd; color: #999; font-weight: 400; }
+    .chip.skip:hover { background: #f5f5f5; border-color: #bbb; color: #666; }
+    .chip:disabled { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
+
+    /* 직접 입력 인라인 */
+    .custom-input-wrap { margin-top: 10px; display: flex; gap: 8px; }
+    .custom-input-wrap input {
+      flex: 1; padding: 9px 12px; border: 1.5px solid #1a5f5a;
+      border-radius: 8px; font-size: 0.9rem; font-family: inherit; outline: none;
+    }
+    .custom-input-wrap .btn { padding: 9px 16px; font-size: 0.88rem; }
+
+    /* 로딩 점 */
+    .dots::after { content: ''; animation: dots 1.2s steps(4, end) infinite; }
+    @keyframes dots {
+      0%   { content: ''; } 25%  { content: '.'; }
+      50%  { content: '..'; } 75%  { content: '...'; } 100% { content: ''; }
     }
 
     /* 결과 영역 */
     #output {
-      white-space: pre-wrap;
-      font-size: 0.95rem;
-      line-height: 1.8;
-      min-height: 200px;
-      padding: 16px;
-      background: #fafafa;
-      border-radius: 8px;
-      border: 1.5px solid #eee;
-      margin-bottom: 16px;
+      white-space: pre-wrap; font-size: 0.93rem; line-height: 1.85;
+      min-height: 200px; padding: 16px; background: #fafafa;
+      border-radius: 8px; border: 1.5px solid #eee; margin-bottom: 16px;
     }
+    .result-footer { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    #tokenInfo { font-size: 0.8rem; color: #999; }
 
-    .result-footer {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      flex-wrap: wrap;
+    @keyframes fadeSlideIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
     }
-
-    #tokenInfo {
-      font-size: 0.8rem;
-      color: #999;
-    }
-
-    /* 로딩 점 */
-    .dots::after {
-      content: '';
-      animation: dots 1.2s steps(4, end) infinite;
-    }
-    @keyframes dots {
-      0%   { content: ''; }
-      25%  { content: '.'; }
-      50%  { content: '..'; }
-      75%  { content: '...'; }
-      100% { content: ''; }
-    }
-
-    .error-msg {
-      color: #c0392b;
-      font-size: 0.9rem;
-      margin-top: 12px;
-      padding: 10px 14px;
-      background: #fdf0ef;
-      border-radius: 8px;
-    }
-
-    .hidden { display: none; }
   </style>
 </head>
 <body>
 
   <h1>Cligent 블로그 생성기</h1>
-  <p class="subtitle">한의원 블로그 글을 AI로 빠르게 만들어드립니다</p>
+  <p class="subtitle">한의원 블로그 글을 AI와 대화하며 만들어드립니다</p>
 
-  <!-- 단계 표시 -->
   <div class="steps">
     <div class="step active" id="stepBadge1">1 주제</div>
-    <div class="step" id="stepBadge2">2 질문</div>
+    <div class="step" id="stepBadge2">2 대화</div>
     <div class="step" id="stepBadge3">3 생성</div>
   </div>
 
@@ -179,21 +162,14 @@
       <textarea id="keyword" rows="2" placeholder="예: 소화불량 한방 치료, 허리 통증 침 치료, 면역력 강화 한약"></textarea>
       <div id="step1Error" class="error-msg hidden"></div>
       <div style="margin-top: 16px; text-align: right;">
-        <button class="btn btn-primary" id="nextBtn" onclick="goToQuestions()">다음 →</button>
+        <button class="btn btn-primary" id="nextBtn" onclick="goToConversation()">다음 →</button>
       </div>
     </div>
 
-    <!-- 단계 2: 질문 답변 (동적 생성) -->
+    <!-- 단계 2: 대화형 설정 -->
     <div id="step2" class="hidden">
-      <div style="margin-bottom: 16px; color: #888; font-size: 0.85rem;" id="step2Desc">
-        주제에 맞는 질문에 답해주시면 더 구체적인 글이 만들어집니다. (건너뛰어도 됩니다)
-      </div>
-      <div id="questionsContainer"></div>
+      <div id="chatArea"></div>
       <div id="step2Error" class="error-msg hidden"></div>
-      <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end;">
-        <button class="btn btn-secondary" onclick="goBack()">← 이전</button>
-        <button class="btn btn-primary" id="generateBtn" onclick="startGenerate()">블로그 생성</button>
-      </div>
     </div>
 
     <!-- 단계 3: 생성 결과 -->
@@ -212,47 +188,48 @@
 
   <script>
     let currentKeyword = '';
-    let currentQuestions = [];
+    let conversationFlow = [];  // [{id, message, options}, ...]
+    let currentIndex = 0;       // 현재 진행 중인 질문 인덱스
+    let collectedAnswers = {};  // {id: 선택값, ...}
 
-    // ── 단계 1 → 2: 질문 받아오기 ──────────────────────────────
-    async function goToQuestions() {
+    // ── 단계 1 → 2: 대화 흐름 가져오기 ──────────────────────────
+    async function goToConversation() {
       const keyword = document.getElementById('keyword').value.trim();
-      if (!keyword) {
-        showError('step1Error', '주제를 입력해주세요.');
-        return;
-      }
+      if (!keyword) { showError('step1Error', '주제를 입력해주세요.'); return; }
 
       currentKeyword = keyword;
       hideError('step1Error');
 
       const btn = document.getElementById('nextBtn');
       btn.disabled = true;
-      btn.textContent = '질문 생성 중...';
+      btn.textContent = '준비 중...';
 
       try {
-        const res = await fetch('/questions', {
+        const res = await fetch('/conversation-flow', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ keyword }),
         });
         const data = await res.json();
 
-        if (data.error) {
-          showError('step1Error', data.error);
-          return;
-        }
+        if (data.error) { showError('step1Error', data.error); return; }
 
-        currentQuestions = data.questions || [];
+        conversationFlow = data.questions || [];
 
-        // 질문이 없으면 (questions_enabled: false) 바로 생성 단계로
-        if (currentQuestions.length === 0) {
+        // 질문이 없으면 바로 생성 단계로
+        if (conversationFlow.length === 0) {
           showStep(3);
           startGenerate();
           return;
         }
 
-        renderQuestions(currentQuestions);
+        // 대화 초기화 후 첫 질문 표시
+        currentIndex = 0;
+        collectedAnswers = {};
+        document.getElementById('chatArea').innerHTML = '';
         showStep(2);
+        showNextQuestion();
+
       } catch (e) {
         showError('step1Error', '서버 연결 오류가 발생했습니다.');
       } finally {
@@ -261,26 +238,116 @@
       }
     }
 
-    // 질문 폼 동적 생성
-    function renderQuestions(questions) {
-      const container = document.getElementById('questionsContainer');
-      // innerHTML을 한 번에 설정 (루프 중 재생성 방지)
-      container.innerHTML = questions.map((q, i) => `
-        <div class="question-block">
-          <div class="question-text">${i + 1}. ${q}</div>
-          <textarea id="answer${i}" rows="2" placeholder="답변 (선택사항)"></textarea>
-        </div>`).join('');
+    // 다음 질문 버블 표시
+    function showNextQuestion() {
+      if (currentIndex >= conversationFlow.length) {
+        showCompleteMessage();
+        return;
+      }
+
+      const q = conversationFlow[currentIndex];
+      const chatArea = document.getElementById('chatArea');
+
+      // AI 버블 생성
+      const row = document.createElement('div');
+      row.className = 'bubble-row-ai';
+      row.id = `q-row-${currentIndex}`;
+
+      // 선택지 칩 HTML
+      const chipsHtml = q.options.map(opt =>
+        `<button class="chip" onclick="handleOptionSelect(${currentIndex}, '${escapeAttr(opt)}')">${escapeHtml(opt)}</button>`
+      ).join('');
+
+      row.innerHTML = `
+        <div class="avatar">AI</div>
+        <div class="bubble-ai">
+          <div>${escapeHtml(q.message)}</div>
+          <div class="options-wrap" id="options-${currentIndex}">
+            ${chipsHtml}
+            <button class="chip" onclick="showCustomInput(${currentIndex})">직접 입력</button>
+            <button class="chip skip" onclick="handleSkip(${currentIndex})">건너뛰기</button>
+          </div>
+          <div id="custom-wrap-${currentIndex}" class="custom-input-wrap hidden">
+            <input type="text" id="custom-input-${currentIndex}" placeholder="직접 입력해주세요"
+              onkeydown="if(event.key==='Enter') confirmCustom(${currentIndex})">
+            <button class="btn btn-primary" onclick="confirmCustom(${currentIndex})">확인</button>
+          </div>
+        </div>`;
+
+      chatArea.appendChild(row);
+      scrollToBottom();
     }
 
-    // ── 단계 2 → 3: 블로그 생성 (스트리밍) ───────────────────────
-    async function startGenerate() {
-      // Q&A 답변 수집
-      const answers = {};
-      currentQuestions.forEach((q, i) => {
-        const el = document.getElementById(`answer${i}`);
-        if (el) answers[q] = el.value;
-      });
+    // 선택지 클릭
+    function handleOptionSelect(index, value) {
+      lockOptions(index);
+      addUserBubble(value);
+      collectedAnswers[conversationFlow[index].id] = value;
+      currentIndex++;
+      setTimeout(showNextQuestion, 400);
+    }
 
+    // 직접 입력 칩 클릭 → 인라인 input 표시
+    function showCustomInput(index) {
+      document.getElementById(`options-${index}`).classList.add('hidden');
+      document.getElementById(`custom-wrap-${index}`).classList.remove('hidden');
+      document.getElementById(`custom-input-${index}`).focus();
+    }
+
+    // 직접 입력 확인
+    function confirmCustom(index) {
+      const val = document.getElementById(`custom-input-${index}`).value.trim();
+      if (!val) { document.getElementById(`custom-input-${index}`).focus(); return; }
+      document.getElementById(`custom-wrap-${index}`).classList.add('hidden');
+      addUserBubble(val);
+      collectedAnswers[conversationFlow[index].id] = val;
+      currentIndex++;
+      setTimeout(showNextQuestion, 400);
+    }
+
+    // 건너뛰기
+    function handleSkip(index) {
+      lockOptions(index);
+      addUserBubble('건너뛰기');
+      currentIndex++;
+      setTimeout(showNextQuestion, 400);
+    }
+
+    // 선택지 비활성화 (선택 후)
+    function lockOptions(index) {
+      const wrap = document.getElementById(`options-${index}`);
+      if (wrap) wrap.querySelectorAll('.chip').forEach(c => c.disabled = true);
+    }
+
+    // 사용자 답변 버블 추가
+    function addUserBubble(text) {
+      const chatArea = document.getElementById('chatArea');
+      const row = document.createElement('div');
+      row.className = 'bubble-row-user';
+      row.innerHTML = `<div class="bubble-user">${escapeHtml(text)}</div>`;
+      chatArea.appendChild(row);
+      scrollToBottom();
+    }
+
+    // 모든 질문 완료 → 생성 시작 메시지
+    function showCompleteMessage() {
+      const chatArea = document.getElementById('chatArea');
+      const row = document.createElement('div');
+      row.className = 'bubble-row-ai';
+      row.innerHTML = `
+        <div class="avatar">AI</div>
+        <div class="bubble-ai">
+          설정이 완료됐습니다. 블로그를 생성할게요.
+          <div style="margin-top: 12px;">
+            <button class="btn btn-generate" onclick="startGenerate()">블로그 생성 시작</button>
+          </div>
+        </div>`;
+      chatArea.appendChild(row);
+      scrollToBottom();
+    }
+
+    // ── 단계 2 → 3: 블로그 생성 (스트리밍) ──────────────────────
+    async function startGenerate() {
       showStep(3);
       const output = document.getElementById('output');
       const label = document.getElementById('outputLabel');
@@ -289,17 +356,13 @@
       document.getElementById('resultFooter').classList.add('hidden');
       label.innerHTML = '생성 중<span class="dots"></span>';
 
-      const btn = document.getElementById('generateBtn');
-      if (btn) btn.disabled = true;
-
       let fullText = '';
 
       try {
-        // fetch + ReadableStream 으로 SSE 수신 (POST 방식)
         const res = await fetch('/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ keyword: currentKeyword, answers }),
+          body: JSON.stringify({ keyword: currentKeyword, answers: collectedAnswers }),
         });
 
         const reader = res.body.getReader();
@@ -311,49 +374,39 @@
           if (done) break;
 
           buffer += decoder.decode(value, { stream: true });
-
-          // SSE 라인 파싱 ("data: {...}\n\n" 형식)
           const lines = buffer.split('\n');
-          buffer = lines.pop(); // 마지막 미완성 라인은 버퍼에 남김
+          buffer = lines.pop();
 
           for (const line of lines) {
             if (!line.startsWith('data: ')) continue;
-            const json = line.slice(6);
-            if (!json.trim()) continue;
+            const jsonStr = line.slice(6);
+            if (!jsonStr.trim()) continue;
 
             try {
-              const msg = JSON.parse(json);
+              const msg = JSON.parse(jsonStr);
 
               if (msg.error) {
-                // 오류 수신
                 label.textContent = '생성 실패';
                 showError('step3Error', msg.error);
                 return;
               }
-
               if (msg.text) {
-                // 텍스트 청크 실시간 추가
                 fullText += msg.text;
                 output.textContent = fullText;
               }
-
               if (msg.done) {
-                // 완료 — 토큰/비용 표시
                 label.textContent = '생성 완료';
                 const u = msg.usage;
                 document.getElementById('tokenInfo').textContent =
                   `토큰: 입력 ${u.input} + 출력 ${u.output} = ${u.input + u.output}개 (≈ ${u.cost_krw}원)`;
                 document.getElementById('resultFooter').classList.remove('hidden');
               }
-            } catch (_) { /* JSON 파싱 실패는 무시 */ }
+            } catch (_) {}
           }
         }
       } catch (e) {
-        // 네트워크 단절 등 스트리밍 중 오류
         label.textContent = '연결 오류';
         showError('step3Error', '연결이 끊겼습니다. 다시 시도해주세요.');
-      } finally {
-        if (btn) btn.disabled = false;
       }
     }
 
@@ -368,11 +421,13 @@
       });
     }
 
-    function goBack() { showStep(1); }
+    function scrollToBottom() {
+      const chatArea = document.getElementById('chatArea');
+      chatArea.scrollTop = chatArea.scrollHeight;
+    }
 
     function copyResult() {
-      const text = document.getElementById('output').textContent;
-      navigator.clipboard.writeText(text).then(() => {
+      navigator.clipboard.writeText(document.getElementById('output').textContent).then(() => {
         const btn = event.target;
         btn.textContent = '복사됨!';
         setTimeout(() => btn.textContent = '복사', 1500);
@@ -381,9 +436,12 @@
 
     function reset() {
       currentKeyword = '';
-      currentQuestions = [];
+      conversationFlow = [];
+      currentIndex = 0;
+      collectedAnswers = {};
       document.getElementById('keyword').value = '';
       document.getElementById('output').textContent = '';
+      document.getElementById('chatArea').innerHTML = '';
       showStep(1);
     }
 
@@ -397,13 +455,18 @@
       document.getElementById(id).classList.add('hidden');
     }
 
-    // 엔터키로 다음 단계 이동
+    // XSS 방지용 이스케이프
+    function escapeHtml(str) {
+      return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+    function escapeAttr(str) {
+      return String(str).replace(/'/g, "\\'");
+    }
+
+    // Cmd/Ctrl+Enter 단축키
     document.addEventListener('keydown', e => {
       if (e.key === 'Enter' && e.metaKey) {
-        const step1 = document.getElementById('step1');
-        const step2 = document.getElementById('step2');
-        if (!step1.classList.contains('hidden')) goToQuestions();
-        else if (!step2.classList.contains('hidden')) startGenerate();
+        if (!document.getElementById('step1').classList.contains('hidden')) goToConversation();
       }
     });
   </script>
