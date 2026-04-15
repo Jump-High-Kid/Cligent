@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cligent 블로그 생성기</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+      background: #f5f0ea;
+      color: #333;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #1a5f5a;
+      margin-bottom: 8px;
+    }
+    .subtitle { color: #888; font-size: 0.9rem; margin-bottom: 32px; }
+
+    /* 단계 표시 */
+    .steps {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 32px;
+    }
+    .step {
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      background: #ddd;
+      color: #999;
+    }
+    .step.active {
+      background: #1a5f5a;
+      color: #fff;
+      font-weight: 600;
+    }
+    .step.done {
+      background: #a8d5d1;
+      color: #1a5f5a;
+    }
+
+    /* 카드 */
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 32px;
+      width: 100%;
+      max-width: 680px;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.06);
+    }
+
+    label {
+      display: block;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #555;
+      margin-bottom: 8px;
+    }
+
+    textarea, input[type="text"] {
+      width: 100%;
+      border: 1.5px solid #ddd;
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-size: 1rem;
+      font-family: inherit;
+      resize: vertical;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    textarea:focus, input[type="text"]:focus {
+      border-color: #1a5f5a;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 12px 28px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: 600;
+      font-family: inherit;
+      transition: opacity 0.2s;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-primary { background: #1a5f5a; color: #fff; }
+    .btn-secondary { background: #eee; color: #555; }
+
+    /* 질문 카드 */
+    .question-block { margin-bottom: 20px; }
+    .question-text {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: #333;
+    }
+
+    /* 결과 영역 */
+    #output {
+      white-space: pre-wrap;
+      font-size: 0.95rem;
+      line-height: 1.8;
+      min-height: 200px;
+      padding: 16px;
+      background: #fafafa;
+      border-radius: 8px;
+      border: 1.5px solid #eee;
+      margin-bottom: 16px;
+    }
+
+    .result-footer {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    #tokenInfo {
+      font-size: 0.8rem;
+      color: #999;
+    }
+
+    /* 로딩 점 */
+    .dots::after {
+      content: '';
+      animation: dots 1.2s steps(4, end) infinite;
+    }
+    @keyframes dots {
+      0%   { content: ''; }
+      25%  { content: '.'; }
+      50%  { content: '..'; }
+      75%  { content: '...'; }
+      100% { content: ''; }
+    }
+
+    .error-msg {
+      color: #c0392b;
+      font-size: 0.9rem;
+      margin-top: 12px;
+      padding: 10px 14px;
+      background: #fdf0ef;
+      border-radius: 8px;
+    }
+
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+
+  <h1>Cligent 블로그 생성기</h1>
+  <p class="subtitle">한의원 블로그 글을 AI로 빠르게 만들어드립니다</p>
+
+  <!-- 단계 표시 -->
+  <div class="steps">
+    <div class="step active" id="stepBadge1">1 주제</div>
+    <div class="step" id="stepBadge2">2 질문</div>
+    <div class="step" id="stepBadge3">3 생성</div>
+  </div>
+
+  <div class="card">
+
+    <!-- 단계 1: 주제 입력 -->
+    <div id="step1">
+      <label for="keyword">블로그 주제</label>
+      <textarea id="keyword" rows="2" placeholder="예: 소화불량 한방 치료, 허리 통증 침 치료, 면역력 강화 한약"></textarea>
+      <div id="step1Error" class="error-msg hidden"></div>
+      <div style="margin-top: 16px; text-align: right;">
+        <button class="btn btn-primary" id="nextBtn" onclick="goToQuestions()">다음 →</button>
+      </div>
+    </div>
+
+    <!-- 단계 2: 질문 답변 (동적 생성) -->
+    <div id="step2" class="hidden">
+      <div style="margin-bottom: 16px; color: #888; font-size: 0.85rem;" id="step2Desc">
+        주제에 맞는 질문에 답해주시면 더 구체적인 글이 만들어집니다. (건너뛰어도 됩니다)
+      </div>
+      <div id="questionsContainer"></div>
+      <div id="step2Error" class="error-msg hidden"></div>
+      <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end;">
+        <button class="btn btn-secondary" onclick="goBack()">← 이전</button>
+        <button class="btn btn-primary" id="generateBtn" onclick="startGenerate()">블로그 생성</button>
+      </div>
+    </div>
+
+    <!-- 단계 3: 생성 결과 -->
+    <div id="step3" class="hidden">
+      <label id="outputLabel">생성 중<span class="dots"></span></label>
+      <div id="output"></div>
+      <div id="step3Error" class="error-msg hidden"></div>
+      <div class="result-footer hidden" id="resultFooter">
+        <button class="btn btn-primary" onclick="copyResult()">복사</button>
+        <button class="btn btn-secondary" onclick="reset()">처음부터</button>
+        <span id="tokenInfo"></span>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    let currentKeyword = '';
+    let currentQuestions = [];
+
+    // ── 단계 1 → 2: 질문 받아오기 ──────────────────────────────
+    async function goToQuestions() {
+      const keyword = document.getElementById('keyword').value.trim();
+      if (!keyword) {
+        showError('step1Error', '주제를 입력해주세요.');
+        return;
+      }
+
+      currentKeyword = keyword;
+      hideError('step1Error');
+
+      const btn = document.getElementById('nextBtn');
+      btn.disabled = true;
+      btn.textContent = '질문 생성 중...';
+
+      try {
+        const res = await fetch('/questions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ keyword }),
+        });
+        const data = await res.json();
+
+        if (data.error) {
+          showError('step1Error', data.error);
+          return;
+        }
+
+        currentQuestions = data.questions || [];
+
+        // 질문이 없으면 (questions_enabled: false) 바로 생성 단계로
+        if (currentQuestions.length === 0) {
+          showStep(3);
+          startGenerate();
+          return;
+        }
+
+        renderQuestions(currentQuestions);
+        showStep(2);
+      } catch (e) {
+        showError('step1Error', '서버 연결 오류가 발생했습니다.');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '다음 →';
+      }
+    }
+
+    // 질문 폼 동적 생성
+    function renderQuestions(questions) {
+      const container = document.getElementById('questionsContainer');
+      // innerHTML을 한 번에 설정 (루프 중 재생성 방지)
+      container.innerHTML = questions.map((q, i) => `
+        <div class="question-block">
+          <div class="question-text">${i + 1}. ${q}</div>
+          <textarea id="answer${i}" rows="2" placeholder="답변 (선택사항)"></textarea>
+        </div>`).join('');
+    }
+
+    // ── 단계 2 → 3: 블로그 생성 (스트리밍) ───────────────────────
+    async function startGenerate() {
+      // Q&A 답변 수집
+      const answers = {};
+      currentQuestions.forEach((q, i) => {
+        const el = document.getElementById(`answer${i}`);
+        if (el) answers[q] = el.value;
+      });
+
+      showStep(3);
+      const output = document.getElementById('output');
+      const label = document.getElementById('outputLabel');
+      output.textContent = '';
+      hideError('step3Error');
+      document.getElementById('resultFooter').classList.add('hidden');
+      label.innerHTML = '생성 중<span class="dots"></span>';
+
+      const btn = document.getElementById('generateBtn');
+      if (btn) btn.disabled = true;
+
+      let fullText = '';
+
+      try {
+        // fetch + ReadableStream 으로 SSE 수신 (POST 방식)
+        const res = await fetch('/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ keyword: currentKeyword, answers }),
+        });
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+
+          // SSE 라인 파싱 ("data: {...}\n\n" 형식)
+          const lines = buffer.split('\n');
+          buffer = lines.pop(); // 마지막 미완성 라인은 버퍼에 남김
+
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            const json = line.slice(6);
+            if (!json.trim()) continue;
+
+            try {
+              const msg = JSON.parse(json);
+
+              if (msg.error) {
+                // 오류 수신
+                label.textContent = '생성 실패';
+                showError('step3Error', msg.error);
+                return;
+              }
+
+              if (msg.text) {
+                // 텍스트 청크 실시간 추가
+                fullText += msg.text;
+                output.textContent = fullText;
+              }
+
+              if (msg.done) {
+                // 완료 — 토큰/비용 표시
+                label.textContent = '생성 완료';
+                const u = msg.usage;
+                document.getElementById('tokenInfo').textContent =
+                  `토큰: 입력 ${u.input} + 출력 ${u.output} = ${u.input + u.output}개 (≈ ${u.cost_krw}원)`;
+                document.getElementById('resultFooter').classList.remove('hidden');
+              }
+            } catch (_) { /* JSON 파싱 실패는 무시 */ }
+          }
+        }
+      } catch (e) {
+        // 네트워크 단절 등 스트리밍 중 오류
+        label.textContent = '연결 오류';
+        showError('step3Error', '연결이 끊겼습니다. 다시 시도해주세요.');
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    // ── 유틸 ──────────────────────────────────────────────────────
+    function showStep(n) {
+      [1, 2, 3].forEach(i => {
+        document.getElementById(`step${i}`).classList.toggle('hidden', i !== n);
+        const badge = document.getElementById(`stepBadge${i}`);
+        badge.classList.remove('active', 'done');
+        if (i < n) badge.classList.add('done');
+        if (i === n) badge.classList.add('active');
+      });
+    }
+
+    function goBack() { showStep(1); }
+
+    function copyResult() {
+      const text = document.getElementById('output').textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = event.target;
+        btn.textContent = '복사됨!';
+        setTimeout(() => btn.textContent = '복사', 1500);
+      });
+    }
+
+    function reset() {
+      currentKeyword = '';
+      currentQuestions = [];
+      document.getElementById('keyword').value = '';
+      document.getElementById('output').textContent = '';
+      showStep(1);
+    }
+
+    function showError(id, msg) {
+      const el = document.getElementById(id);
+      el.textContent = msg;
+      el.classList.remove('hidden');
+    }
+
+    function hideError(id) {
+      document.getElementById(id).classList.add('hidden');
+    }
+
+    // 엔터키로 다음 단계 이동
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && e.metaKey) {
+        const step1 = document.getElementById('step1');
+        const step2 = document.getElementById('step2');
+        if (!step1.classList.contains('hidden')) goToQuestions();
+        else if (!step2.classList.contains('hidden')) startGenerate();
+      }
+    });
+  </script>
+</body>
+</html>

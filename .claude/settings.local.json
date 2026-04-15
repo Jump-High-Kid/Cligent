@@ -6,7 +6,9 @@
       "Bash(mv ~/.claude/agents/build-error-resolver.md ~/.claude/agents/legacy/)",
       "Bash(mv ~/.claude/agents/chief-of-staff.md ~/.claude/agents/legacy/)",
       "Bash(mv ~/.claude/agents/code-architect.md ~/.claude/agents/legacy/)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }

@@ -1,0 +1,16 @@
+# Cligent 블로그 생성기 설정
+# 이 파일만 수정하면 코드 변경 없이 동작을 바꿀 수 있습니다.
+
+flow:
+  questions_enabled: true   # false 로 바꾸면 질문 단계 없이 바로 생성
+  questions_count: 3        # 질문 개수 (1~5)
+
+blog:
+  min_chars: 1500
+  max_chars: 2000
+  tone: "전문적"            # 전문적 / 친근한 / 설명적
+  include_hospital_info: true
+
+prompts:
+  questions: "prompts/questions.txt"
+  blog: "prompts/blog.txt"
