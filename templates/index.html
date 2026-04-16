@@ -9,23 +9,16 @@
 
     body {
       font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
-      background: #f5f0ea;
-      color: #333;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 40px 20px 80px;
+      background: #f5f0ea; color: #333;
+      min-height: 100vh; display: flex; flex-direction: column;
+      align-items: center; padding: 40px 20px 80px;
     }
 
     h1 { font-size: 1.5rem; font-weight: 700; color: #1a5f5a; margin-bottom: 6px; }
     .subtitle { color: #888; font-size: 0.88rem; margin-bottom: 28px; }
 
     .steps { display: flex; gap: 6px; margin-bottom: 28px; }
-    .step {
-      padding: 5px 14px; border-radius: 20px;
-      font-size: 0.82rem; background: #ddd; color: #999;
-    }
+    .step { padding: 5px 14px; border-radius: 20px; font-size: 0.82rem; background: #ddd; color: #999; }
     .step.active { background: #1a5f5a; color: #fff; font-weight: 600; }
     .step.done   { background: #a8d5d1; color: #1a5f5a; }
 
@@ -50,11 +43,10 @@
       cursor: pointer; font-size: 0.95rem; font-weight: 600;
       font-family: inherit; transition: opacity 0.2s;
     }
-    .btn:hover  { opacity: 0.85; }
+    .btn:hover    { opacity: 0.85; }
     .btn:disabled { opacity: 0.4; cursor: not-allowed; }
     .btn-primary   { background: #1a5f5a; color: #fff; }
     .btn-secondary { background: #eee; color: #555; }
-    .btn-full { width: 100%; justify-content: center; padding: 14px; font-size: 1rem; margin-top: 6px; }
 
     .error-msg {
       color: #c0392b; font-size: 0.88rem; margin-top: 10px;
@@ -62,7 +54,7 @@
     }
     .hidden { display: none; }
 
-    /* ── 채팅 UI ───────────────────────────────────────────── */
+    /* ── 채팅 UI ──────────────────────────────────────────── */
     #chatArea {
       display: flex; flex-direction: column; gap: 16px;
       max-height: 520px; overflow-y: auto;
@@ -73,11 +65,13 @@
     .bubble-row-ai   { display: flex; align-items: flex-start; gap: 10px; }
     .bubble-row-user { display: flex; justify-content: flex-end; }
 
+    /* 아이콘 — 아이콘 확정 전 텍스트 플레이스홀더 */
     .avatar {
       width: 32px; height: 32px; border-radius: 50%;
       background: #1a5f5a; color: #fff;
       display: flex; align-items: center; justify-content: center;
-      font-size: 0.75rem; font-weight: 700; flex-shrink: 0;
+      font-size: 0.7rem; font-weight: 800; flex-shrink: 0;
+      letter-spacing: -0.5px;
     }
 
     .bubble-ai {
@@ -96,38 +90,39 @@
 
     /* 선택지 칩 */
     .options-wrap { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 7px; }
-
     .chip {
       padding: 7px 14px; border-radius: 20px;
       border: 1.5px solid #cce0de; background: #fff;
       color: #1a5f5a; font-size: 0.85rem; font-weight: 600;
       cursor: pointer; font-family: inherit; transition: all 0.15s;
     }
-    .chip:hover   { background: #e8f4f3; border-color: #1a5f5a; }
+    .chip:hover    { background: #e8f4f3; border-color: #1a5f5a; }
     .chip.selected { background: #d4ecea; border-color: #1a5f5a; color: #0d4a45; }
-    .chip.skip    { border-color: #ddd; color: #999; font-weight: 400; }
+    .chip.skip     { border-color: #ddd; color: #999; font-weight: 400; }
     .chip.skip:hover { background: #f5f5f5; border-color: #bbb; }
     .chip:disabled { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
 
-    /* 다중 선택 확인 버튼 */
+    /* 통합 입력 영역 */
+    .question-input-area { margin-top: 10px; }
+    .question-input-area input {
+      width: 100%; padding: 9px 12px; border: 1.5px solid #ddd;
+      border-radius: 8px; font-size: 0.9rem; font-family: inherit; outline: none;
+      transition: border-color 0.2s;
+    }
+    .question-input-area input:focus { border-color: #1a5f5a; }
+    .question-input-area input::placeholder { color: #bbb; }
+
+    .confirm-row { display: flex; align-items: center; gap: 8px; margin-top: 9px; }
     .chip-confirm {
-      display: none; margin-top: 9px;
-      padding: 8px 20px; border-radius: 20px;
+      padding: 7px 20px; border-radius: 20px;
       background: #1a5f5a; color: #fff; border: none;
       font-size: 0.85rem; font-weight: 600;
       cursor: pointer; font-family: inherit; transition: opacity 0.2s;
+      display: none;
     }
     .chip-confirm:hover { opacity: 0.85; }
 
-    /* 직접 입력 인라인 */
-    .custom-input-wrap { margin-top: 10px; display: flex; gap: 8px; }
-    .custom-input-wrap input {
-      flex: 1; padding: 9px 12px; border: 1.5px solid #1a5f5a;
-      border-radius: 8px; font-size: 0.9rem; font-family: inherit; outline: none;
-    }
-    .custom-input-wrap .btn { padding: 9px 16px; font-size: 0.88rem; }
-
-    /* 추가 자료 섹션 */
+    /* 추가 자료 */
     .materials-section { margin-top: 14px; display: flex; flex-direction: column; gap: 14px; }
     .material-label { font-size: 0.82rem; font-weight: 600; color: #555; margin-bottom: 5px; }
     .link-input-row { display: flex; gap: 6px; }
@@ -146,12 +141,25 @@
     .link-tag button:hover { color: #c0392b; }
     .materials-footer { display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end; }
 
-    /* 결과 */
+    /* 결과 — 마크다운 렌더링 */
     #output {
-      white-space: pre-wrap; font-size: 0.93rem; line-height: 1.85;
+      font-size: 0.93rem; line-height: 1.9;
       min-height: 200px; padding: 16px; background: #fafafa;
       border-radius: 8px; border: 1.5px solid #eee; margin-bottom: 16px;
+      word-break: keep-all;
     }
+    #output h2 {
+      font-size: 1.05rem; font-weight: 700; color: #1a5f5a;
+      margin: 1.4em 0 0.5em; padding-bottom: 4px;
+      border-bottom: 1.5px solid #d4ecea;
+    }
+    #output h3 { font-size: 0.97rem; font-weight: 700; margin: 1.1em 0 0.4em; }
+    #output strong { font-weight: 700; color: #111; }
+    #output hr { border: none; border-top: 1px solid #e0e0e0; margin: 1.2em 0; }
+    #output p  { margin-bottom: 0.8em; }
+    #output ul, #output ol { padding-left: 1.4em; margin-bottom: 0.8em; }
+    #output li { margin-bottom: 0.3em; }
+
     .result-footer { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
     #tokenInfo { font-size: 0.8rem; color: #999; }
 
@@ -160,8 +168,8 @@
       0%{content:''} 25%{content:'.'} 50%{content:'..'} 75%{content:'...'} 100%{content:''}
     }
     @keyframes fadeSlideIn {
-      from { opacity: 0; transform: translateY(6px); }
-      to   { opacity: 1; transform: translateY(0); }
+      from { opacity:0; transform:translateY(6px); }
+      to   { opacity:1; transform:translateY(0); }
     }
   </style>
 </head>
@@ -178,7 +186,7 @@
 
   <div class="card">
 
-    <!-- 단계 1: 주제 입력 -->
+    <!-- 단계 1 -->
     <div id="step1">
       <label for="keyword">블로그 주제</label>
       <textarea id="keyword" rows="2" placeholder="예: 소화불량 한방 치료, 허리 통증 침 치료, 면역력 강화 한약"></textarea>
@@ -188,13 +196,13 @@
       </div>
     </div>
 
-    <!-- 단계 2: 대화형 설정 -->
+    <!-- 단계 2 -->
     <div id="step2" class="hidden">
       <div id="chatArea"></div>
       <div id="step2Error" class="error-msg hidden"></div>
     </div>
 
-    <!-- 단계 3: 생성 결과 -->
+    <!-- 단계 3 -->
     <div id="step3" class="hidden">
       <label id="outputLabel">생성 중<span class="dots"></span></label>
       <div id="output"></div>
@@ -209,29 +217,27 @@
   </div>
 
   <script>
-    let currentKeyword  = '';
-    let conversationFlow = [];
-    let currentIndex    = 0;
-    let collectedAnswers  = {};
-    let selectedOptions = {};   // {questionIndex: Set()}
+    let currentKeyword     = '';
+    let conversationFlow   = [];
+    let currentIndex       = 0;
+    let collectedAnswers   = {};
+    let selectedOptions    = {};  // {index: Set()}
     let collectedMaterials = { text: '', webLinks: [], youtubeLinks: [] };
+    let rawOutputText      = ''; // 복사용 원본 텍스트
 
-    // ── 단계 1 → 2 ───────────────────────────────────────────
+    // ── 단계 1 → 2 ─────────────────────────────────────────
     async function goToConversation() {
       const keyword = document.getElementById('keyword').value.trim();
       if (!keyword) { showError('step1Error', '주제를 입력해주세요.'); return; }
 
       currentKeyword = keyword;
       hideError('step1Error');
-
       const btn = document.getElementById('nextBtn');
-      btn.disabled = true;
-      btn.textContent = '준비 중...';
+      btn.disabled = true; btn.textContent = '준비 중...';
 
       try {
         const res  = await fetch('/conversation-flow', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ keyword }),
         });
         const data = await res.json();
@@ -240,53 +246,47 @@
         conversationFlow = data.questions || [];
         if (conversationFlow.length === 0) { showStep(3); startGenerate(); return; }
 
-        currentIndex = 0;
-        collectedAnswers = {};
-        selectedOptions  = {};
+        currentIndex = 0; collectedAnswers = {}; selectedOptions = {};
         collectedMaterials = { text: '', webLinks: [], youtubeLinks: [] };
         document.getElementById('chatArea').innerHTML = '';
         showStep(2);
         showNextQuestion();
-
       } catch (e) {
         showError('step1Error', '서버 연결 오류가 발생했습니다.');
       } finally {
-        btn.disabled = false;
-        btn.textContent = '다음 →';
+        btn.disabled = false; btn.textContent = '다음 →';
       }
     }
 
-    // ── 질문 버블 표시 ────────────────────────────────────────
+    // ── 질문 버블 (통합 입력) ──────────────────────────────
     function showNextQuestion() {
-      if (currentIndex >= conversationFlow.length) {
-        showMaterialsStep();
-        return;
-      }
+      if (currentIndex >= conversationFlow.length) { showMaterialsStep(); return; }
 
-      const q = conversationFlow[currentIndex];
+      const q   = conversationFlow[currentIndex];
       const idx = currentIndex;
 
       const chipsHtml = q.options.map(opt =>
         `<button class="chip" data-value="${escapeAttr(opt)}"
-          onclick="handleOptionToggle(${idx}, '${escapeAttr(opt)}')">${escapeHtml(opt)}</button>`
+          onclick="handleOptionToggle(${idx},'${escapeAttr(opt)}')">${escapeHtml(opt)}</button>`
       ).join('');
 
       const row = document.createElement('div');
       row.className = 'bubble-row-ai';
       row.innerHTML = `
-        <div class="avatar">AI</div>
+        <div class="avatar">Cli</div>
         <div class="bubble-ai">
           <div>${escapeHtml(q.message)}</div>
-          <div class="options-wrap" id="options-${idx}">
-            ${chipsHtml}
-            <button class="chip" onclick="showCustomInput(${idx})">직접 입력</button>
-            <button class="chip skip" onclick="handleSkip(${idx})">건너뛰기</button>
+          <div class="options-wrap" id="options-${idx}">${chipsHtml}</div>
+          <div class="question-input-area">
+            <input type="text" id="custom-input-${idx}"
+              placeholder="직접 입력 (선택사항)"
+              oninput="updateConfirmBtn(${idx})"
+              onkeydown="if(event.key==='Enter') confirmSelection(${idx})">
           </div>
-          <button class="chip-confirm" id="confirm-btn-${idx}" onclick="confirmSelection(${idx})">확인 →</button>
-          <div id="custom-wrap-${idx}" class="custom-input-wrap hidden">
-            <input type="text" id="custom-input-${idx}" placeholder="직접 입력해주세요"
-              onkeydown="if(event.key==='Enter') confirmCustom(${idx})">
-            <button class="btn btn-primary" onclick="confirmCustom(${idx})">확인</button>
+          <div class="confirm-row">
+            <button class="chip skip" onclick="handleSkip(${idx})">건너뛰기</button>
+            <button class="chip-confirm" id="confirm-btn-${idx}"
+              onclick="confirmSelection(${idx})">확인 →</button>
           </div>
         </div>`;
 
@@ -294,10 +294,9 @@
       scrollToBottom();
     }
 
-    // 칩 토글 (다중 선택)
+    // 칩 토글
     function handleOptionToggle(index, value) {
       if (!selectedOptions[index]) selectedOptions[index] = new Set();
-
       const wrap = document.getElementById(`options-${index}`);
       const chip = wrap.querySelector(`[data-value="${value}"]`);
 
@@ -308,37 +307,29 @@
         selectedOptions[index].add(value);
         if (chip) chip.classList.add('selected');
       }
-
-      // 1개 이상 선택 시 확인 버튼 표시
-      const confirmBtn = document.getElementById(`confirm-btn-${index}`);
-      if (confirmBtn) confirmBtn.style.display = selectedOptions[index].size > 0 ? 'inline-flex' : 'none';
+      updateConfirmBtn(index);
     }
 
-    // 다중 선택 확인
+    // 확인 버튼 활성화 여부 갱신
+    function updateConfirmBtn(index) {
+      const hasChips = (selectedOptions[index] || new Set()).size > 0;
+      const inputEl  = document.getElementById(`custom-input-${index}`);
+      const hasText  = inputEl && inputEl.value.trim().length > 0;
+      const btn = document.getElementById(`confirm-btn-${index}`);
+      if (btn) btn.style.display = (hasChips || hasText) ? 'inline-flex' : 'none';
+    }
+
+    // 확인 — 칩 선택 + 직접 입력 통합 제출
     function confirmSelection(index) {
-      const selected = Array.from(selectedOptions[index] || []);
-      if (selected.length === 0) return;
+      const selected  = Array.from(selectedOptions[index] || []);
+      const inputEl   = document.getElementById(`custom-input-${index}`);
+      const customVal = inputEl ? inputEl.value.trim() : '';
+      const allValues = customVal ? [...selected, customVal] : selected;
+      if (allValues.length === 0) return;
+
       lockOptions(index);
-      addUserBubble(selected.join(', '));
-      collectedAnswers[conversationFlow[index].id] = selected.join(', ');
-      currentIndex++;
-      setTimeout(showNextQuestion, 400);
-    }
-
-    // 직접 입력
-    function showCustomInput(index) {
-      document.getElementById(`options-${index}`).classList.add('hidden');
-      document.getElementById(`confirm-btn-${index}`).style.display = 'none';
-      document.getElementById(`custom-wrap-${index}`).classList.remove('hidden');
-      document.getElementById(`custom-input-${index}`).focus();
-    }
-
-    function confirmCustom(index) {
-      const val = document.getElementById(`custom-input-${index}`).value.trim();
-      if (!val) { document.getElementById(`custom-input-${index}`).focus(); return; }
-      document.getElementById(`custom-wrap-${index}`).classList.add('hidden');
-      addUserBubble(val);
-      collectedAnswers[conversationFlow[index].id] = val;
+      addUserBubble(allValues.join(', '));
+      collectedAnswers[conversationFlow[index].id] = allValues.join(', ');
       currentIndex++;
       setTimeout(showNextQuestion, 400);
     }
@@ -354,43 +345,43 @@
     function lockOptions(index) {
       const wrap = document.getElementById(`options-${index}`);
       if (wrap) wrap.querySelectorAll('.chip').forEach(c => c.disabled = true);
-      const confirmBtn = document.getElementById(`confirm-btn-${index}`);
-      if (confirmBtn) confirmBtn.style.display = 'none';
+      const inputEl = document.getElementById(`custom-input-${index}`);
+      if (inputEl) inputEl.disabled = true;
+      const btn = document.getElementById(`confirm-btn-${index}`);
+      if (btn) btn.style.display = 'none';
     }
 
-    // ── 추가 자료 단계 ────────────────────────────────────────
+    // ── 추가 자료 단계 ────────────────────────────────────
     function showMaterialsStep() {
       const row = document.createElement('div');
       row.className = 'bubble-row-ai';
       row.innerHTML = `
-        <div class="avatar">AI</div>
+        <div class="avatar">Cli</div>
         <div class="bubble-ai">
           <div>추가하고 싶은 자료가 있으면 넣어주세요. 글이 더 구체적이고 생생해집니다.</div>
           <div class="materials-section">
-
             <div>
               <div class="material-label">메모 / 추가 내용</div>
               <textarea id="mat-text" rows="3" placeholder="환자 사례, 원장님 경험, 강조할 내용 등..."></textarea>
             </div>
-
             <div>
               <div class="material-label">웹 링크</div>
               <div class="link-input-row">
-                <input type="text" id="web-link-input" placeholder="https://">
+                <input type="text" id="web-link-input" placeholder="https://"
+                  onkeydown="if(event.key==='Enter') addLink('web')">
                 <button class="btn btn-secondary" onclick="addLink('web')">추가</button>
               </div>
               <div class="link-tags" id="web-links-list"></div>
             </div>
-
             <div>
               <div class="material-label">유튜브 링크</div>
               <div class="link-input-row">
-                <input type="text" id="yt-link-input" placeholder="https://youtube.com/...">
+                <input type="text" id="yt-link-input" placeholder="https://youtube.com/..."
+                  onkeydown="if(event.key==='Enter') addLink('yt')">
                 <button class="btn btn-secondary" onclick="addLink('yt')">추가</button>
               </div>
               <div class="link-tags" id="yt-links-list"></div>
             </div>
-
           </div>
           <div class="materials-footer">
             <button class="btn btn-secondary" onclick="skipMaterials()">건너뛰기</button>
@@ -405,16 +396,13 @@
       const inputId = type === 'web' ? 'web-link-input' : 'yt-link-input';
       const listId  = type === 'web' ? 'web-links-list'  : 'yt-links-list';
       const arr     = type === 'web' ? collectedMaterials.webLinks : collectedMaterials.youtubeLinks;
-
-      const url = document.getElementById(inputId).value.trim();
+      const url     = document.getElementById(inputId).value.trim();
       if (!url) return;
 
       arr.push(url);
-      const display = url.length > 45 ? url.slice(0, 45) + '…' : url;
-
+      const display = url.length > 45 ? url.slice(0,45) + '…' : url;
       const tag = document.createElement('span');
       tag.className = 'link-tag';
-      tag.dataset.url = url;
       tag.innerHTML = `${escapeHtml(display)} <button onclick="removeLink(this,'${type}','${escapeAttr(url)}')">×</button>`;
       document.getElementById(listId).appendChild(tag);
       document.getElementById(inputId).value = '';
@@ -422,69 +410,62 @@
 
     function removeLink(btn, type, url) {
       const arr = type === 'web' ? collectedMaterials.webLinks : collectedMaterials.youtubeLinks;
-      const idx = arr.indexOf(url);
-      if (idx > -1) arr.splice(idx, 1);
+      const i   = arr.indexOf(url);
+      if (i > -1) arr.splice(i, 1);
       btn.parentElement.remove();
     }
 
-    function skipMaterials() {
-      addUserBubble('건너뛰기');
-      startGenerate();
-    }
+    function skipMaterials() { addUserBubble('건너뛰기'); startGenerate(); }
 
     function confirmMaterials() {
-      collectedMaterials.text = document.getElementById('mat-text').value.trim();
+      collectedMaterials.text = (document.getElementById('mat-text').value || '').trim();
       const parts = [];
-      if (collectedMaterials.text) parts.push('텍스트 메모');
-      if (collectedMaterials.webLinks.length)    parts.push(`웹 링크 ${collectedMaterials.webLinks.length}개`);
-      if (collectedMaterials.youtubeLinks.length) parts.push(`유튜브 ${collectedMaterials.youtubeLinks.length}개`);
+      if (collectedMaterials.text)                    parts.push('텍스트 메모');
+      if (collectedMaterials.webLinks.length)         parts.push(`웹 링크 ${collectedMaterials.webLinks.length}개`);
+      if (collectedMaterials.youtubeLinks.length)     parts.push(`유튜브 ${collectedMaterials.youtubeLinks.length}개`);
       addUserBubble(parts.length ? parts.join(', ') + ' 추가됨' : '자료 없이 진행');
       startGenerate();
     }
 
-    // ── 블로그 생성 (스트리밍) ────────────────────────────────
+    // ── 블로그 생성 ───────────────────────────────────────
     async function startGenerate() {
       showStep(3);
       const output = document.getElementById('output');
       const label  = document.getElementById('outputLabel');
-      output.textContent = '';
+      output.innerHTML = '';
+      rawOutputText    = '';
       hideError('step3Error');
       document.getElementById('resultFooter').classList.add('hidden');
       label.innerHTML = '생성 중<span class="dots"></span>';
 
-      let fullText = '';
-
       try {
         const res = await fetch('/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            keyword:   currentKeyword,
-            answers:   collectedAnswers,
-            materials: collectedMaterials,
-          }),
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ keyword: currentKeyword, answers: collectedAnswers, materials: collectedMaterials }),
         });
 
-        const reader  = res.body.getReader();
+        const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
 
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-
           buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split('\n');
           buffer = lines.pop();
 
           for (const line of lines) {
             if (!line.startsWith('data: ')) continue;
-            const jsonStr = line.slice(6);
-            if (!jsonStr.trim()) continue;
+            const jsonStr = line.slice(6).trim();
+            if (!jsonStr) continue;
             try {
               const msg = JSON.parse(jsonStr);
               if (msg.error) { label.textContent = '생성 실패'; showError('step3Error', msg.error); return; }
-              if (msg.text)  { fullText += msg.text; output.textContent = fullText; }
+              if (msg.text)  {
+                rawOutputText += msg.text;
+                output.innerHTML = renderMarkdown(rawOutputText); // 마크다운 렌더링
+              }
               if (msg.done)  {
                 label.textContent = '생성 완료';
                 const u = msg.usage;
@@ -501,12 +482,30 @@
       }
     }
 
-    // ── 유틸 ─────────────────────────────────────────────────
+    // ── 마크다운 → HTML 변환 ──────────────────────────────
+    function renderMarkdown(text) {
+      // XSS 방지: HTML 이스케이프 먼저
+      let html = text
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+      // 마크다운 변환
+      html = html
+        .replace(/^## (.+)$/gm,   '<h2>$1</h2>')
+        .replace(/^### (.+)$/gm,  '<h3>$1</h3>')
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/^---$/gm,        '<hr>')
+        .replace(/^\- (.+)$/gm,   '<li>$1</li>')
+        .replace(/\n/g, '<br>');
+
+      return html;
+    }
+
+    // ── 유틸 ─────────────────────────────────────────────
     function showStep(n) {
-      [1, 2, 3].forEach(i => {
+      [1,2,3].forEach(i => {
         document.getElementById(`step${i}`).classList.toggle('hidden', i !== n);
         const badge = document.getElementById(`stepBadge${i}`);
-        badge.classList.remove('active', 'done');
+        badge.classList.remove('active','done');
         if (i < n) badge.classList.add('done');
         if (i === n) badge.classList.add('active');
       });
@@ -525,8 +524,9 @@
       el.scrollTop = el.scrollHeight;
     }
 
+    // 복사: 원본 마크다운 텍스트 복사 (Naver 붙여넣기용)
     function copyResult() {
-      navigator.clipboard.writeText(document.getElementById('output').textContent).then(() => {
+      navigator.clipboard.writeText(rawOutputText).then(() => {
         const btn = event.target;
         btn.textContent = '복사됨!';
         setTimeout(() => btn.textContent = '복사', 1500);
@@ -534,22 +534,17 @@
     }
 
     function reset() {
-      currentKeyword  = '';
-      conversationFlow = [];
-      currentIndex    = 0;
-      collectedAnswers  = {};
-      selectedOptions   = {};
+      currentKeyword = ''; conversationFlow = []; currentIndex = 0;
+      collectedAnswers = {}; selectedOptions = {}; rawOutputText = '';
       collectedMaterials = { text: '', webLinks: [], youtubeLinks: [] };
       document.getElementById('keyword').value    = '';
-      document.getElementById('output').textContent = '';
-      document.getElementById('chatArea').innerHTML  = '';
+      document.getElementById('output').innerHTML = '';
+      document.getElementById('chatArea').innerHTML = '';
       showStep(1);
     }
 
     function showError(id, msg) {
-      const el = document.getElementById(id);
-      el.textContent = msg;
-      el.classList.remove('hidden');
+      const el = document.getElementById(id); el.textContent = msg; el.classList.remove('hidden');
     }
     function hideError(id) { document.getElementById(id).classList.add('hidden'); }
 
@@ -559,9 +554,8 @@
     function escapeAttr(s) { return String(s).replace(/'/g,"\\'"); }
 
     document.addEventListener('keydown', e => {
-      if (e.key === 'Enter' && e.metaKey) {
+      if (e.key === 'Enter' && e.metaKey)
         if (!document.getElementById('step1').classList.contains('hidden')) goToConversation();
-      }
     });
   </script>
 </body>
