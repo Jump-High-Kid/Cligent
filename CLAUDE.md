@@ -17,11 +17,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **의학 정보**: 검증되지 않은 치료 효과는 사실로 제시 금지 — 항상 불확실성 명시
 - **처방 데이터**: 약재명은 KCD 또는 표준 한의학 용어 사용
 
-## 현재 구현 상태 (2026-04-15 기준)
+## 현재 구현 상태 (2026-04-16 기준)
 
-### 블로그 생성기 MVP (완성)
-
-**첫 번째 기능 — 한의원 블로그 자동 생성기**
+### 대시보드 + 블로그 생성기 (완성)
 
 #### 폴더 구조
 ```
@@ -106,17 +104,60 @@ python3 -m pytest tests/ -v   # 테스트 실행
 - 사용자가 본인 Anthropic API 키 직접 입력
 - claude-sonnet-4-6 기준 글 1편 ≈ ₩7~14
 
+---
+
+### 대시보드 MVP (2026-04-16 추가)
+
+#### 주요 기능
+- **역할 기반 모듈 시스템**: 원장(owner) 전체 접근 / 직원(staff) 허용 모듈만 표시
+- **블로그 생성 이력 연동**: 생성 완료 시 자동 저장 → 대시보드 카드에 통계 표시
+- **공통 사이드바**: 대시보드 + 블로그 생성기 간 네비게이션 공유
+
+#### 접속 URL
+```
+http://localhost:8000/               # 대시보드 (원장 모드)
+http://localhost:8000/?role=staff&staff_id=staff_001  # 직원 모드 (임시)
+http://localhost:8000/blog           # 블로그 생성기
+```
+
+#### 모듈 설정 파일
+- `config.yaml` → modules 섹션: 10개 모듈 기본 권한 정의
+- `data/staff_permissions.json` → 직원별 개별 모듈 권한 설정
+
+#### API 엔드포인트 (전체)
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| GET | `/` | 대시보드 |
+| GET | `/blog` | 블로그 생성기 |
+| GET | `/api/modules/my` | 내 역할 허용 모듈 목록 |
+| GET | `/api/modules/info` | 전체 모듈 정보 |
+| POST | `/api/modules/config` | 직원 모듈 권한 저장 |
+| GET | `/api/blog/stats` | 블로그 생성 통계 |
+| POST | `/conversation-flow` | 대화형 질문 생성 |
+| POST | `/generate` | 블로그 SSE 스트리밍 생성 |
+| POST | `/generate-image-prompts` | 이미지 프롬프트 SSE 생성 |
+
+#### 다음 작업 예정
+- 설정 페이지(`/settings`) — 원장/직원 메뉴 분리, 모듈 권한 토글 UI
+- 로그인 시스템 — URL 파라미터 방식 → 세션/토큰으로 교체
+- `/api/` 접두사 분리 — Electron 데스크탑 전환 준비
+
+---
+
 ## 기술 스택
 
 - **백엔드**: Python 3.9 + FastAPI 0.115
 - **AI**: Anthropic SDK (claude-sonnet-4-6) — SSE 스트리밍
 - **프론트엔드**: Vanilla JS + HTML (fetch + ReadableStream)
-- **설정**: config.yaml + prompts/ 폴더 (노코드 커스터마이징)
+- **설정**: config.yaml + prompts/ + data/ 폴더
+- **모듈 권한**: module_manager.py + staff_permissions.json
+- **이력 관리**: blog_history.py + blog_history.json
 - **테스트**: pytest + FastAPI TestClient + unittest.mock
 
 ## 개발 시작 시 확인 사항
 
 1. `.env` 파일에 `ANTHROPIC_API_KEY` 설정 (`.env.example` 참고)
+   - **worktree 사용 시 주의**: `.env`는 gitignore 대상 → 워크트리에 수동 복사 필요
 2. `python3 -m pip install -r requirements.txt`
 3. `python3 run.py` 로 서버 시작
 
