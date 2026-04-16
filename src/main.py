@@ -72,8 +72,9 @@ async def generate(request: Request):
       - 오류 시: data: {"error": "..."}
     """
     body = await request.json()
-    keyword = body.get("keyword", "").strip()
-    answers = body.get("answers", {})
+    keyword   = body.get("keyword", "").strip()
+    answers   = body.get("answers", {})
+    materials = body.get("materials", {})
 
     if not keyword:
         async def error_stream():
@@ -89,7 +90,7 @@ async def generate(request: Request):
         return StreamingResponse(error_stream(), media_type="text/event-stream")
 
     return StreamingResponse(
-        generate_blog_stream(keyword, answers, api_key),
+        generate_blog_stream(keyword, answers, api_key, materials),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

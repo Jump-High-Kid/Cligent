@@ -21,16 +21,14 @@
     h1 { font-size: 1.5rem; font-weight: 700; color: #1a5f5a; margin-bottom: 6px; }
     .subtitle { color: #888; font-size: 0.88rem; margin-bottom: 28px; }
 
-    /* 단계 표시 */
     .steps { display: flex; gap: 6px; margin-bottom: 28px; }
     .step {
       padding: 5px 14px; border-radius: 20px;
       font-size: 0.82rem; background: #ddd; color: #999;
     }
     .step.active { background: #1a5f5a; color: #fff; font-weight: 600; }
-    .step.done { background: #a8d5d1; color: #1a5f5a; }
+    .step.done   { background: #a8d5d1; color: #1a5f5a; }
 
-    /* 카드 */
     .card {
       background: #fff; border-radius: 16px; padding: 28px;
       width: 100%; max-width: 680px;
@@ -52,11 +50,11 @@
       cursor: pointer; font-size: 0.95rem; font-weight: 600;
       font-family: inherit; transition: opacity 0.2s;
     }
-    .btn:hover { opacity: 0.85; }
+    .btn:hover  { opacity: 0.85; }
     .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-    .btn-primary { background: #1a5f5a; color: #fff; }
+    .btn-primary   { background: #1a5f5a; color: #fff; }
     .btn-secondary { background: #eee; color: #555; }
-    .btn-generate { background: #1a5f5a; color: #fff; width: 100%; justify-content: center; margin-top: 6px; font-size: 1rem; padding: 14px; }
+    .btn-full { width: 100%; justify-content: center; padding: 14px; font-size: 1rem; margin-top: 6px; }
 
     .error-msg {
       color: #c0392b; font-size: 0.88rem; margin-top: 10px;
@@ -64,16 +62,16 @@
     }
     .hidden { display: none; }
 
-    /* ── 채팅 UI ─────────────────────────────────────── */
+    /* ── 채팅 UI ───────────────────────────────────────────── */
     #chatArea {
       display: flex; flex-direction: column; gap: 16px;
-      max-height: 480px; overflow-y: auto;
+      max-height: 520px; overflow-y: auto;
       padding: 4px 2px 12px; margin-bottom: 8px;
       scroll-behavior: smooth;
     }
 
-    /* AI 버블 (왼쪽) */
-    .bubble-row-ai { display: flex; align-items: flex-start; gap: 10px; }
+    .bubble-row-ai   { display: flex; align-items: flex-start; gap: 10px; }
+    .bubble-row-user { display: flex; justify-content: flex-end; }
 
     .avatar {
       width: 32px; height: 32px; border-radius: 50%;
@@ -84,14 +82,10 @@
 
     .bubble-ai {
       background: #f0f4f3; border-radius: 0 12px 12px 12px;
-      padding: 12px 14px; max-width: 80%;
+      padding: 12px 14px; max-width: 88%;
       font-size: 0.93rem; line-height: 1.55; color: #222;
       animation: fadeSlideIn 0.25s ease;
     }
-
-    /* 사용자 버블 (오른쪽) */
-    .bubble-row-user { display: flex; justify-content: flex-end; }
-
     .bubble-user {
       background: #1a5f5a; color: #fff;
       border-radius: 12px 0 12px 12px;
@@ -104,14 +98,26 @@
     .options-wrap { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 7px; }
 
     .chip {
-      padding: 7px 14px; border-radius: 20px; border: 1.5px solid #cce0de;
-      background: #fff; color: #1a5f5a; font-size: 0.85rem; font-weight: 600;
+      padding: 7px 14px; border-radius: 20px;
+      border: 1.5px solid #cce0de; background: #fff;
+      color: #1a5f5a; font-size: 0.85rem; font-weight: 600;
       cursor: pointer; font-family: inherit; transition: all 0.15s;
     }
-    .chip:hover { background: #e8f4f3; border-color: #1a5f5a; }
-    .chip.skip { border-color: #ddd; color: #999; font-weight: 400; }
-    .chip.skip:hover { background: #f5f5f5; border-color: #bbb; color: #666; }
+    .chip:hover   { background: #e8f4f3; border-color: #1a5f5a; }
+    .chip.selected { background: #d4ecea; border-color: #1a5f5a; color: #0d4a45; }
+    .chip.skip    { border-color: #ddd; color: #999; font-weight: 400; }
+    .chip.skip:hover { background: #f5f5f5; border-color: #bbb; }
     .chip:disabled { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
+
+    /* 다중 선택 확인 버튼 */
+    .chip-confirm {
+      display: none; margin-top: 9px;
+      padding: 8px 20px; border-radius: 20px;
+      background: #1a5f5a; color: #fff; border: none;
+      font-size: 0.85rem; font-weight: 600;
+      cursor: pointer; font-family: inherit; transition: opacity 0.2s;
+    }
+    .chip-confirm:hover { opacity: 0.85; }
 
     /* 직접 입력 인라인 */
     .custom-input-wrap { margin-top: 10px; display: flex; gap: 8px; }
@@ -121,14 +127,26 @@
     }
     .custom-input-wrap .btn { padding: 9px 16px; font-size: 0.88rem; }
 
-    /* 로딩 점 */
-    .dots::after { content: ''; animation: dots 1.2s steps(4, end) infinite; }
-    @keyframes dots {
-      0%   { content: ''; } 25%  { content: '.'; }
-      50%  { content: '..'; } 75%  { content: '...'; } 100% { content: ''; }
+    /* 추가 자료 섹션 */
+    .materials-section { margin-top: 14px; display: flex; flex-direction: column; gap: 14px; }
+    .material-label { font-size: 0.82rem; font-weight: 600; color: #555; margin-bottom: 5px; }
+    .link-input-row { display: flex; gap: 6px; }
+    .link-input-row input { flex: 1; padding: 9px 12px; font-size: 0.9rem; }
+    .link-input-row .btn { padding: 9px 14px; font-size: 0.85rem; }
+    .link-tags { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 5px; }
+    .link-tag {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: #f0f4f3; border-radius: 6px;
+      padding: 4px 10px; font-size: 0.82rem; color: #333;
     }
+    .link-tag button {
+      background: none; border: none; cursor: pointer;
+      color: #999; font-size: 1rem; padding: 0; line-height: 1;
+    }
+    .link-tag button:hover { color: #c0392b; }
+    .materials-footer { display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end; }
 
-    /* 결과 영역 */
+    /* 결과 */
     #output {
       white-space: pre-wrap; font-size: 0.93rem; line-height: 1.85;
       min-height: 200px; padding: 16px; background: #fafafa;
@@ -137,6 +155,10 @@
     .result-footer { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
     #tokenInfo { font-size: 0.8rem; color: #999; }
 
+    .dots::after { content: ''; animation: dots 1.2s steps(4,end) infinite; }
+    @keyframes dots {
+      0%{content:''} 25%{content:'.'} 50%{content:'..'} 75%{content:'...'} 100%{content:''}
+    }
     @keyframes fadeSlideIn {
       from { opacity: 0; transform: translateY(6px); }
       to   { opacity: 1; transform: translateY(0); }
@@ -161,7 +183,7 @@
       <label for="keyword">블로그 주제</label>
       <textarea id="keyword" rows="2" placeholder="예: 소화불량 한방 치료, 허리 통증 침 치료, 면역력 강화 한약"></textarea>
       <div id="step1Error" class="error-msg hidden"></div>
-      <div style="margin-top: 16px; text-align: right;">
+      <div style="margin-top:16px; text-align:right;">
         <button class="btn btn-primary" id="nextBtn" onclick="goToConversation()">다음 →</button>
       </div>
     </div>
@@ -187,12 +209,14 @@
   </div>
 
   <script>
-    let currentKeyword = '';
-    let conversationFlow = [];  // [{id, message, options}, ...]
-    let currentIndex = 0;       // 현재 진행 중인 질문 인덱스
-    let collectedAnswers = {};  // {id: 선택값, ...}
+    let currentKeyword  = '';
+    let conversationFlow = [];
+    let currentIndex    = 0;
+    let collectedAnswers  = {};
+    let selectedOptions = {};   // {questionIndex: Set()}
+    let collectedMaterials = { text: '', webLinks: [], youtubeLinks: [] };
 
-    // ── 단계 1 → 2: 대화 흐름 가져오기 ──────────────────────────
+    // ── 단계 1 → 2 ───────────────────────────────────────────
     async function goToConversation() {
       const keyword = document.getElementById('keyword').value.trim();
       if (!keyword) { showError('step1Error', '주제를 입력해주세요.'); return; }
@@ -205,27 +229,21 @@
       btn.textContent = '준비 중...';
 
       try {
-        const res = await fetch('/conversation-flow', {
+        const res  = await fetch('/conversation-flow', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ keyword }),
         });
         const data = await res.json();
-
         if (data.error) { showError('step1Error', data.error); return; }
 
         conversationFlow = data.questions || [];
+        if (conversationFlow.length === 0) { showStep(3); startGenerate(); return; }
 
-        // 질문이 없으면 바로 생성 단계로
-        if (conversationFlow.length === 0) {
-          showStep(3);
-          startGenerate();
-          return;
-        }
-
-        // 대화 초기화 후 첫 질문 표시
         currentIndex = 0;
         collectedAnswers = {};
+        selectedOptions  = {};
+        collectedMaterials = { text: '', webLinks: [], youtubeLinks: [] };
         document.getElementById('chatArea').innerHTML = '';
         showStep(2);
         showNextQuestion();
@@ -238,63 +256,83 @@
       }
     }
 
-    // 다음 질문 버블 표시
+    // ── 질문 버블 표시 ────────────────────────────────────────
     function showNextQuestion() {
       if (currentIndex >= conversationFlow.length) {
-        showCompleteMessage();
+        showMaterialsStep();
         return;
       }
 
       const q = conversationFlow[currentIndex];
-      const chatArea = document.getElementById('chatArea');
+      const idx = currentIndex;
 
-      // AI 버블 생성
-      const row = document.createElement('div');
-      row.className = 'bubble-row-ai';
-      row.id = `q-row-${currentIndex}`;
-
-      // 선택지 칩 HTML
       const chipsHtml = q.options.map(opt =>
-        `<button class="chip" onclick="handleOptionSelect(${currentIndex}, '${escapeAttr(opt)}')">${escapeHtml(opt)}</button>`
+        `<button class="chip" data-value="${escapeAttr(opt)}"
+          onclick="handleOptionToggle(${idx}, '${escapeAttr(opt)}')">${escapeHtml(opt)}</button>`
       ).join('');
 
+      const row = document.createElement('div');
+      row.className = 'bubble-row-ai';
       row.innerHTML = `
         <div class="avatar">AI</div>
         <div class="bubble-ai">
           <div>${escapeHtml(q.message)}</div>
-          <div class="options-wrap" id="options-${currentIndex}">
+          <div class="options-wrap" id="options-${idx}">
             ${chipsHtml}
-            <button class="chip" onclick="showCustomInput(${currentIndex})">직접 입력</button>
-            <button class="chip skip" onclick="handleSkip(${currentIndex})">건너뛰기</button>
+            <button class="chip" onclick="showCustomInput(${idx})">직접 입력</button>
+            <button class="chip skip" onclick="handleSkip(${idx})">건너뛰기</button>
           </div>
-          <div id="custom-wrap-${currentIndex}" class="custom-input-wrap hidden">
-            <input type="text" id="custom-input-${currentIndex}" placeholder="직접 입력해주세요"
-              onkeydown="if(event.key==='Enter') confirmCustom(${currentIndex})">
-            <button class="btn btn-primary" onclick="confirmCustom(${currentIndex})">확인</button>
+          <button class="chip-confirm" id="confirm-btn-${idx}" onclick="confirmSelection(${idx})">확인 →</button>
+          <div id="custom-wrap-${idx}" class="custom-input-wrap hidden">
+            <input type="text" id="custom-input-${idx}" placeholder="직접 입력해주세요"
+              onkeydown="if(event.key==='Enter') confirmCustom(${idx})">
+            <button class="btn btn-primary" onclick="confirmCustom(${idx})">확인</button>
           </div>
         </div>`;
 
-      chatArea.appendChild(row);
+      document.getElementById('chatArea').appendChild(row);
       scrollToBottom();
     }
 
-    // 선택지 클릭
-    function handleOptionSelect(index, value) {
+    // 칩 토글 (다중 선택)
+    function handleOptionToggle(index, value) {
+      if (!selectedOptions[index]) selectedOptions[index] = new Set();
+
+      const wrap = document.getElementById(`options-${index}`);
+      const chip = wrap.querySelector(`[data-value="${value}"]`);
+
+      if (selectedOptions[index].has(value)) {
+        selectedOptions[index].delete(value);
+        if (chip) chip.classList.remove('selected');
+      } else {
+        selectedOptions[index].add(value);
+        if (chip) chip.classList.add('selected');
+      }
+
+      // 1개 이상 선택 시 확인 버튼 표시
+      const confirmBtn = document.getElementById(`confirm-btn-${index}`);
+      if (confirmBtn) confirmBtn.style.display = selectedOptions[index].size > 0 ? 'inline-flex' : 'none';
+    }
+
+    // 다중 선택 확인
+    function confirmSelection(index) {
+      const selected = Array.from(selectedOptions[index] || []);
+      if (selected.length === 0) return;
       lockOptions(index);
-      addUserBubble(value);
-      collectedAnswers[conversationFlow[index].id] = value;
+      addUserBubble(selected.join(', '));
+      collectedAnswers[conversationFlow[index].id] = selected.join(', ');
       currentIndex++;
       setTimeout(showNextQuestion, 400);
     }
 
-    // 직접 입력 칩 클릭 → 인라인 input 표시
+    // 직접 입력
     function showCustomInput(index) {
       document.getElementById(`options-${index}`).classList.add('hidden');
+      document.getElementById(`confirm-btn-${index}`).style.display = 'none';
       document.getElementById(`custom-wrap-${index}`).classList.remove('hidden');
       document.getElementById(`custom-input-${index}`).focus();
     }
 
-    // 직접 입력 확인
     function confirmCustom(index) {
       const val = document.getElementById(`custom-input-${index}`).value.trim();
       if (!val) { document.getElementById(`custom-input-${index}`).focus(); return; }
@@ -313,44 +351,102 @@
       setTimeout(showNextQuestion, 400);
     }
 
-    // 선택지 비활성화 (선택 후)
     function lockOptions(index) {
       const wrap = document.getElementById(`options-${index}`);
       if (wrap) wrap.querySelectorAll('.chip').forEach(c => c.disabled = true);
+      const confirmBtn = document.getElementById(`confirm-btn-${index}`);
+      if (confirmBtn) confirmBtn.style.display = 'none';
     }
 
-    // 사용자 답변 버블 추가
-    function addUserBubble(text) {
-      const chatArea = document.getElementById('chatArea');
-      const row = document.createElement('div');
-      row.className = 'bubble-row-user';
-      row.innerHTML = `<div class="bubble-user">${escapeHtml(text)}</div>`;
-      chatArea.appendChild(row);
-      scrollToBottom();
-    }
-
-    // 모든 질문 완료 → 생성 시작 메시지
-    function showCompleteMessage() {
-      const chatArea = document.getElementById('chatArea');
+    // ── 추가 자료 단계 ────────────────────────────────────────
+    function showMaterialsStep() {
       const row = document.createElement('div');
       row.className = 'bubble-row-ai';
       row.innerHTML = `
         <div class="avatar">AI</div>
         <div class="bubble-ai">
-          설정이 완료됐습니다. 블로그를 생성할게요.
-          <div style="margin-top: 12px;">
-            <button class="btn btn-generate" onclick="startGenerate()">블로그 생성 시작</button>
+          <div>추가하고 싶은 자료가 있으면 넣어주세요. 글이 더 구체적이고 생생해집니다.</div>
+          <div class="materials-section">
+
+            <div>
+              <div class="material-label">메모 / 추가 내용</div>
+              <textarea id="mat-text" rows="3" placeholder="환자 사례, 원장님 경험, 강조할 내용 등..."></textarea>
+            </div>
+
+            <div>
+              <div class="material-label">웹 링크</div>
+              <div class="link-input-row">
+                <input type="text" id="web-link-input" placeholder="https://">
+                <button class="btn btn-secondary" onclick="addLink('web')">추가</button>
+              </div>
+              <div class="link-tags" id="web-links-list"></div>
+            </div>
+
+            <div>
+              <div class="material-label">유튜브 링크</div>
+              <div class="link-input-row">
+                <input type="text" id="yt-link-input" placeholder="https://youtube.com/...">
+                <button class="btn btn-secondary" onclick="addLink('yt')">추가</button>
+              </div>
+              <div class="link-tags" id="yt-links-list"></div>
+            </div>
+
+          </div>
+          <div class="materials-footer">
+            <button class="btn btn-secondary" onclick="skipMaterials()">건너뛰기</button>
+            <button class="btn btn-primary" onclick="confirmMaterials()">완료 — 블로그 생성</button>
           </div>
         </div>`;
-      chatArea.appendChild(row);
+      document.getElementById('chatArea').appendChild(row);
       scrollToBottom();
     }
 
-    // ── 단계 2 → 3: 블로그 생성 (스트리밍) ──────────────────────
+    function addLink(type) {
+      const inputId = type === 'web' ? 'web-link-input' : 'yt-link-input';
+      const listId  = type === 'web' ? 'web-links-list'  : 'yt-links-list';
+      const arr     = type === 'web' ? collectedMaterials.webLinks : collectedMaterials.youtubeLinks;
+
+      const url = document.getElementById(inputId).value.trim();
+      if (!url) return;
+
+      arr.push(url);
+      const display = url.length > 45 ? url.slice(0, 45) + '…' : url;
+
+      const tag = document.createElement('span');
+      tag.className = 'link-tag';
+      tag.dataset.url = url;
+      tag.innerHTML = `${escapeHtml(display)} <button onclick="removeLink(this,'${type}','${escapeAttr(url)}')">×</button>`;
+      document.getElementById(listId).appendChild(tag);
+      document.getElementById(inputId).value = '';
+    }
+
+    function removeLink(btn, type, url) {
+      const arr = type === 'web' ? collectedMaterials.webLinks : collectedMaterials.youtubeLinks;
+      const idx = arr.indexOf(url);
+      if (idx > -1) arr.splice(idx, 1);
+      btn.parentElement.remove();
+    }
+
+    function skipMaterials() {
+      addUserBubble('건너뛰기');
+      startGenerate();
+    }
+
+    function confirmMaterials() {
+      collectedMaterials.text = document.getElementById('mat-text').value.trim();
+      const parts = [];
+      if (collectedMaterials.text) parts.push('텍스트 메모');
+      if (collectedMaterials.webLinks.length)    parts.push(`웹 링크 ${collectedMaterials.webLinks.length}개`);
+      if (collectedMaterials.youtubeLinks.length) parts.push(`유튜브 ${collectedMaterials.youtubeLinks.length}개`);
+      addUserBubble(parts.length ? parts.join(', ') + ' 추가됨' : '자료 없이 진행');
+      startGenerate();
+    }
+
+    // ── 블로그 생성 (스트리밍) ────────────────────────────────
     async function startGenerate() {
       showStep(3);
       const output = document.getElementById('output');
-      const label = document.getElementById('outputLabel');
+      const label  = document.getElementById('outputLabel');
       output.textContent = '';
       hideError('step3Error');
       document.getElementById('resultFooter').classList.add('hidden');
@@ -362,10 +458,14 @@
         const res = await fetch('/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ keyword: currentKeyword, answers: collectedAnswers }),
+          body: JSON.stringify({
+            keyword:   currentKeyword,
+            answers:   collectedAnswers,
+            materials: collectedMaterials,
+          }),
         });
 
-        const reader = res.body.getReader();
+        const reader  = res.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
 
@@ -381,20 +481,11 @@
             if (!line.startsWith('data: ')) continue;
             const jsonStr = line.slice(6);
             if (!jsonStr.trim()) continue;
-
             try {
               const msg = JSON.parse(jsonStr);
-
-              if (msg.error) {
-                label.textContent = '생성 실패';
-                showError('step3Error', msg.error);
-                return;
-              }
-              if (msg.text) {
-                fullText += msg.text;
-                output.textContent = fullText;
-              }
-              if (msg.done) {
+              if (msg.error) { label.textContent = '생성 실패'; showError('step3Error', msg.error); return; }
+              if (msg.text)  { fullText += msg.text; output.textContent = fullText; }
+              if (msg.done)  {
                 label.textContent = '생성 완료';
                 const u = msg.usage;
                 document.getElementById('tokenInfo').textContent =
@@ -410,7 +501,7 @@
       }
     }
 
-    // ── 유틸 ──────────────────────────────────────────────────────
+    // ── 유틸 ─────────────────────────────────────────────────
     function showStep(n) {
       [1, 2, 3].forEach(i => {
         document.getElementById(`step${i}`).classList.toggle('hidden', i !== n);
@@ -421,9 +512,17 @@
       });
     }
 
+    function addUserBubble(text) {
+      const row = document.createElement('div');
+      row.className = 'bubble-row-user';
+      row.innerHTML = `<div class="bubble-user">${escapeHtml(text)}</div>`;
+      document.getElementById('chatArea').appendChild(row);
+      scrollToBottom();
+    }
+
     function scrollToBottom() {
-      const chatArea = document.getElementById('chatArea');
-      chatArea.scrollTop = chatArea.scrollHeight;
+      const el = document.getElementById('chatArea');
+      el.scrollTop = el.scrollHeight;
     }
 
     function copyResult() {
@@ -435,13 +534,15 @@
     }
 
     function reset() {
-      currentKeyword = '';
+      currentKeyword  = '';
       conversationFlow = [];
-      currentIndex = 0;
-      collectedAnswers = {};
-      document.getElementById('keyword').value = '';
+      currentIndex    = 0;
+      collectedAnswers  = {};
+      selectedOptions   = {};
+      collectedMaterials = { text: '', webLinks: [], youtubeLinks: [] };
+      document.getElementById('keyword').value    = '';
       document.getElementById('output').textContent = '';
-      document.getElementById('chatArea').innerHTML = '';
+      document.getElementById('chatArea').innerHTML  = '';
       showStep(1);
     }
 
@@ -450,20 +551,13 @@
       el.textContent = msg;
       el.classList.remove('hidden');
     }
+    function hideError(id) { document.getElementById(id).classList.add('hidden'); }
 
-    function hideError(id) {
-      document.getElementById(id).classList.add('hidden');
+    function escapeHtml(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
+    function escapeAttr(s) { return String(s).replace(/'/g,"\\'"); }
 
-    // XSS 방지용 이스케이프
-    function escapeHtml(str) {
-      return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-    }
-    function escapeAttr(str) {
-      return String(str).replace(/'/g, "\\'");
-    }
-
-    // Cmd/Ctrl+Enter 단축키
     document.addEventListener('keydown', e => {
       if (e.key === 'Enter' && e.metaKey) {
         if (!document.getElementById('step1').classList.contains('hidden')) goToConversation();
