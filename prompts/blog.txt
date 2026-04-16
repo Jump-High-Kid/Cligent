@@ -47,15 +47,23 @@
 
   통계·보고서:
   [1] 건강보험심사평가원. (2023). 2022년 한의 진료 통계연보. 건강보험심사평가원. 주요 수치: 한의원 외래 환자 수 ○○만명.
+  URL: https://www.hira.or.kr/bbsDummy.do?pgmid=HIRAA020045020000
 
   임상진료지침:
   [2] 대한한의학회. (2022). 기능성 소화불량 한의표준임상진료지침. 제2판. 대한한의학회지, 43(2), pp.1-45.
+  URL: https://www.jkom.org
 
   국제 기관:
   [3] WHO. (2019). WHO global report on traditional and complementary medicine 2019. World Health Organization, Geneva. pp.15-28.
+  URL: https://www.who.int/publications/i/item/978-92-4-151543-6
 
+- **URL 기재 규칙** (반드시 준수):
+  - 해당 자료의 실제 접근 가능한 URL이 확실한 경우에만 기재
+  - 불확실한 URL 생성 절대 금지 — URL을 모르면 해당 줄 생략
+  - 기관 홈페이지 URL은 기재 가능 (예: who.int, hira.or.kr, kiom.re.kr)
+  - 특정 보고서·논문 URL은 확실히 알 때만 기재
 - 가상 저자명·논문 제목 생성 금지 — 실제 기관명만 사용
-- 정확한 페이지·권호를 알 수 없으면 "(정확한 권호 확인 필요)" 표기
+- 정확한 페이지·권호를 알 수 없으면 해당 항목 공란으로 남김 — "(정확한 권호 확인 필요)" 표기 금지
 - 인용 기관 예시: 대한한의학회, 한국한의학연구원, WHO, 건강보험심사평가원, 국민건강보험공단
 
 ## AI 문체 억제 규칙 (반드시 준수)

@@ -657,13 +657,37 @@
       el.scrollTop = el.scrollHeight;
     }
 
-    // 복사: 원본 마크다운 텍스트 복사 (Naver 붙여넣기용)
-    function copyResult() {
-      navigator.clipboard.writeText(rawOutputText).then(() => {
-        const btn = event.target;
-        btn.textContent = '복사됨!';
-        setTimeout(() => btn.textContent = '복사', 1500);
-      });
+    // 복사: HTML 형식으로 복사 → 네이버 블로그에 붙여넣기 시 서식(굵기·제목) 유지
+    // ClipboardItem 미지원 브라우저는 마크다운 기호 제거한 텍스트로 폴백
+    async function copyResult() {
+      const btn = event.target;
+      const htmlContent = document.getElementById('output').innerHTML;
+
+      try {
+        // HTML + 텍스트 동시 제공 — 붙여넣는 곳이 HTML을 지원하면 서식 유지
+        const htmlBlob = new Blob([htmlContent], { type: 'text/html' });
+        const textBlob = new Blob([stripMarkdown(rawOutputText)], { type: 'text/plain' });
+        await navigator.clipboard.write([
+          new ClipboardItem({ 'text/html': htmlBlob, 'text/plain': textBlob })
+        ]);
+      } catch (_) {
+        // 폴백: 마크다운 기호 제거한 순수 텍스트
+        await navigator.clipboard.writeText(stripMarkdown(rawOutputText));
+      }
+
+      btn.textContent = '복사됨!';
+      setTimeout(() => btn.textContent = '복사', 1500);
+    }
+
+    // 마크다운 기호 제거 (폴백용 plain text)
+    function stripMarkdown(text) {
+      return text
+        .replace(/^## (.+)$/gm, '$1')
+        .replace(/^### (.+)$/gm, '$1')
+        .replace(/\*\*(.*?)\*\*/g, '$1')
+        .replace(/^---$/gm, '')
+        .replace(/^\- /gm, '• ')
+        .trim();
     }
 
     function reset() {
