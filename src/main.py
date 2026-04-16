@@ -14,6 +14,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from config_loader import load_config
 from conversation_flow import generate_conversation_flow
 from blog_generator import generate_blog_stream
+from image_prompt_generator import generate_image_prompts_stream
 
 # 프로젝트 루트의 .env 파일에서 API 키 로드
 ROOT = Path(__file__).parent.parent
@@ -91,6 +92,47 @@ async def generate(request: Request):
 
     return StreamingResponse(
         generate_blog_stream(keyword, answers, api_key, materials),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@app.post("/generate-image-prompts")
+async def generate_image_prompts(request: Request):
+    """
+    블로그 본문을 받아 이미지 프롬프트 5개를 SSE 스트리밍으로 생성
+
+    요청: {
+      "keyword": "소화불량 한방 치료",
+      "blog_content": "생성된 블로그 본문 (마크다운)"
+    }
+    응답: text/event-stream (SSE)
+      - 생성 중: data: {"text": "..."}
+      - 완료 시: data: {"done": true, "usage": {...}}
+      - 오류 시: data: {"error": "..."}
+    """
+    body = await request.json()
+    keyword     = body.get("keyword", "").strip()
+    blog_content = body.get("blog_content", "").strip()
+
+    if not keyword or not blog_content:
+        async def error_stream():
+            import json
+            yield f"data: {json.dumps({'error': '주제와 블로그 본문이 필요합니다.'})}\n\n"
+        return StreamingResponse(error_stream(), media_type="text/event-stream")
+
+    api_key = os.getenv("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        async def error_stream():
+            import json
+            yield f"data: {json.dumps({'error': '.env 파일에 ANTHROPIC_API_KEY를 설정해주세요.'})}\n\n"
+        return StreamingResponse(error_stream(), media_type="text/event-stream")
+
+    return StreamingResponse(
+        generate_image_prompts_stream(keyword, blog_content, api_key),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

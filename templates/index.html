@@ -141,6 +141,31 @@
     .link-tag button:hover { color: #c0392b; }
     .materials-footer { display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end; }
 
+    /* 이미지 프롬프트 섹션 */
+    #imagePromptSection {
+      margin-top: 20px; border-top: 1.5px solid #e8f4f3; padding-top: 20px;
+    }
+    #imagePromptSection h3 {
+      font-size: 0.95rem; font-weight: 700; color: #1a5f5a; margin-bottom: 12px;
+    }
+    #imagePromptTip {
+      background: #f0f7f6; border-left: 3px solid #1a5f5a;
+      padding: 10px 14px; border-radius: 0 8px 8px 0;
+      font-size: 0.85rem; line-height: 1.6; color: #444; margin-bottom: 14px;
+    }
+    #imagePromptOutput {
+      font-size: 0.88rem; line-height: 1.85; padding: 14px;
+      background: #fafafa; border-radius: 8px; border: 1.5px solid #eee;
+      min-height: 80px; word-break: keep-all;
+    }
+    #imagePromptOutput strong { font-weight: 700; color: #1a5f5a; }
+    #imagePromptOutput code {
+      display: block; background: #f0f4f3; border-radius: 6px;
+      padding: 8px 12px; font-size: 0.82rem; font-family: 'Menlo', 'Courier New', monospace;
+      color: #333; margin: 6px 0 14px; white-space: pre-wrap; word-break: break-all;
+    }
+    .img-prompt-footer { display: flex; gap: 8px; margin-top: 12px; justify-content: flex-end; }
+
     /* 결과 — 마크다운 렌더링 */
     #output {
       font-size: 0.93rem; line-height: 1.9;
@@ -209,21 +234,38 @@
       <div id="step3Error" class="error-msg hidden"></div>
       <div class="result-footer hidden" id="resultFooter">
         <button class="btn btn-primary" onclick="copyResult()">복사</button>
+        <button class="btn btn-secondary" id="imgPromptBtn" onclick="startImagePromptGenerate()" style="background:#e8f4f3; color:#1a5f5a;">이미지 프롬프트 생성</button>
         <button class="btn btn-secondary" onclick="reset()">처음부터</button>
         <span id="tokenInfo"></span>
+      </div>
+
+      <!-- 이미지 프롬프트 섹션 (숨김 → 버튼 클릭 시 표시) -->
+      <div id="imagePromptSection" class="hidden">
+        <h3>이미지 프롬프트</h3>
+        <div id="imagePromptTip">
+          <strong>품질 향상 팁</strong> — 아래 프롬프트를 이미지 AI에 입력할 때, 실제 진료실·공간 사진을 함께 업로드하면 훨씬 현실감 있는 이미지가 생성됩니다.<br>
+          예: Midjourney <code>--iw</code> 파라미터 / DALL-E 이미지 편집 / 나노바나나 참조 이미지
+        </div>
+        <label id="imgPromptLabel">생성 중<span class="dots"></span></label>
+        <div id="imagePromptOutput"></div>
+        <div id="step3ImgError" class="error-msg hidden"></div>
+        <div class="img-prompt-footer hidden" id="imgPromptFooter">
+          <button class="btn btn-primary" onclick="copyImagePrompts()">프롬프트 복사</button>
+        </div>
       </div>
     </div>
 
   </div>
 
   <script>
-    let currentKeyword     = '';
-    let conversationFlow   = [];
-    let currentIndex       = 0;
-    let collectedAnswers   = {};
-    let selectedOptions    = {};  // {index: Set()}
-    let collectedMaterials = { text: '', webLinks: [], youtubeLinks: [] };
-    let rawOutputText      = ''; // 복사용 원본 텍스트
+    let currentKeyword       = '';
+    let conversationFlow     = [];
+    let currentIndex         = 0;
+    let collectedAnswers     = {};
+    let selectedOptions      = {};  // {index: Set()}
+    let collectedMaterials   = { text: '', webLinks: [], youtubeLinks: [] };
+    let rawOutputText        = ''; // 복사용 원본 블로그 텍스트
+    let rawImagePromptText   = ''; // 복사용 이미지 프롬프트 텍스트
 
     // ── 단계 1 → 2 ─────────────────────────────────────────
     async function goToConversation() {
@@ -482,6 +524,97 @@
       }
     }
 
+    // ── 이미지 프롬프트 생성 ──────────────────────────────
+    async function startImagePromptGenerate() {
+      if (!rawOutputText) return;
+
+      const section = document.getElementById('imagePromptSection');
+      const output  = document.getElementById('imagePromptOutput');
+      const label   = document.getElementById('imgPromptLabel');
+      const btn     = document.getElementById('imgPromptBtn');
+
+      section.classList.remove('hidden');
+      output.innerHTML = '';
+      rawImagePromptText = '';
+      hideError('step3ImgError');
+      document.getElementById('imgPromptFooter').classList.add('hidden');
+      label.innerHTML = '생성 중<span class="dots"></span>';
+      btn.disabled = true;
+      section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+      try {
+        const res = await fetch('/generate-image-prompts', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ keyword: currentKeyword, blog_content: rawOutputText }),
+        });
+
+        const reader  = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop();
+
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            const jsonStr = line.slice(6).trim();
+            if (!jsonStr) continue;
+            try {
+              const msg = JSON.parse(jsonStr);
+              if (msg.error) {
+                label.textContent = '생성 실패';
+                showError('step3ImgError', msg.error);
+                return;
+              }
+              if (msg.text) {
+                rawImagePromptText += msg.text;
+                output.innerHTML = renderImagePrompts(rawImagePromptText);
+              }
+              if (msg.done) {
+                label.textContent = '이미지 프롬프트 완성';
+                document.getElementById('imgPromptFooter').classList.remove('hidden');
+                btn.textContent = '다시 생성';
+                btn.disabled = false;
+              }
+            } catch (_) {}
+          }
+        }
+      } catch (e) {
+        label.textContent = '연결 오류';
+        showError('step3ImgError', '연결이 끊겼습니다. 다시 시도해주세요.');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    // 이미지 프롬프트 마크다운 렌더링
+    // **[N번 이미지] 제목** → <strong> 처리
+    // `...` → <code> 처리 (프롬프트 코드 블록)
+    function renderImagePrompts(text) {
+      let html = text
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+      // `코드 블록` → <code>
+      html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+      // **굵게**
+      html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+      // 줄바꿈
+      html = html.replace(/\n/g, '<br>');
+      return html;
+    }
+
+    function copyImagePrompts() {
+      navigator.clipboard.writeText(rawImagePromptText).then(() => {
+        const btn = event.target;
+        btn.textContent = '복사됨!';
+        setTimeout(() => btn.textContent = '프롬프트 복사', 1500);
+      });
+    }
+
     // ── 마크다운 → HTML 변환 ──────────────────────────────
     function renderMarkdown(text) {
       // XSS 방지: HTML 이스케이프 먼저
@@ -536,10 +669,15 @@
     function reset() {
       currentKeyword = ''; conversationFlow = []; currentIndex = 0;
       collectedAnswers = {}; selectedOptions = {}; rawOutputText = '';
+      rawImagePromptText = '';
       collectedMaterials = { text: '', webLinks: [], youtubeLinks: [] };
-      document.getElementById('keyword').value    = '';
-      document.getElementById('output').innerHTML = '';
-      document.getElementById('chatArea').innerHTML = '';
+      document.getElementById('keyword').value          = '';
+      document.getElementById('output').innerHTML       = '';
+      document.getElementById('chatArea').innerHTML     = '';
+      document.getElementById('imagePromptOutput').innerHTML = '';
+      document.getElementById('imagePromptSection').classList.add('hidden');
+      document.getElementById('imgPromptBtn').textContent = '이미지 프롬프트 생성';
+      document.getElementById('imgPromptBtn').disabled = false;
       showStep(1);
     }
 

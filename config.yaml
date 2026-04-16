@@ -15,3 +15,4 @@ prompts:
   questions: "prompts/questions.txt"
   conversation: "prompts/conversation.txt"
   blog: "prompts/blog.txt"
+  image_prompt: "prompts/image_prompt.txt"
