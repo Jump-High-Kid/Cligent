@@ -206,6 +206,19 @@ python3 -m pytest tests/ -v   # 테스트 실행
 - `chief_director` / `director` 선택 시 → 모든 토글 `disabled=true` + "항상 접근" 메시지
 - `team_member` 이하 선택 시 → 토글 자유롭게 ON/OFF + 변경 즉시 자동저장 (`POST /api/settings/staff/modules`)
 
+### 사이드바 통일 원칙 (2026-04-19 확정)
+- **기준 파일**: `dashboard.html` 사이드바가 canonical(정본)
+- 사이드바 수정 시 dashboard.html → settings.html → index.html 순으로 동일하게 적용
+- 토글 CSS: `.ios-toggle:checked ~ .ios-toggle-dot` (`+` 아님, `~` 사용)
+- 하단 구성: `role-badge` → `invite-btn`(director 이상만 표시) → `doLogout()` 순서
+- collapsed 숨김 클래스: `nav-label`, `sidebar-logo-text`, `sidebar-role`, `sidebar-invite-label`
+
+### 다음 구현 예정: 멀티 AI 모델 지원
+설정 > 시스템 & 보안 > AI 설정 탭으로 구현 예정. 3단계 계획:
+- **Phase 1** — 설정 AI 설정 탭: 공급사별 API 키 저장(암호화), 기본 모델 선택, 월 예산 설정
+- **Phase 2** — 블로그 생성기 모델 선택 적용: 선택 모델에 따라 OpenAI/Anthropic/Gemini API 분기
+- **Phase 3** — 멀티모델 비교 패널: 동일 주제로 2~3개 모델 병렬 생성·비교
+
 ## 기술 스택
 
 - **백엔드**: Python 3.9 + FastAPI 0.115

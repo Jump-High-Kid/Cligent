@@ -89,7 +89,9 @@
   #sidebar { width: 18rem; transition: width 0.22s cubic-bezier(.4,0,.2,1); overflow: hidden; }
   #sidebar.collapsed { width: 4.5rem; padding-left: 0.75rem; padding-right: 0.75rem; }
   #sidebar.collapsed .nav-label,
-  #sidebar.collapsed .sidebar-logo-text { display: none; }
+  #sidebar.collapsed .sidebar-logo-text,
+  #sidebar.collapsed .sidebar-role,
+  #sidebar.collapsed .sidebar-invite-label { display: none; }
   #sidebar.collapsed nav a,
   #sidebar.collapsed .sidebar-bottom-btn { justify-content: center; padding-left: 0; padding-right: 0; }
   #main-content { margin-left: 18rem; transition: margin-left 0.22s cubic-bezier(.4,0,.2,1); }
@@ -100,7 +102,7 @@
   #sidebar.collapsed #toggle-btn .toggle-close { display: block; }
 
   /* iOS 토글 */
-  .ios-toggle:checked + .ios-toggle-dot {
+  .ios-toggle:checked ~ .ios-toggle-dot {
     transform: translateX(1.5rem);
   }
   .ios-toggle:checked ~ .ios-toggle-bg {
@@ -129,60 +131,65 @@
 <body class="bg-background text-on-surface selection:bg-secondary-container overflow-hidden">
 
 <!-- 좌측 사이드 내비게이션 -->
-<aside id="sidebar" class="fixed left-0 top-0 h-screen bg-stone-100 dark:bg-stone-950 z-50 flex flex-col p-6 space-y-2 shadow-xl dark:shadow-none">
+<aside id="sidebar" class="h-screen flex flex-col fixed left-0 top-0 py-8 px-6 gap-y-4 bg-stone-100 z-50">
   <!-- 로고 + 토글 버튼 -->
-  <div class="flex items-center justify-between mb-6 min-w-0">
-    <div class="sidebar-logo-text flex items-center gap-3 min-w-0">
-      <div class="w-10 h-10 bg-primary-container rounded-xl flex items-center justify-center text-white flex-shrink-0">
-        <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1;">medical_services</span>
+  <div class="flex items-center justify-between mb-4 px-2 min-w-0">
+    <div class="sidebar-logo-text min-w-0 flex items-center gap-3">
+      <div class="w-10 h-10 bg-emerald-900 rounded-xl flex items-center justify-center flex-shrink-0">
+        <span class="material-symbols-outlined text-white" style="font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24;">medical_services</span>
       </div>
       <div class="min-w-0">
-        <h1 class="text-lg font-extrabold text-emerald-900 dark:text-emerald-500 leading-none whitespace-nowrap">Cligent</h1>
-        <p class="text-[11px] text-stone-500 font-medium uppercase tracking-wider mt-1 whitespace-nowrap">한의원 관리 플랫폼</p>
+        <h1 class="text-lg font-extrabold text-emerald-900 leading-none whitespace-nowrap">Cligent</h1>
+        <p class="text-[11px] font-medium text-stone-500 uppercase tracking-wider mt-1 whitespace-nowrap">한의원 관리 플랫폼</p>
       </div>
     </div>
     <button id="toggle-btn" onclick="toggleSidebar()"
-      class="flex-shrink-0 ml-1 p-1.5 rounded-lg hover:bg-stone-200 transition-all text-stone-500">
+      class="flex-shrink-0 ml-2 p-1.5 rounded-lg hover:bg-surface-container-high transition-all text-slate-500">
       <span class="material-symbols-outlined toggle-open text-[22px]">menu_open</span>
       <span class="material-symbols-outlined toggle-close text-[22px]">menu</span>
     </button>
   </div>
 
-  <nav class="flex-1 space-y-1">
-    <a class="flex items-center gap-3 text-stone-600 px-4 py-3 rounded-xl hover:bg-stone-200 transition-all" href="/">
+  <nav class="flex flex-col gap-y-1">
+    <a class="flex items-center gap-x-3 py-3 px-4 rounded-xl text-stone-600 hover:bg-stone-200 transition-colors duration-200" href="/">
       <span class="material-symbols-outlined flex-shrink-0">dashboard</span>
-      <span class="nav-label font-medium text-sm whitespace-nowrap">대시보드</span>
+      <span class="nav-label text-[0.875rem] whitespace-nowrap">대시보드</span>
     </a>
-    <a class="flex items-center gap-3 text-stone-600 px-4 py-3 rounded-xl hover:bg-stone-200 transition-all" href="/blog">
+    <a class="flex items-center gap-x-3 py-3 px-4 rounded-xl text-stone-600 hover:bg-stone-200 transition-colors duration-200" href="/blog">
       <span class="material-symbols-outlined flex-shrink-0">article</span>
-      <span class="nav-label font-medium text-sm whitespace-nowrap">블로그 생성기</span>
+      <span class="nav-label text-[0.875rem] whitespace-nowrap">블로그 생성기</span>
     </a>
-    <a class="flex items-center gap-3 text-stone-600 px-4 py-3 rounded-xl hover:bg-stone-200 transition-all" href="#">
+    <a class="flex items-center gap-x-3 py-3 px-4 rounded-xl text-stone-600 hover:bg-stone-200 transition-colors duration-200" href="#">
       <span class="material-symbols-outlined flex-shrink-0">inventory_2</span>
-      <span class="nav-label font-medium text-sm whitespace-nowrap">재고 관리</span>
+      <span class="nav-label text-[0.875rem] whitespace-nowrap">재고 관리</span>
     </a>
-    <a class="flex items-center gap-3 text-stone-600 px-4 py-3 rounded-xl hover:bg-stone-200 transition-all" href="#">
+    <a class="flex items-center gap-x-3 py-3 px-4 rounded-xl text-stone-600 hover:bg-stone-200 transition-colors duration-200" href="#">
       <span class="material-symbols-outlined flex-shrink-0">calendar_today</span>
-      <span class="nav-label font-medium text-sm whitespace-nowrap">스케줄 관리</span>
+      <span class="nav-label text-[0.875rem] whitespace-nowrap">스케줄 관리</span>
     </a>
-    <a class="flex items-center gap-3 text-stone-600 px-4 py-3 rounded-xl hover:bg-stone-200 transition-all" href="#">
+    <a class="flex items-center gap-x-3 py-3 px-4 rounded-xl text-stone-600 hover:bg-stone-200 transition-colors duration-200" href="#">
       <span class="material-symbols-outlined flex-shrink-0">group</span>
-      <span class="nav-label font-medium text-sm whitespace-nowrap">고객 관리</span>
+      <span class="nav-label text-[0.875rem] whitespace-nowrap">고객 관리</span>
     </a>
-    <a class="flex items-center gap-3 bg-emerald-900 text-white rounded-xl px-4 py-3 shadow-lg shadow-emerald-900/20" href="/settings">
+    <a class="flex items-center gap-x-3 py-3 px-4 rounded-xl bg-emerald-900 text-white transition-all" href="/settings">
       <span class="material-symbols-outlined flex-shrink-0">settings</span>
-      <span class="nav-label font-medium text-sm whitespace-nowrap">설정</span>
+      <span class="nav-label text-[0.875rem] whitespace-nowrap">설정</span>
     </a>
   </nav>
 
-  <div class="pt-6 mt-6 border-t border-stone-200 dark:border-stone-800 space-y-1">
-    <button id="inviteBtn" class="sidebar-bottom-btn w-full flex items-center gap-3 text-stone-600 px-4 py-3 rounded-xl hover:bg-stone-200 transition-all">
-      <span class="material-symbols-outlined flex-shrink-0">person_add</span>
-      <span class="nav-label font-medium text-sm whitespace-nowrap">팀원 초대</span>
+  <div class="mt-auto space-y-2">
+    <div id="role-badge" class="sidebar-role mb-1 px-3 py-2 rounded-xl bg-surface-container text-[0.75rem] text-center font-medium text-on-surface-variant whitespace-nowrap">
+      로딩 중...
+    </div>
+    <button id="invite-btn" onclick="openInviteModal()"
+      class="sidebar-bottom-btn hidden w-full text-stone-600 hover:bg-stone-200 py-3 px-4 rounded-xl font-medium transition-all flex items-center justify-center gap-2">
+      <span class="material-symbols-outlined text-[20px] flex-shrink-0">person_add</span>
+      <span class="sidebar-invite-label nav-label whitespace-nowrap">직원 초대</span>
     </button>
-    <button id="logoutBtn" class="sidebar-bottom-btn w-full flex items-center gap-3 text-stone-600 px-4 py-3 rounded-xl hover:bg-stone-200 transition-all">
-      <span class="material-symbols-outlined flex-shrink-0">logout</span>
-      <span class="nav-label font-medium text-sm whitespace-nowrap">로그아웃</span>
+    <button onclick="doLogout()"
+      class="sidebar-bottom-btn w-full text-stone-600 hover:bg-stone-200 py-3 px-4 rounded-xl font-medium transition-all flex items-center justify-center gap-2">
+      <span class="material-symbols-outlined text-[20px] flex-shrink-0">logout</span>
+      <span class="nav-label whitespace-nowrap">로그아웃</span>
     </button>
   </div>
 </aside>
@@ -529,6 +536,28 @@
     }
   })();
 
+  // ── 사용자 정보 로드 (역할 배지 + 초대 버튼) ──────────────────
+  const DIRECTOR_ROLES = ['chief_director', 'director'];
+  (async function loadUserInfo() {
+    try {
+      const res = await fetch('/api/auth/me');
+      if (!res.ok) { window.location.href = '/login'; return; }
+      const user = await res.json();
+      const badge = document.getElementById('role-badge');
+      badge.textContent = ROLE_LABELS[user.role] || user.role;
+      badge.classList.add('text-primary', 'font-semibold');
+      if (DIRECTOR_ROLES.includes(user.role)) {
+        document.getElementById('invite-btn').classList.remove('hidden');
+      }
+    } catch (e) { /* 네트워크 오류 시 조용히 무시 */ }
+  })();
+
+  // ── 로그아웃 ──────────────────────────────────────────────────
+  async function doLogout() {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    window.location.href = '/login';
+  }
+
   // ── 탭 전환 ──────────────────────────────────────────────────────
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -537,12 +566,6 @@
       btn.classList.add('active');
       document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
     });
-  });
-
-  // ── 로그아웃 ─────────────────────────────────────────────────────
-  document.getElementById('logoutBtn').addEventListener('click', async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
-    location.href = '/login';
   });
 
   // ── 저장 버튼 숨김 (자동저장으로 대체) ───────────────────────────
