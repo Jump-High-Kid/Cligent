@@ -17,44 +17,57 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **의학 정보**: 검증되지 않은 치료 효과는 사실로 제시 금지 — 항상 불확실성 명시
 - **처방 데이터**: 약재명은 KCD 또는 표준 한의학 용어 사용
 
-## 현재 구현 상태 (2026-04-15 기준)
+## 현재 구현 상태 (2026-04-18 기준)
 
-### 블로그 생성기 MVP (완성)
-
-**첫 번째 기능 — 한의원 블로그 자동 생성기**
-
-#### 폴더 구조
+### 폴더 구조
 ```
 medical-assistant/
-├── run.py              # 서버 시작 (python3 run.py)
-├── conftest.py         # pytest 경로 설정
-├── config.yaml         # 노코드 커스터마이징 (질문 수, 글 길이, 톤 등)
+├── run.py                  # 서버 시작 (python3 run.py)
+├── conftest.py             # pytest 경로 설정
+├── config.yaml             # 노코드 커스터마이징
 ├── requirements.txt
-├── .env                # ANTHROPIC_API_KEY 설정 (gitignore)
+├── .env                    # API 키 + SECRET_KEY (gitignore)
 ├── .env.example
-├── prompts/
-│   ├── questions.txt   # 질문 생성 프롬프트 (편집 가능)
-│   └── blog.txt        # 블로그 생성 프롬프트 (편집 가능)
+├── agents/                 # Claude Code 에이전트 정의 (.md)
+├── prompts/                # 프롬프트 텍스트 파일
+├── data/
+│   ├── cligent.db          # SQLite (users, invites, clinics)
+│   ├── rbac_permissions.json
+│   └── blog_history.json
 ├── src/
-│   ├── main.py         # FastAPI 앱
-│   ├── config_loader.py
-│   ├── question_generator.py
-│   └── blog_generator.py
+│   ├── main.py             # FastAPI 앱 (전체 라우트)
+│   ├── auth_manager.py     # JWT, bcrypt, 초대 토큰
+│   ├── db_manager.py       # SQLite 초기화 + 커넥션
+│   ├── module_manager.py   # RBAC 권한 관리
+│   ├── settings_manager.py # 설정 위자드 데이터
+│   ├── blog_generator.py   # 블로그 SSE 스트리밍
+│   ├── blog_history.py     # 생성 이력 저장
+│   ├── conversation_flow.py
+│   ├── image_prompt_generator.py
+│   └── config_loader.py
 ├── templates/
-│   └── index.html      # 3단계 UI
+│   ├── dashboard.html      # 메인 대시보드
+│   ├── dashboard_mobile.html
+│   ├── login.html          # 로그인 + 비밀번호 변경
+│   ├── onboard.html        # 초대 링크 온보딩
+│   ├── index.html          # 블로그 생성기
+│   └── settings_setup.html # RBAC 초기 설정 위자드
 └── tests/
-    └── test_blog.py    # 7개 테스트 (전체 통과)
+    ├── test_blog.py
+    └── test_auth.py        # 20개 유닛 테스트
 ```
 
-#### API 엔드포인트
-- `GET /` — 블로그 생성기 UI
-- `POST /questions` — 주제 기반 맞춤 질문 생성 (Claude 호출)
-- `POST /generate` — 블로그 SSE 스트리밍 생성 (Claude 호출)
+### 인증 시스템 (2026-04-18 완성)
+- **JWT httpOnly 쿠키** (8h 유효, SameSite=Lax)
+- **5단계 RBAC**: chief_director > director > manager > team_leader > team_member
+- **초대 기반 온보딩**: 원장이 링크 생성 → 카톡/문자 전달 → 직원 비밀번호 설정
+- **슬롯 관리**: clinic당 max_slots 제한
+- **SECRET_KEY**: 서버 시작 시 검증, .env 필수
 
-#### 3단계 플로우
-1. 주제 입력
-2. Claude가 생성한 질문 3개에 답변 (선택사항)
-3. 실시간 스트리밍으로 블로그 생성 + 토큰/비용 표시
+### 블로그 생성기 (완성)
+- **3단계 플로우**: 주제 입력 → 대화형 질문 → SSE 스트리밍 생성
+- **이미지 프롬프트**: 블로그 완성 후 5개 자동 생성
+- **복사 기능**: 네이버 서식 유지 HTML 복사
 
 #### 커스터마이징 (config.yaml)
 ```yaml

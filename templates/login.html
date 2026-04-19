@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cligent 로그인</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f5f4f0;
+    --surface: #ffffff;
+    --border: #e2e0d8;
+    --text: #1a1a18;
+    --muted: #6b6960;
+    --accent: #2d6a4f;
+    --accent-hover: #245a42;
+    --error: #c0392b;
+    --radius: 10px;
+    --shadow: 0 2px 16px rgba(0,0,0,0.08);
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--bg);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    padding: 40px 36px;
+    width: 100%;
+    max-width: 400px;
+  }
+
+  .logo {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: -0.5px;
+    margin-bottom: 4px;
+  }
+
+  .subtitle {
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 32px;
+  }
+
+  label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+
+  input[type="email"],
+  input[type="password"],
+  input[type="text"] {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 15px;
+    color: var(--text);
+    background: var(--bg);
+    outline: none;
+    transition: border-color 0.15s;
+    margin-bottom: 16px;
+  }
+
+  input:focus {
+    border-color: var(--accent);
+    background: #fff;
+  }
+
+  .btn {
+    width: 100%;
+    padding: 12px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+    margin-top: 4px;
+  }
+
+  .btn:hover { background: var(--accent-hover); }
+  .btn:disabled { opacity: 0.6; cursor: default; }
+
+  .error-msg {
+    background: #fdf0ef;
+    border: 1px solid #f5c6c2;
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    font-size: 13px;
+    color: var(--error);
+    margin-bottom: 16px;
+    display: none;
+  }
+
+  .section { display: none; }
+  .section.active { display: block; }
+
+  .divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 24px 0;
+  }
+
+  .switch-link {
+    font-size: 13px;
+    color: var(--muted);
+    text-align: center;
+    margin-top: 16px;
+  }
+
+  .switch-link a {
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  .pw-hint {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: -10px;
+    margin-bottom: 16px;
+  }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="logo">Cligent</div>
+  <div class="subtitle">한의원 AI 업무 어시스턴트</div>
+
+  <div id="errorMsg" class="error-msg"></div>
+
+  <!-- ── 로그인 섹션 ── -->
+  <div id="loginSection" class="section active">
+    <label for="email">이메일</label>
+    <input type="email" id="email" placeholder="clinic@example.com" autocomplete="email">
+
+    <label for="password">비밀번호</label>
+    <input type="password" id="password" placeholder="••••••••" autocomplete="current-password">
+
+    <button class="btn" id="loginBtn" onclick="doLogin()">로그인</button>
+
+    <div class="switch-link">
+      비밀번호를 잊으셨나요? <a onclick="showSection('resetSection')">비밀번호 변경</a>
+    </div>
+  </div>
+
+  <!-- ── 비밀번호 변경 섹션 ── -->
+  <div id="changeSection" class="section">
+    <p style="font-size:13px;color:var(--muted);margin-bottom:20px;">
+      첫 로그인이거나 비밀번호 변경이 필요합니다.
+    </p>
+    <label for="newPw">새 비밀번호</label>
+    <input type="password" id="newPw" placeholder="8자 이상">
+    <div class="pw-hint">영문 + 숫자 조합 8자 이상</div>
+
+    <label for="newPwConfirm">비밀번호 확인</label>
+    <input type="password" id="newPwConfirm" placeholder="재입력">
+
+    <button class="btn" onclick="doChangePw()">비밀번호 변경 및 로그인</button>
+  </div>
+
+  <!-- ── 이메일로 초대 링크 안내 ── -->
+  <div id="resetSection" class="section">
+    <p style="font-size:14px;color:var(--text);margin-bottom:12px;">
+      원장님이 초대 링크를 카카오톡 또는 문자로 전달해드립니다.
+    </p>
+    <p style="font-size:13px;color:var(--muted);">
+      초대 링크를 받지 못하셨다면 원장님께 재발송을 요청해주세요.
+    </p>
+    <hr class="divider">
+    <div class="switch-link">
+      <a onclick="showSection('loginSection')">로그인으로 돌아가기</a>
+    </div>
+  </div>
+</div>
+
+<script>
+  function showSection(id) {
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    clearError();
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('errorMsg');
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+
+  function clearError() {
+    document.getElementById('errorMsg').style.display = 'none';
+  }
+
+  async function doLogin() {
+    clearError();
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const btn = document.getElementById('loginBtn');
+
+    if (!email || !password) { showError('이메일과 비밀번호를 입력해주세요.'); return; }
+
+    btn.disabled = true;
+    btn.textContent = '로그인 중...';
+
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        showError(data.detail || '로그인에 실패했습니다.');
+        return;
+      }
+
+      if (data.must_change_pw) {
+        showSection('changeSection');
+        return;
+      }
+
+      window.location.href = '/';
+    } catch {
+      showError('서버 연결에 실패했습니다.');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '로그인';
+    }
+  }
+
+  async function doChangePw() {
+    clearError();
+    const newPw = document.getElementById('newPw').value;
+    const confirm = document.getElementById('newPwConfirm').value;
+
+    if (newPw.length < 8) { showError('비밀번호는 8자 이상이어야 합니다.'); return; }
+    if (newPw !== confirm) { showError('비밀번호가 일치하지 않습니다.'); return; }
+
+    try {
+      const res = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ new_password: newPw }),
+      });
+      const data = await res.json();
+      if (!res.ok) { showError(data.detail || '변경 실패'); return; }
+      window.location.href = '/';
+    } catch {
+      showError('서버 연결에 실패했습니다.');
+    }
+  }
+
+  // 엔터키 로그인
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      const active = document.querySelector('.section.active');
+      if (active.id === 'loginSection') doLogin();
+    }
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,298 @@
+{
+  "_comment": "RBAC 권한 정의. settings_setup.html 위자드에서 대표원장이 초기 확인 후 저장.",
+  "_version": 1,
+  "roles": {
+    "chief_director": {
+      "label": "대표원장",
+      "level": 1,
+      "description": "전체 권한 보유. 데이터 관리·보안 설정 포함."
+    },
+    "director": {
+      "label": "원장",
+      "level": 2,
+      "description": "운영 전권. 데이터 삭제·보안 설정 제외."
+    },
+    "manager": {
+      "label": "매니저",
+      "level": 3,
+      "description": "팀 운영 및 매출 통계 접근. 비급여 매출 제외."
+    },
+    "team_leader": {
+      "label": "팀장",
+      "level": 4,
+      "description": "실무 전반. 매출 통계 접근 제외."
+    },
+    "team_member": {
+      "label": "팀원",
+      "level": 5,
+      "description": "기본 조회 및 교육 영상만 접근."
+    }
+  },
+  "module_permissions": {
+    "stats_patients": {
+      "label": "환자 수",
+      "allowed_roles": [
+        "chief_director",
+        "director",
+        "manager",
+        "team_leader",
+        "team_member"
+      ],
+      "recommended": [
+        "chief_director",
+        "director",
+        "manager",
+        "team_leader",
+        "team_member"
+      ]
+    },
+    "stats_appointments": {
+      "label": "예약 건수",
+      "allowed_roles": [
+        "chief_director",
+        "director",
+        "manager",
+        "team_leader",
+        "team_member"
+      ],
+      "recommended": [
+        "chief_director",
+        "director",
+        "manager",
+        "team_leader",
+        "team_member"
+      ]
+    },
+    "stats_cancellations": {
+      "label": "예약 취소",
+      "allowed_roles": [
+        "chief_director",
+        "director",
+        "manager",
+        "team_leader",
+        "team_member"
+      ],
+      "recommended": [
+        "chief_director",
+        "director",
+        "manager",
+        "team_leader",
+        "team_member"
+      ]
+    },
+    "chart_7day": {
+      "label": "7일 추이 차트",
+      "allowed_roles": [
+        "chief_director",
+        "director",
+        "manager",
+        "team_leader",
+        "team_member"
+      ],
+      "recommended": [
+        "chief_director",
+        "director",
+        "manager",
+        "team_leader",
+        "team_member"
+      ]
+    },
+    "education_videos": {
+      "label": "교육 영상",
+      "allowed_roles": [
+        "chief_director",
+        "director",
+        "manager",
+        "team_leader",
+        "team_member"
+      ],
+      "recommended": [
+        "chief_director",
+        "director",
+        "manager",
+        "team_leader",
+        "team_member"
+      ]
+    },
+    "crm_actions": {
+      "label": "후속 조치 리스트",
+      "allowed_roles": [
+        "chief_director",
+        "director",
+        "manager",
+        "team_leader"
+      ],
+      "recommended": [
+        "chief_director",
+        "director",
+        "manager",
+        "team_leader"
+      ]
+    },
+    "blog_generator": {
+      "label": "Blog Generator",
+      "allowed_roles": [
+        "chief_director",
+        "director",
+        "manager",
+        "team_leader",
+        "team_member"
+      ],
+      "recommended": [
+        "chief_director",
+        "director",
+        "manager",
+        "team_leader"
+      ]
+    },
+    "stats_revenue": {
+      "label": "총 매출",
+      "allowed_roles": [
+        "chief_director",
+        "director",
+        "manager"
+      ],
+      "recommended": [
+        "chief_director",
+        "director",
+        "manager"
+      ]
+    },
+    "stats_revenue_noninsured": {
+      "label": "비급여 매출",
+      "allowed_roles": [
+        "chief_director",
+        "director"
+      ],
+      "recommended": [
+        "chief_director",
+        "director"
+      ]
+    },
+    "insights": {
+      "label": "New Insights",
+      "allowed_roles": [
+        "chief_director",
+        "director"
+      ],
+      "recommended": [
+        "chief_director",
+        "director"
+      ]
+    }
+  },
+  "settings_permissions": {
+    "my_profile": {
+      "label": "내 프로필",
+      "allowed_roles": [
+        "chief_director",
+        "director",
+        "manager",
+        "team_leader",
+        "team_member"
+      ],
+      "recommended": [
+        "chief_director",
+        "director",
+        "manager",
+        "team_leader",
+        "team_member"
+      ]
+    },
+    "notifications": {
+      "label": "알림 설정",
+      "allowed_roles": [
+        "chief_director",
+        "director",
+        "manager",
+        "team_leader",
+        "team_member"
+      ],
+      "recommended": [
+        "chief_director",
+        "director",
+        "manager",
+        "team_leader",
+        "team_member"
+      ]
+    },
+    "blog_settings": {
+      "label": "블로그 설정",
+      "allowed_roles": [
+        "chief_director",
+        "director",
+        "manager"
+      ],
+      "recommended": [
+        "chief_director",
+        "director",
+        "manager"
+      ]
+    },
+    "team_permissions": {
+      "label": "팀 & 권한 관리",
+      "allowed_roles": [
+        "chief_director",
+        "director",
+        "manager"
+      ],
+      "recommended": [
+        "chief_director",
+        "director",
+        "manager"
+      ],
+      "notes": "매니저는 자기 팀원 권한만 편집 가능"
+    },
+    "clinic_profile": {
+      "label": "한의원 프로필",
+      "allowed_roles": [
+        "chief_director",
+        "director"
+      ],
+      "recommended": [
+        "chief_director",
+        "director"
+      ]
+    },
+    "ai_settings": {
+      "label": "AI 설정 (API Key)",
+      "allowed_roles": [
+        "chief_director",
+        "director"
+      ],
+      "recommended": [
+        "chief_director",
+        "director"
+      ]
+    },
+    "plan_usage": {
+      "label": "플랜 & 사용량",
+      "allowed_roles": [
+        "chief_director",
+        "director"
+      ],
+      "recommended": [
+        "chief_director",
+        "director"
+      ]
+    },
+    "security": {
+      "label": "보안",
+      "allowed_roles": [
+        "chief_director"
+      ],
+      "recommended": [
+        "chief_director"
+      ]
+    },
+    "data_management": {
+      "label": "데이터 관리",
+      "allowed_roles": [
+        "chief_director"
+      ],
+      "recommended": [
+        "chief_director"
+      ]
+    }
+  }
+}

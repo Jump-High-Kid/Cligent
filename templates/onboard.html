@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cligent 초대 등록</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f5f4f0;
+    --surface: #ffffff;
+    --border: #e2e0d8;
+    --text: #1a1a18;
+    --muted: #6b6960;
+    --accent: #2d6a4f;
+    --accent-hover: #245a42;
+    --error: #c0392b;
+    --success: #27ae60;
+    --radius: 10px;
+    --shadow: 0 2px 16px rgba(0,0,0,0.08);
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--bg);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    padding: 40px 36px;
+    width: 100%;
+    max-width: 420px;
+  }
+
+  .logo {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: -0.5px;
+    margin-bottom: 4px;
+  }
+
+  .step-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+  }
+
+  h2 {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+
+  .desc {
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 28px;
+    line-height: 1.6;
+  }
+
+  .invite-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #eaf4ee;
+    border: 1px solid #b7dfc6;
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 13px;
+    color: var(--accent);
+    font-weight: 500;
+    margin-bottom: 24px;
+  }
+
+  label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+
+  input[type="password"] {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 15px;
+    color: var(--text);
+    background: var(--bg);
+    outline: none;
+    transition: border-color 0.15s;
+    margin-bottom: 16px;
+  }
+
+  input:focus {
+    border-color: var(--accent);
+    background: #fff;
+  }
+
+  .pw-hint {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: -10px;
+    margin-bottom: 16px;
+  }
+
+  .btn {
+    width: 100%;
+    padding: 12px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+    margin-top: 4px;
+  }
+
+  .btn:hover { background: var(--accent-hover); }
+  .btn:disabled { opacity: 0.6; cursor: default; }
+
+  .error-msg {
+    background: #fdf0ef;
+    border: 1px solid #f5c6c2;
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    font-size: 13px;
+    color: var(--error);
+    margin-bottom: 16px;
+    display: none;
+  }
+
+  /* 상태별 화면 */
+  .screen { display: none; }
+  .screen.active { display: block; }
+
+  /* 성공 화면 */
+  .success-icon {
+    width: 56px;
+    height: 56px;
+    background: #eaf4ee;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 26px;
+    margin-bottom: 16px;
+  }
+
+  /* 오류 화면 */
+  .expired-icon {
+    width: 56px;
+    height: 56px;
+    background: #fdf0ef;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 26px;
+    margin-bottom: 16px;
+  }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="logo">Cligent</div>
+
+  <div id="errorMsg" class="error-msg"></div>
+
+  <!-- ── 로딩 ── -->
+  <div id="loadingScreen" class="screen active">
+    <p style="color:var(--muted);font-size:14px;margin-top:12px;">초대 링크 확인 중...</p>
+  </div>
+
+  <!-- ── 비밀번호 설정 ── -->
+  <div id="registerScreen" class="screen">
+    <div class="step-label">가입 완료</div>
+    <h2>비밀번호를 설정해주세요</h2>
+    <p class="desc">초대를 수락하고 비밀번호를 설정하면 바로 시작할 수 있습니다.</p>
+
+    <div id="inviteBadge" class="invite-badge">
+      <span>&#9993;</span>
+      <span id="inviteEmail"></span>
+    </div>
+
+    <label for="pw1">비밀번호</label>
+    <input type="password" id="pw1" placeholder="8자 이상">
+    <div class="pw-hint">영문 + 숫자 조합 8자 이상</div>
+
+    <label for="pw2">비밀번호 확인</label>
+    <input type="password" id="pw2" placeholder="재입력">
+
+    <button class="btn" id="submitBtn" onclick="doRegister()">가입 완료 및 로그인</button>
+  </div>
+
+  <!-- ── 성공 ── -->
+  <div id="successScreen" class="screen">
+    <div class="success-icon">&#10003;</div>
+    <h2>가입 완료!</h2>
+    <p class="desc" style="margin-bottom:24px;">
+      Cligent에 오신 것을 환영합니다.<br>잠시 후 대시보드로 이동합니다.
+    </p>
+    <button class="btn" onclick="window.location.href='/'">대시보드 바로가기</button>
+  </div>
+
+  <!-- ── 만료/오류 ── -->
+  <div id="expiredScreen" class="screen">
+    <div class="expired-icon">!</div>
+    <h2>초대 링크 오류</h2>
+    <p class="desc" id="expiredMsg" style="margin-bottom:24px;">
+      초대 링크가 만료되었거나 이미 사용되었습니다.<br>
+      원장님께 재발송을 요청해주세요.
+    </p>
+    <button class="btn" onclick="window.location.href='/login'" style="background:var(--muted);">
+      로그인 페이지로
+    </button>
+  </div>
+</div>
+
+<script>
+  const params = new URLSearchParams(location.search);
+  const token = params.get('token') || '';
+  let inviteData = null;
+
+  async function init() {
+    if (!token) {
+      showExpired('초대 토큰이 없습니다. 링크를 다시 확인해주세요.');
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/auth/invite/verify?token=${encodeURIComponent(token)}`);
+      const data = await res.json();
+
+      if (!res.ok || !data.valid) {
+        showExpired(data.detail || '유효하지 않은 초대 링크입니다.');
+        return;
+      }
+
+      inviteData = data;
+      document.getElementById('inviteEmail').textContent = data.email;
+      showScreen('registerScreen');
+    } catch {
+      showExpired('서버에 연결할 수 없습니다.');
+    }
+  }
+
+  async function doRegister() {
+    clearError();
+    const pw1 = document.getElementById('pw1').value;
+    const pw2 = document.getElementById('pw2').value;
+    const btn = document.getElementById('submitBtn');
+
+    if (pw1.length < 8) { showError('비밀번호는 8자 이상이어야 합니다.'); return; }
+    if (pw1 !== pw2) { showError('비밀번호가 일치하지 않습니다.'); return; }
+
+    btn.disabled = true;
+    btn.textContent = '처리 중...';
+
+    try {
+      const res = await fetch('/api/auth/onboard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, password: pw1 }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        showError(data.detail || '등록에 실패했습니다.');
+        return;
+      }
+
+      showScreen('successScreen');
+      setTimeout(() => { window.location.href = '/'; }, 2500);
+    } catch {
+      showError('서버 연결에 실패했습니다.');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '가입 완료 및 로그인';
+    }
+  }
+
+  function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+
+  function showExpired(msg) {
+    document.getElementById('expiredMsg').textContent = msg;
+    showScreen('expiredScreen');
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('errorMsg');
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+
+  function clearError() {
+    document.getElementById('errorMsg').style.display = 'none';
+  }
+
+  // 엔터키
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter') doRegister();
+  });
+
+  init();
+</script>
+</body>
+</html>
