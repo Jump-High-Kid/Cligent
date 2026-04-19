@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Cligent - Mobile Medical AI Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet"/>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        colors: {
+          "on-primary": "#ffffff", "on-tertiary": "#ffffff", "surface-dim": "#dddad2",
+          "outline-variant": "#bec9c4", "on-surface": "#1c1c17",
+          "on-primary-fixed-variant": "#005142", "on-secondary": "#ffffff",
+          "surface-variant": "#e6e2da", "surface-container-lowest": "#ffffff",
+          "surface": "#fdf9f1", "secondary": "#49645c", "inverse-on-surface": "#f4f0e8",
+          "on-tertiary-container": "#ffcfc5", "on-error-container": "#93000a",
+          "on-secondary-fixed-variant": "#314c44", "tertiary-fixed-dim": "#ffb4a4",
+          "inverse-primary": "#8ad5c0", "tertiary-container": "#8f4d3f",
+          "primary-fixed-dim": "#8ad5c0", "primary": "#005243",
+          "on-tertiary-fixed-variant": "#713529", "tertiary": "#72362a",
+          "on-secondary-fixed": "#04201a", "surface-container-highest": "#e6e2da",
+          "surface-container-high": "#ebe8e0", "surface-container-low": "#f7f3eb",
+          "error-container": "#ffdad6", "tertiary-fixed": "#ffdad3",
+          "on-secondary-container": "#4f6a61", "secondary-container": "#cbe9de",
+          "on-tertiary-fixed": "#390b04", "on-surface-variant": "#3f4945",
+          "primary-fixed": "#a6f1db", "on-background": "#1c1c17",
+          "surface-tint": "#196a59", "background": "#fdf9f1",
+          "on-primary-fixed": "#002019", "primary-container": "#1a6b5a",
+          "surface-bright": "#fdf9f1", "on-error": "#ffffff",
+          "secondary-fixed": "#cbe9de", "outline": "#6f7975",
+          "inverse-surface": "#31302b", "error": "#ba1a1a",
+          "surface-container": "#f1ede6", "secondary-fixed-dim": "#afcdc3",
+          "on-primary-container": "#9de9d3"
+        },
+        borderRadius: { "DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem" },
+        fontFamily: {
+          headline: ["Pretendard", "Inter", "sans-serif"],
+          body: ["Pretendard", "Inter", "sans-serif"],
+          label: ["Pretendard", "Inter", "sans-serif"]
+        }
+      }
+    }
+  }
+</script>
+<style>
+  body { font-family: 'Pretendard', sans-serif; min-height: max(884px, 100dvh); }
+  .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+  .neu-card  { box-shadow:  8px  8px 16px #e5e1d9, -8px -8px 16px #ffffff; }
+  .neu-inset { box-shadow: inset 4px 4px  8px #e5e1d9, inset -4px -4px 8px #ffffff; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  [data-module] { transition: opacity 0.2s; }
+</style>
+</head>
+<body class="bg-surface text-on-surface min-h-screen pb-24">
+
+<!-- 탑 앱바 -->
+<header class="w-full sticky top-0 z-50 bg-[#fdf9f1] flex justify-between items-center px-6 py-4 shadow-[8px_8px_16px_#e5e1d9,-8px_-8px_16px_#ffffff]">
+  <div class="flex items-center gap-3">
+    <div class="w-10 h-10 rounded-full overflow-hidden neu-card border-2 border-white flex items-center justify-center bg-surface-container">
+      <span class="material-symbols-outlined text-primary">person</span>
+    </div>
+    <div>
+      <span class="text-2xl font-bold text-[#005243] font-headline">Cligent</span>
+      <!-- 역할 배지 -->
+      <p id="role-badge" class="text-[10px] text-outline font-medium">로딩 중...</p>
+    </div>
+  </div>
+  <div class="flex items-center gap-4">
+    <button class="material-symbols-outlined text-[#005243] p-2 rounded-xl neu-card active:scale-95 transition-all">search</button>
+    <button class="material-symbols-outlined text-[#005243] p-2 rounded-xl neu-card active:scale-95 transition-all">notifications</button>
+    <button class="material-symbols-outlined text-[#005243] p-2 rounded-xl neu-card active:scale-95 transition-all">settings</button>
+  </div>
+</header>
+
+<main class="px-6 py-4 space-y-8">
+
+  <!-- 검색 + 인사말 -->
+  <section class="space-y-6">
+    <div class="relative group">
+      <div class="neu-inset bg-surface-container-low rounded-2xl p-4 flex items-center gap-3 border border-white/40">
+        <span class="material-symbols-outlined text-outline">search</span>
+        <input class="bg-transparent border-none focus:ring-0 w-full text-on-surface placeholder:text-outline text-sm" placeholder="지금 필요한 것은 무엇인가요?" type="text"/>
+      </div>
+    </div>
+    <div class="space-y-1">
+      <p class="text-secondary text-sm font-medium" id="greeting-date">로딩 중...</p>
+      <h1 class="text-[1.75rem] font-semibold leading-tight tracking-tight">
+        안녕하세요, <br/><span class="text-primary font-bold" id="greeting-name">원장님</span>
+      </h1>
+    </div>
+  </section>
+
+  <!-- 지표 카드 그리드 -->
+  <section class="grid grid-cols-2 gap-4">
+
+    <div data-module="stats_patients" class="neu-card bg-surface-container-lowest p-4 rounded-3xl space-y-2 border border-white/50">
+      <div class="flex justify-between items-start">
+        <span class="material-symbols-outlined text-primary bg-secondary-container p-2 rounded-xl text-lg">group</span>
+        <span class="text-[10px] font-bold text-primary bg-primary-fixed px-2 py-0.5 rounded-full">+12%</span>
+      </div>
+      <p class="text-outline text-xs">환자 수</p>
+      <h3 class="text-xl font-bold">142명</h3>
+    </div>
+
+    <div data-module="stats_appointments" class="neu-card bg-surface-container-lowest p-4 rounded-3xl space-y-2 border border-white/50">
+      <div class="flex justify-between items-start">
+        <span class="material-symbols-outlined text-primary bg-secondary-container p-2 rounded-xl text-lg">calendar_month</span>
+        <span class="text-[10px] font-bold text-primary bg-primary-fixed px-2 py-0.5 rounded-full">+5.4%</span>
+      </div>
+      <p class="text-outline text-xs">예약 건수</p>
+      <h3 class="text-xl font-bold">86건</h3>
+    </div>
+
+    <!-- 총 매출 카드: stats_revenue 숨김 시 카드 전체 숨김 -->
+    <div data-module="stats_revenue" class="neu-card bg-surface-container-lowest p-4 rounded-3xl space-y-2 border border-white/50 col-span-2">
+      <div class="flex justify-between items-center mb-1">
+        <div class="flex items-center gap-2">
+          <span class="material-symbols-outlined text-primary bg-secondary-container p-2 rounded-xl text-lg">payments</span>
+          <p class="text-outline text-xs">총 매출</p>
+        </div>
+        <span class="text-[10px] font-bold text-primary bg-primary-fixed px-2 py-0.5 rounded-full">+8.2%</span>
+      </div>
+      <div class="flex items-baseline gap-2">
+        <h3 class="text-2xl font-bold">12.4 M</h3>
+        <span class="text-xs text-outline font-medium">KRW</span>
+      </div>
+      <!-- 비급여 매출: 별도 모듈로 인라인 숨김 -->
+      <div data-module="stats_revenue_noninsured" class="flex items-center justify-between pt-2 border-t border-outline-variant/10">
+        <span class="text-[10px] text-outline">비급여 매출</span>
+        <span class="text-xs font-semibold text-primary">5.8 M (+15%)</span>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- 7일 추이 차트 -->
+  <section data-module="chart_7day" class="neu-card bg-surface-container-lowest p-5 rounded-[2rem] border border-white/50">
+    <div class="flex justify-between items-center mb-6">
+      <h2 class="text-sm font-bold flex items-center gap-2">
+        <span class="w-1 h-4 bg-primary rounded-full"></span>
+        7일간의 지표 추이
+      </h2>
+      <button class="material-symbols-outlined text-outline text-lg">more_vert</button>
+    </div>
+    <div class="relative h-40 w-full">
+      <svg class="w-full h-full" viewBox="0 0 400 150">
+        <path d="M0,120 Q50,110 100,80 T200,60 T300,90 T400,40" fill="none" stroke="#005243" stroke-linecap="round" stroke-width="4"/>
+        <path d="M0,140 Q50,130 100,110 T200,90 T300,110 T400,80" fill="none" stroke="#49645c" stroke-dasharray="4 4" stroke-width="2"/>
+        <circle cx="100" cy="80" fill="#005243" r="4"/>
+        <circle cx="400" cy="40" fill="#005243" r="4"/>
+      </svg>
+      <div class="flex justify-between mt-4">
+        <span class="text-[10px] text-outline">Mon</span>
+        <span class="text-[10px] text-outline">Wed</span>
+        <span class="text-[10px] text-outline">Fri</span>
+        <span class="text-[10px] text-primary font-bold">Today</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 후속 조치 리스트 -->
+  <section data-module="crm_actions" class="neu-card bg-surface-container-lowest rounded-[2rem] overflow-hidden border border-white/50">
+    <div class="p-5 space-y-4">
+      <h2 class="text-sm font-bold flex items-center gap-2">
+        <span class="w-1 h-4 bg-tertiary rounded-full"></span>
+        후속 조치 리스트
+      </h2>
+      <div class="space-y-3">
+        <div class="flex items-center justify-between p-3 neu-inset bg-surface-container-low rounded-2xl">
+          <div class="flex items-center gap-3">
+            <span class="material-symbols-outlined text-tertiary bg-tertiary-fixed p-1.5 rounded-lg text-sm">prescriptions</span>
+            <span class="text-xs font-medium">재처방 대상</span>
+          </div>
+          <span class="text-xs font-bold text-tertiary">12건</span>
+        </div>
+        <div class="flex items-center justify-between p-3 neu-inset bg-surface-container-low rounded-2xl">
+          <div class="flex items-center gap-3">
+            <span class="material-symbols-outlined text-primary bg-secondary-container p-1.5 rounded-lg text-sm">call</span>
+            <span class="text-xs font-medium">전화 상담 필요</span>
+          </div>
+          <span class="text-xs font-bold text-primary">5건</span>
+        </div>
+        <div class="flex items-center justify-between p-3 neu-inset bg-surface-container-low rounded-2xl">
+          <div class="flex items-center gap-3">
+            <span class="material-symbols-outlined text-blue-600 bg-blue-50 p-1.5 rounded-lg text-sm">chat</span>
+            <span class="text-xs font-medium">카카오톡 문의</span>
+          </div>
+          <span class="text-xs font-bold text-blue-600">8건</span>
+        </div>
+      </div>
+      <button class="w-full bg-gradient-to-br from-primary to-primary-container text-white py-3.5 rounded-2xl font-semibold text-sm shadow-lg shadow-primary/20 active:scale-[0.98] transition-transform">
+        CRM 바로가기
+      </button>
+    </div>
+  </section>
+
+  <!-- AI 블로그 + 인사이트 -->
+  <section class="grid grid-cols-2 gap-4">
+
+    <!-- 블로그 생성기 카드 — 탭 시 /blog 이동 -->
+    <div data-module="blog_generator" class="col-span-2 neu-card bg-primary-container text-on-primary-container p-5 rounded-[2rem] relative overflow-hidden active:scale-[0.98] transition-transform cursor-pointer" onclick="location.href='/blog'">
+      <div class="relative z-10 space-y-1">
+        <span class="bg-primary/30 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">AI Feature</span>
+        <h3 class="text-lg font-bold leading-tight">AI가 블로그 글을<br/>자동 생성합니다</h3>
+        <!-- 동적 stats -->
+        <div class="flex gap-3 pt-2">
+          <span class="text-[10px] opacity-70">이번 달 <b id="blog-this-month" class="text-on-primary-container">—</b>편</span>
+          <span class="text-[10px] opacity-70">누적 <b id="blog-total" class="text-on-primary-container">—</b>편</span>
+        </div>
+        <p class="text-xs opacity-80 pt-1 flex items-center gap-1">지금 작성하기 <span class="material-symbols-outlined text-sm">arrow_forward</span></p>
+      </div>
+      <span class="material-symbols-outlined absolute -right-4 -bottom-4 text-8xl opacity-10 rotate-12">edit_note</span>
+    </div>
+
+    <div data-module="insights" class="neu-card bg-surface-container-lowest p-4 rounded-3xl space-y-3 border border-white/50">
+      <div class="w-10 h-10 bg-secondary-fixed rounded-xl flex items-center justify-center">
+        <span class="material-symbols-outlined text-on-secondary-fixed-variant">lightbulb</span>
+      </div>
+      <h4 class="text-xs font-bold">New Insights</h4>
+      <p class="text-[10px] text-outline leading-relaxed">이번 주 신규 환자 트렌드 분석 보고서가 도착했습니다.</p>
+    </div>
+
+    <div class="neu-card bg-surface-container-lowest p-4 rounded-3xl space-y-3 border border-white/50">
+      <div class="w-10 h-10 bg-tertiary-fixed rounded-xl flex items-center justify-center">
+        <span class="material-symbols-outlined text-on-tertiary-fixed-variant">emergency</span>
+      </div>
+      <h4 class="text-xs font-bold">Alert System</h4>
+      <p class="text-[10px] text-outline leading-relaxed">심평원 고시 변경 사항 2건이 확인되었습니다.</p>
+    </div>
+
+  </section>
+
+  <!-- 교육 영상 -->
+  <section data-module="education_videos" class="space-y-4">
+    <div class="flex justify-between items-center">
+      <h2 class="text-sm font-bold flex items-center gap-2">
+        <span class="w-1 h-4 bg-primary rounded-full"></span>
+        교육 영상
+      </h2>
+      <button class="text-[10px] font-bold text-primary">전체보기</button>
+    </div>
+    <div class="flex gap-4 overflow-x-auto no-scrollbar pb-4 -mx-2 px-2">
+      <div class="flex-none w-64 neu-card bg-surface-container-lowest rounded-[2rem] overflow-hidden border border-white/50">
+        <div class="relative aspect-video bg-surface-container flex items-center justify-center">
+          <span class="material-symbols-outlined text-slate-300 text-5xl">play_circle</span>
+          <span class="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded-md">12:45</span>
+        </div>
+        <div class="p-4">
+          <h4 class="text-xs font-bold line-clamp-1">AI를 활용한 효율적인 환자 관리법</h4>
+          <p class="text-[10px] text-outline mt-1">Cligent 아카데미 • 조회수 1.2k</p>
+        </div>
+      </div>
+      <div class="flex-none w-64 neu-card bg-surface-container-lowest rounded-[2rem] overflow-hidden border border-white/50">
+        <div class="relative aspect-video bg-surface-container flex items-center justify-center">
+          <span class="material-symbols-outlined text-slate-300 text-5xl">play_circle</span>
+          <span class="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded-md">08:20</span>
+        </div>
+        <div class="p-4">
+          <h4 class="text-xs font-bold line-clamp-1">2024년 변경된 의료 보험 청구 가이드</h4>
+          <p class="text-[10px] text-outline mt-1">의료법률 전문가 팀 • 조회수 850</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- 하단 네비게이션 -->
+<nav class="fixed bottom-0 w-full z-50 rounded-t-[24px] bg-[#fdf9f1]/80 backdrop-blur-xl shadow-[0_-10px_20px_rgba(28,28,23,0.05)] border-t border-[#bec9c4]/15">
+  <div class="flex justify-around items-center w-full px-4 pb-8 pt-3">
+    <a class="flex flex-col items-center bg-[#cbe9de] text-[#314c44] rounded-xl px-4 py-1.5 active:scale-90 transition-transform" href="/mobile">
+      <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1">home</span>
+      <span class="text-[11px] font-bold">홈</span>
+    </a>
+    <a class="flex flex-col items-center text-stone-500 px-4 py-1.5 active:scale-90 transition-transform" href="/blog">
+      <span class="material-symbols-outlined">edit_note</span>
+      <span class="text-[11px] font-medium">글쓰기</span>
+    </a>
+    <a class="flex flex-col items-center text-stone-500 px-4 py-1.5 active:scale-90 transition-transform" href="#">
+      <span class="material-symbols-outlined">group</span>
+      <span class="text-[11px] font-medium">환자</span>
+    </a>
+    <a class="flex flex-col items-center text-stone-500 px-4 py-1.5 active:scale-90 transition-transform" href="#">
+      <span class="material-symbols-outlined">search</span>
+      <span class="text-[11px] font-medium">검색</span>
+    </a>
+  </div>
+</nav>
+
+<!-- ── 모듈 필터링 스크립트 (데스크탑과 동일 로직) ── -->
+<script>
+  const params   = new URLSearchParams(window.location.search)
+  const role     = params.get('role') || 'owner'
+  const staffId  = params.get('staff_id') || ''
+
+  // 날짜 표시
+  const today = new Date()
+  document.getElementById('greeting-date').textContent =
+    today.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })
+
+  // 역할 배지 + 인사말
+  const badge = document.getElementById('role-badge')
+  if (role === 'owner') {
+    badge.textContent = '원장 모드'
+    document.getElementById('greeting-name').textContent = '원장님'
+  } else {
+    badge.textContent = '직원 모드'
+    document.getElementById('greeting-name').textContent = staffId || '직원님'
+  }
+
+  // 모듈 권한 적용
+  async function applyModulePermissions() {
+    try {
+      const url = staffId
+        ? `/api/modules/my?role=${role}&staff_id=${staffId}`
+        : `/api/modules/my?role=${role}`
+      const { modules } = await fetch(url).then(r => r.json())
+      const allowed = new Set(modules)
+
+      document.querySelectorAll('[data-module]').forEach(el => {
+        if (!allowed.has(el.dataset.module)) el.style.display = 'none'
+      })
+    } catch (e) {
+      console.warn('모듈 권한 로드 실패:', e)
+    }
+  }
+
+  // 블로그 통계 로드
+  async function loadBlogStats() {
+    try {
+      const { this_month, total } = await fetch('/api/blog/stats').then(r => r.json())
+      document.getElementById('blog-this-month').textContent = this_month ?? 0
+      document.getElementById('blog-total').textContent = total ?? 0
+    } catch (e) { /* 조용히 무시 */ }
+  }
+
+  applyModulePermissions()
+  loadBlogStats()
+</script>
+
+</body>
+</html>
