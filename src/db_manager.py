@@ -94,3 +94,29 @@ def seed_demo_clinic(name: str = "데모 한의원", max_slots: int = 10) -> int
             (name, max_slots),
         )
         return cur.lastrowid
+
+
+def seed_demo_owner(
+    clinic_id: int,
+    email: str = "owner@cligent.dev",
+    password: str = "Demo1234!",
+) -> None:
+    """
+    개발/테스트용 — owner 계정이 없을 때 대표원장 계정 자동 생성
+    비밀번호: Demo1234! (개발 환경 전용)
+    """
+    from passlib.context import CryptContext
+    pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+    with get_db() as conn:
+        exists = conn.execute(
+            "SELECT id FROM users WHERE email = ?", (email,)
+        ).fetchone()
+        if exists:
+            return
+        hashed = pwd_ctx.hash(password)
+        conn.execute(
+            "INSERT INTO users (clinic_id, email, hashed_password, role, is_active, must_change_pw) "
+            "VALUES (?, ?, ?, 'chief_director', 1, 0)",
+            (clinic_id, email, hashed),
+        )

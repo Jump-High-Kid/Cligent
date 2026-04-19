@@ -1,0 +1,16 @@
+{
+  "1": {
+    "name": "owner",
+    "role": "team_member",
+    "team_id": "",
+    "modules": []
+  },
+  "2": {
+    "name": "staff",
+    "role": "team_member",
+    "team_id": "",
+    "modules": [
+      "content"
+    ]
+  }
+}

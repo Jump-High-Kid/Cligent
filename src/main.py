@@ -73,7 +73,7 @@ from blog_generator import generate_blog_stream
 from blog_history import get_blog_stats, save_blog_entry
 from config_loader import load_config
 from conversation_flow import generate_conversation_flow
-from db_manager import init_db, seed_demo_clinic
+from db_manager import init_db, seed_demo_clinic, seed_demo_owner
 from image_prompt_generator import generate_image_prompts_stream
 from module_manager import (
     get_allowed_modules,
@@ -92,7 +92,8 @@ async def startup():
     init_db()
     # 개발 환경: 클리닉이 없으면 데모 클리닉 자동 생성
     if os.getenv("ENV", "dev") == "dev":
-        seed_demo_clinic()
+        clinic_id = seed_demo_clinic()
+        seed_demo_owner(clinic_id)
 
 
 # ── 페이지 라우트 ─────────────────────────────────────────────────
@@ -125,6 +126,33 @@ async def mobile_dashboard(request: Request):
     if not token:
         return RedirectResponse("/login")
     return FileResponse(ROOT / "templates" / "dashboard_mobile.html", headers=_NO_CACHE)
+
+
+@app.get("/app")
+async def app_shell(request: Request):
+    """앱 쉘 — 사이드바 고정 레이아웃 (iframe으로 콘텐츠 로드)"""
+    token = request.cookies.get(COOKIE_NAME)
+    if not token:
+        return RedirectResponse("/login")
+    return FileResponse(ROOT / "templates" / "app.html", headers=_NO_CACHE)
+
+
+@app.get("/blog")
+async def blog_page(request: Request):
+    """블로그 생성기"""
+    token = request.cookies.get(COOKIE_NAME)
+    if not token:
+        return RedirectResponse("/login")
+    return FileResponse(ROOT / "templates" / "index.html", headers=_NO_CACHE)
+
+
+@app.get("/settings")
+async def settings_page(request: Request):
+    """설정 페이지"""
+    token = request.cookies.get(COOKIE_NAME)
+    if not token:
+        return RedirectResponse("/login")
+    return FileResponse(ROOT / "templates" / "settings.html", headers=_NO_CACHE)
 
 
 @app.get("/settings/setup")
@@ -298,6 +326,44 @@ async def api_onboard(request: Request):
 
 
 # ── RBAC 설정 API ─────────────────────────────────────────────────
+
+@app.get("/api/settings/staff")
+async def get_staff_list(user: dict = Depends(get_current_user)):
+    """설정 페이지용 직원 목록 — DB에서 직접 조회"""
+    with __import__('db_manager').get_db() as conn:
+        rows = conn.execute(
+            "SELECT id, email, role, is_active FROM users WHERE clinic_id = ? ORDER BY id",
+            (user["clinic_id"],),
+        ).fetchall()
+    staff = [dict(r) for r in rows]
+    # 각 직원의 모듈 권한 읽기
+    import json as _j
+    staff_path = ROOT / "data" / "staff_permissions.json"
+    perms = _j.loads(staff_path.read_text()) if staff_path.exists() else {}
+    for s in staff:
+        key = str(s["id"])
+        s["modules"] = perms.get(key, {}).get("modules", [])
+        s["name"] = perms.get(key, {}).get("name", s["email"].split("@")[0])
+    return JSONResponse({"staff": staff})
+
+
+@app.post("/api/settings/staff/modules")
+async def save_staff_modules(request: Request, user: dict = Depends(get_current_user)):
+    """직원 모듈 권한 즉시 저장 (토글 자동저장용)"""
+    if not role_has_access(user["role"], ["chief_director", "director"]):
+        return JSONResponse({"detail": "권한이 없습니다."}, status_code=403)
+    body = await request.json()
+    staff_id = str(body.get("staff_id", "")).strip()
+    modules = body.get("modules", [])
+    if not staff_id:
+        return JSONResponse({"detail": "staff_id가 필요합니다."}, status_code=400)
+    # 이름 조회
+    with __import__('db_manager').get_db() as conn:
+        row = conn.execute("SELECT email FROM users WHERE id = ?", (staff_id,)).fetchone()
+    name = row["email"].split("@")[0] if row else staff_id
+    result = save_staff_permissions(staff_id, name, modules)
+    return JSONResponse({"ok": True, **result})
+
 
 @app.get("/api/settings/rbac")
 async def get_rbac(user: dict = Depends(get_current_user)):

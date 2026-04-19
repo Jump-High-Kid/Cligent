@@ -240,7 +240,7 @@
         return;
       }
 
-      window.location.href = '/';
+      window.location.href = window.self !== window.top ? '/' : '/app';
     } catch {
       showError('서버 연결에 실패했습니다.');
     } finally {
@@ -265,7 +265,7 @@
       });
       const data = await res.json();
       if (!res.ok) { showError(data.detail || '변경 실패'); return; }
-      window.location.href = '/';
+      window.location.href = window.self !== window.top ? '/' : '/app';
     } catch {
       showError('서버 연결에 실패했습니다.');
     }

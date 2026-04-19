@@ -17,7 +17,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **의학 정보**: 검증되지 않은 치료 효과는 사실로 제시 금지 — 항상 불확실성 명시
 - **처방 데이터**: 약재명은 KCD 또는 표준 한의학 용어 사용
 
-## 현재 구현 상태 (2026-04-18 기준)
+## 현재 구현 상태 (2026-04-19 기준)
 
 ### 폴더 구조
 ```
@@ -46,11 +46,13 @@ medical-assistant/
 │   ├── image_prompt_generator.py
 │   └── config_loader.py
 ├── templates/
-│   ├── dashboard.html      # 메인 대시보드
+│   ├── app.html            # ★ 앱 쉘 — 사이드바 고정 + iframe 내비게이션
+│   ├── dashboard.html      # 메인 대시보드 (iframe 내 로드)
 │   ├── dashboard_mobile.html
 │   ├── login.html          # 로그인 + 비밀번호 변경
 │   ├── onboard.html        # 초대 링크 온보딩
-│   ├── index.html          # 블로그 생성기
+│   ├── index.html          # 블로그 생성기 (iframe 내 로드)
+│   ├── settings.html       # 설정 (iframe 내 로드)
 │   └── settings_setup.html # RBAC 초기 설정 위자드
 └── tests/
     ├── test_blog.py
@@ -118,6 +120,91 @@ python3 -m pytest tests/ -v   # 테스트 실행
 #### BYOAI 모델
 - 사용자가 본인 Anthropic API 키 직접 입력
 - claude-sonnet-4-6 기준 글 1편 ≈ ₩7~14
+
+### 앱 쉘 구조 (2026-04-19 확정)
+
+**진입 흐름**: 로그인 → `/app` → `app.html` 쉘 로드 → iframe에 `/` (대시보드) 로드
+
+- `GET /app` → `templates/app.html` (인증 필수)
+- 사이드바는 `app.html`에만 존재, iframe 콘텐츠 페이지는 사이드바 숨김
+- 각 페이지: `if (window.self !== window.top)` 감지 → `#sidebar` 숨김, 마진 0
+- 로그인 후 리다이렉트: iframe 안→`/`, 직접 접속→`/app`
+- localStorage `cligent_sidebar` = `'1'`(접힘) / `'0'`(펼침) — 새로고침 유지
+
+**사이드바 메뉴 (정식 아이콘)**:
+
+| 메뉴 | Material Symbol | 경로 |
+|---|---|---|
+| 대시보드 | `dashboard` | `/` |
+| 블로그 생성기 | `article` | `/blog` |
+| 재고 관리 | `inventory_2` | `#` |
+| 스케줄 관리 | `calendar_today` | `#` |
+| 고객 관리 | `group` | `#` |
+| 설정 | `settings` | `/settings` |
+
+### 설정 페이지 구조 (2026-04-19 확정)
+
+`templates/settings.html` — 6개 탭 구성:
+
+| 탭 | 설명 | 상태 |
+|---|---|---|
+| 팀 & 권한 관리 | 직원 목록 + 모듈 권한 토글 + 초대 모달 | 완성 |
+| 콘텐츠 에이전트 | 블로그·SNS 자동화 설정 | 향후 구현 |
+| 스케줄 관리 | 직원 근무 스케줄 설정 | 향후 구현 |
+| 재고 관리 | 약재·물품 재고 설정 | 향후 구현 |
+| 문헌 정리 | 한의학 문헌 수집·분류 설정 | 향후 구현 |
+| 시스템 & 보안 | **대표 원장 전용** — 아래 5개 하위 항목 포함 | 향후 구현 |
+
+**시스템 & 보안 하위 항목 (대표 원장만 접근 가능):**
+- 한의원 프로필
+- AI 설정 (API Key, 모델 선택, 월 예산)
+- 플랜 & 사용량
+- 보안
+- 데이터 관리
+
+**모듈 권한 토글 항목 (팀 & 권한 관리 탭 우측 패널):**
+- 에이전트 모듈: 콘텐츠 에이전트 / 스케줄 관리 / 재고 관리 / 문헌 정리
+- 팀 관리: 팀 & 권한 관리
+- 시스템 & 보안: 한의원 프로필 / AI 설정 / 플랜 & 사용량 / 보안 / 데이터 관리 (비활성, 대표 원장 고정)
+
+## 디자인 시스템 원칙 (2026-04-19 확정)
+
+### 핵심 규칙: 디자인 변경 시 전체 일관성 유지
+대시보드 또는 사이드 패널의 디자인(폰트·색·이미지·아이콘·레이아웃 등)이 변경되면,
+**모든 하위 페이지(설정, 블로그 생성기 등)에 동일하게 반영**해야 한다.
+
+### 현재 확정된 디자인 토큰
+
+| 항목 | 값 | 적용 위치 |
+|---|---|---|
+| 사이드바 배경 | `bg-stone-100` | 모든 페이지 사이드바 |
+| 활성 메뉴 | `bg-emerald-900 text-white rounded-xl` | 모든 페이지 사이드바 |
+| 비활성 메뉴 텍스트 | `text-stone-600` | 모든 페이지 사이드바 |
+| 비활성 메뉴 호버 | `hover:bg-stone-200` | 모든 페이지 사이드바 |
+| 아이콘 스타일 | `wght 300, FILL 0, GRAD 0, opsz 24` | 모든 페이지 |
+| 폰트 | Pretendard (본문), Manrope (헤드라인) | 모든 페이지 |
+| 주색 | `emerald-900` (#064e3b) | 강조, 버튼, 활성 상태 |
+
+### 사이드바 공통 동작
+- 접기/펴기 토글 (☰ 버튼) — 아이콘 전용(72px) ↔ 전체(288px)
+- 상태는 `localStorage('cligent_sidebar')`에 저장 → 페이지 이동 시 유지
+
+### 새 페이지 추가 시 체크리스트
+- [ ] `app.html` 사이드바 메뉴에 항목 추가 (`data-path` 속성으로 경로 지정)
+- [ ] FastAPI에 라우트 추가 (`src/main.py`)
+- [ ] 페이지 HTML에 iframe 감지 코드 추가:
+  ```js
+  if (window.self !== window.top) {
+    document.getElementById('sidebar').style.display = 'none';
+    document.getElementById('main-content').style.marginLeft = '0';
+  }
+  ```
+- [ ] 폰트: Pretendard (`cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9`)
+- [ ] Material Symbols: `wght,FILL@100..700,0..1` range 파라미터 사용
+
+### 설정 모듈 권한 동작 규칙
+- `chief_director` / `director` 선택 시 → 모든 토글 `disabled=true` + "항상 접근" 메시지
+- `team_member` 이하 선택 시 → 토글 자유롭게 ON/OFF + 변경 즉시 자동저장 (`POST /api/settings/staff/modules`)
 
 ## 기술 스택
 

@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html class="light" lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Cligent - 설정</title>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link as="style" crossorigin="" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        colors: {
+          "on-secondary": "#ffffff",
+          "tertiary-container": "#70382b",
+          "on-surface-variant": "#3f4945",
+          "error-container": "#ffdad6",
+          "tertiary": "#542217",
+          "outline": "#6f7975",
+          "surface-dim": "#dddad2",
+          "on-error": "#ffffff",
+          "on-primary-fixed-variant": "#005142",
+          "inverse-primary": "#91d4c0",
+          "surface-container-lowest": "#ffffff",
+          "surface-container-highest": "#e6e2da",
+          "tertiary-fixed": "#ffdad2",
+          "secondary-fixed": "#cbe9de",
+          "secondary-fixed-dim": "#afcdc2",
+          "surface-tint": "#256959",
+          "on-tertiary-fixed": "#380d04",
+          "secondary-container": "#cbe9de",
+          "on-primary-fixed": "#002019",
+          "surface-variant": "#e6e2da",
+          "secondary": "#49645b",
+          "primary-container": "#005243",
+          "surface": "#fdf9f1",
+          "primary-fixed-dim": "#91d4c0",
+          "on-tertiary": "#ffffff",
+          "surface-bright": "#fdf9f1",
+          "inverse-on-surface": "#f4f0e8",
+          "surface-container": "#f1ede6",
+          "on-primary-container": "#81c4b0",
+          "on-primary": "#ffffff",
+          "error": "#ba1a1a",
+          "on-tertiary-fixed-variant": "#6f372a",
+          "on-tertiary-container": "#f1a392",
+          "tertiary-fixed-dim": "#ffb4a3",
+          "background": "#fdf9f1",
+          "surface-container-high": "#ebe8e0",
+          "primary-fixed": "#acf0db",
+          "on-surface": "#1c1c17",
+          "on-secondary-fixed-variant": "#314c44",
+          "on-secondary-fixed": "#042019",
+          "primary": "#00392e",
+          "on-error-container": "#93000a",
+          "inverse-surface": "#31302b",
+          "outline-variant": "#bfc9c4",
+          "on-secondary-container": "#4f6a61",
+          "surface-container-low": "#f7f3eb",
+          "on-background": "#1c1c17"
+        },
+        borderRadius: {
+          "DEFAULT": "0.25rem",
+          "lg": "0.5rem",
+          "xl": "0.75rem",
+          "full": "9999px"
+        },
+        fontFamily: {
+          "headline": ["Manrope", "Pretendard"],
+          "body": ["Inter", "Pretendard"],
+          "label": ["Inter", "Pretendard"]
+        }
+      }
+    }
+  }
+</script>
+<style>
+  body { font-family: 'Pretendard', sans-serif; }
+  .neumorphic-card {
+    box-shadow: 10px 10px 20px #e1ddd5, -10px -10px 20px #ffffff;
+  }
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+  }
+  /* 사이드바 접기/펴기 */
+  #sidebar { width: 18rem; transition: width 0.22s cubic-bezier(.4,0,.2,1); overflow: hidden; }
+  #sidebar.collapsed { width: 4.5rem; padding-left: 0.75rem; padding-right: 0.75rem; }
+  #sidebar.collapsed .nav-label,
+  #sidebar.collapsed .sidebar-logo-text { display: none; }
+  #sidebar.collapsed nav a,
+  #sidebar.collapsed .sidebar-bottom-btn { justify-content: center; padding-left: 0; padding-right: 0; }
+  #main-content { margin-left: 18rem; transition: margin-left 0.22s cubic-bezier(.4,0,.2,1); }
+  #main-content.collapsed { margin-left: 4.5rem; }
+  #toggle-btn .toggle-open { display: block; }
+  #toggle-btn .toggle-close { display: none; }
+  #sidebar.collapsed #toggle-btn .toggle-open { display: none; }
+  #sidebar.collapsed #toggle-btn .toggle-close { display: block; }
+
+  /* iOS 토글 */
+  .ios-toggle:checked + .ios-toggle-dot {
+    transform: translateX(1.5rem);
+  }
+  .ios-toggle:checked ~ .ios-toggle-bg {
+    background-color: #81c4b0;
+  }
+  /* 탭 활성 상태 */
+  .tab-btn.active {
+    color: #00392e;
+    font-weight: 700;
+    border-bottom-color: #00392e;
+  }
+  .tab-btn {
+    color: #78716c;
+    font-weight: 500;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+    transition: color 0.15s;
+  }
+  .tab-btn:hover { color: #256959; }
+  /* 탭 콘텐츠 */
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+</style>
+</head>
+<body class="bg-background text-on-surface selection:bg-secondary-container overflow-hidden">
+
+<!-- 좌측 사이드 내비게이션 -->
+<aside id="sidebar" class="fixed left-0 top-0 h-screen bg-stone-100 dark:bg-stone-950 z-50 flex flex-col p-6 space-y-2 shadow-xl dark:shadow-none">
+  <!-- 로고 + 토글 버튼 -->
+  <div class="flex items-center justify-between mb-6 min-w-0">
+    <div class="sidebar-logo-text flex items-center gap-3 min-w-0">
+      <div class="w-10 h-10 bg-primary-container rounded-xl flex items-center justify-center text-white flex-shrink-0">
+        <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1;">medical_services</span>
+      </div>
+      <div class="min-w-0">
+        <h1 class="text-lg font-extrabold text-emerald-900 dark:text-emerald-500 leading-none whitespace-nowrap">Cligent</h1>
+        <p class="text-[11px] text-stone-500 font-medium uppercase tracking-wider mt-1 whitespace-nowrap">한의원 관리 플랫폼</p>
+      </div>
+    </div>
+    <button id="toggle-btn" onclick="toggleSidebar()"
+      class="flex-shrink-0 ml-1 p-1.5 rounded-lg hover:bg-stone-200 transition-all text-stone-500">
+      <span class="material-symbols-outlined toggle-open text-[22px]">menu_open</span>
+      <span class="material-symbols-outlined toggle-close text-[22px]">menu</span>
+    </button>
+  </div>
+
+  <nav class="flex-1 space-y-1">
+    <a class="flex items-center gap-3 text-stone-600 px-4 py-3 rounded-xl hover:bg-stone-200 transition-all" href="/">
+      <span class="material-symbols-outlined flex-shrink-0">dashboard</span>
+      <span class="nav-label font-medium text-sm whitespace-nowrap">대시보드</span>
+    </a>
+    <a class="flex items-center gap-3 text-stone-600 px-4 py-3 rounded-xl hover:bg-stone-200 transition-all" href="/blog">
+      <span class="material-symbols-outlined flex-shrink-0">article</span>
+      <span class="nav-label font-medium text-sm whitespace-nowrap">블로그 생성기</span>
+    </a>
+    <a class="flex items-center gap-3 text-stone-600 px-4 py-3 rounded-xl hover:bg-stone-200 transition-all" href="#">
+      <span class="material-symbols-outlined flex-shrink-0">inventory_2</span>
+      <span class="nav-label font-medium text-sm whitespace-nowrap">재고 관리</span>
+    </a>
+    <a class="flex items-center gap-3 text-stone-600 px-4 py-3 rounded-xl hover:bg-stone-200 transition-all" href="#">
+      <span class="material-symbols-outlined flex-shrink-0">calendar_today</span>
+      <span class="nav-label font-medium text-sm whitespace-nowrap">스케줄 관리</span>
+    </a>
+    <a class="flex items-center gap-3 text-stone-600 px-4 py-3 rounded-xl hover:bg-stone-200 transition-all" href="#">
+      <span class="material-symbols-outlined flex-shrink-0">group</span>
+      <span class="nav-label font-medium text-sm whitespace-nowrap">고객 관리</span>
+    </a>
+    <a class="flex items-center gap-3 bg-emerald-900 text-white rounded-xl px-4 py-3 shadow-lg shadow-emerald-900/20" href="/settings">
+      <span class="material-symbols-outlined flex-shrink-0">settings</span>
+      <span class="nav-label font-medium text-sm whitespace-nowrap">설정</span>
+    </a>
+  </nav>
+
+  <div class="pt-6 mt-6 border-t border-stone-200 dark:border-stone-800 space-y-1">
+    <button id="inviteBtn" class="sidebar-bottom-btn w-full flex items-center gap-3 text-stone-600 px-4 py-3 rounded-xl hover:bg-stone-200 transition-all">
+      <span class="material-symbols-outlined flex-shrink-0">person_add</span>
+      <span class="nav-label font-medium text-sm whitespace-nowrap">팀원 초대</span>
+    </button>
+    <button id="logoutBtn" class="sidebar-bottom-btn w-full flex items-center gap-3 text-stone-600 px-4 py-3 rounded-xl hover:bg-stone-200 transition-all">
+      <span class="material-symbols-outlined flex-shrink-0">logout</span>
+      <span class="nav-label font-medium text-sm whitespace-nowrap">로그아웃</span>
+    </button>
+  </div>
+</aside>
+
+<!-- ── 직원 초대 모달 ── -->
+<div id="invite-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-8">
+    <div class="flex justify-between items-center mb-6">
+      <h3 class="text-[1.125rem] font-bold text-stone-900">직원 초대</h3>
+      <button onclick="closeInviteModal()" class="hover:bg-stone-100 p-1 rounded-full transition-all">
+        <span class="material-symbols-outlined text-stone-500">close</span>
+      </button>
+    </div>
+    <div id="invite-form">
+      <div class="mb-4">
+        <label class="block text-[0.8125rem] font-medium text-stone-700 mb-2">이메일</label>
+        <input id="invite-email" type="email" placeholder="staff@clinic.com"
+          class="w-full border border-stone-200 rounded-xl px-4 py-3 text-[0.9375rem] focus:outline-none focus:ring-2 focus:ring-emerald-900/30"/>
+      </div>
+      <div class="mb-6">
+        <label class="block text-[0.8125rem] font-medium text-stone-700 mb-2">역할</label>
+        <select id="invite-role"
+          class="w-full border border-stone-200 rounded-xl px-4 py-3 text-[0.9375rem] focus:outline-none focus:ring-2 focus:ring-emerald-900/30">
+          <option value="team_member">팀원</option>
+          <option value="team_leader">팀장</option>
+          <option value="manager">매니저</option>
+          <option value="director">원장</option>
+        </select>
+      </div>
+      <div id="invite-error" class="hidden mb-4 px-4 py-3 bg-red-50 text-red-700 rounded-xl text-[0.8125rem]"></div>
+      <button onclick="createInvite()"
+        class="w-full bg-emerald-900 text-white py-3 rounded-xl font-semibold hover:opacity-90 transition-all">
+        초대 링크 생성
+      </button>
+    </div>
+    <div id="invite-result" class="hidden">
+      <p class="text-[0.8125rem] text-stone-500 mb-3">아래 링크를 카카오톡 또는 문자로 전달해주세요. <strong>72시간</strong> 유효합니다.</p>
+      <div class="flex gap-2 items-center bg-stone-100 rounded-xl px-4 py-3 mb-4">
+        <span id="invite-url" class="text-[0.8125rem] text-emerald-800 truncate flex-1 font-mono"></span>
+        <button onclick="copyInviteUrl()" class="shrink-0 hover:bg-stone-200 p-1 rounded-lg transition-all">
+          <span id="copy-icon" class="material-symbols-outlined text-[20px] text-stone-500">content_copy</span>
+        </button>
+      </div>
+      <button onclick="resetInviteModal()"
+        class="w-full bg-stone-100 text-stone-600 py-3 rounded-xl font-semibold hover:bg-stone-200 transition-all">
+        다른 직원 초대하기
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- 메인 콘텐츠 -->
+<main id="main-content" class="h-screen flex flex-col">
+
+  <!-- 상단 헤더 -->
+  <header class="sticky top-0 z-40 bg-stone-50/80 backdrop-blur-xl px-12 pt-10 pb-4">
+    <div class="flex justify-between items-end mb-6">
+      <div>
+        <h2 class="font-headline font-bold text-3xl tracking-tight text-emerald-900">설정</h2>
+        <p class="text-stone-500 mt-1">한의원의 전반적인 환경과 에이전트 권한을 설정합니다.</p>
+      </div>
+      <button id="saveBtn" class="bg-primary-container hover:opacity-90 text-white px-6 py-2.5 rounded-xl font-bold transition-all shadow-lg shadow-emerald-900/20 flex items-center gap-2">
+        <span class="material-symbols-outlined text-lg">save</span>
+        저장
+      </button>
+    </div>
+
+    <!-- 수평 탭 -->
+    <div class="flex gap-8 overflow-x-auto" style="scrollbar-width:none;">
+      <button class="tab-btn active" data-tab="team">팀 &amp; 권한 관리</button>
+      <button class="tab-btn" data-tab="content">콘텐츠 에이전트</button>
+      <button class="tab-btn" data-tab="schedule">스케줄 관리</button>
+      <button class="tab-btn" data-tab="inventory">재고 관리</button>
+      <button class="tab-btn" data-tab="literature">문헌 정리</button>
+      <button class="tab-btn" data-tab="system">시스템 &amp; 보안</button>
+    </div>
+  </header>
+
+  <!-- 캔버스 영역 -->
+  <section class="flex-1 p-12 overflow-y-auto">
+
+    <!-- 탭: 팀 & 권한 관리 (기본 표시) -->
+    <div id="tab-team" class="tab-content active">
+      <div class="neumorphic-card bg-surface-container-lowest rounded-[2rem] overflow-hidden flex min-h-[600px]">
+
+        <!-- 좌측: 직원 목록 -->
+        <div class="w-1/2 flex flex-col bg-white">
+          <div class="p-8 pb-4">
+            <div class="flex justify-between items-center mb-6">
+              <h3 class="text-xl font-bold text-emerald-900">우리 팀</h3>
+              <button id="inviteMemberBtn" class="text-emerald-700 font-semibold text-sm flex items-center gap-1">
+                <span class="material-symbols-outlined text-lg">add_circle</span>
+                팀원 초대
+              </button>
+            </div>
+          </div>
+          <div class="flex-1" id="staffList">
+            <!-- 직원 항목: 선택됨 -->
+            <div class="staff-row bg-primary-container text-white px-8 py-6 flex justify-between items-center transition-all cursor-pointer" data-staff="owner">
+              <div class="flex items-center gap-4">
+                <div class="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
+                  <span class="material-symbols-outlined text-white" style="font-variation-settings:'FILL' 1;">person</span>
+                </div>
+                <div>
+                  <p class="font-bold">대표 원장</p>
+                  <p class="text-xs text-white/70">최고 관리자 • owner@cligent.dev</p>
+                </div>
+              </div>
+              <span class="material-symbols-outlined opacity-60">chevron_right</span>
+            </div>
+
+            <!-- 로딩 중 placeholder — JS로 실제 목록 교체 -->
+            <div id="staffPlaceholder" class="px-8 py-6 text-stone-400 text-sm">직원 목록을 불러오는 중...</div>
+          </div>
+        </div>
+
+        <!-- 우측: 모듈 권한 설정 -->
+        <div class="w-1/2 flex flex-col bg-primary-container text-white">
+          <div class="p-10">
+            <div class="mb-10">
+              <h3 class="text-xl font-bold mb-2">모듈 권한 설정</h3>
+              <p class="text-white/60 text-sm" id="permDesc">선택한 팀원의 모듈 접근 권한을 설정합니다.</p>
+            </div>
+
+            <div class="space-y-8">
+              <!-- 에이전트 모듈 -->
+              <div>
+                <h4 class="text-[11px] font-bold text-white/40 uppercase tracking-widest mb-4">에이전트 모듈</h4>
+                <div class="space-y-1">
+                  <!-- 콘텐츠 에이전트 -->
+                  <div class="flex items-center justify-between py-3">
+                    <div class="flex items-center gap-3">
+                      <span class="material-symbols-outlined text-white/70">auto_awesome</span>
+                      <span class="font-medium">콘텐츠 에이전트</span>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" class="sr-only peer ios-toggle" data-module="content" checked/>
+                      <div class="w-11 h-6 bg-white/20 peer-focus:outline-none rounded-full peer ios-toggle-bg transition-colors"></div>
+                      <div class="absolute left-0.5 top-0.5 bg-white w-5 h-5 rounded-full transition-transform ios-toggle-dot"></div>
+                    </label>
+                  </div>
+                  <!-- 스케줄 관리 -->
+                  <div class="flex items-center justify-between py-3">
+                    <div class="flex items-center gap-3">
+                      <span class="material-symbols-outlined text-white/70">calendar_today</span>
+                      <span class="font-medium">스케줄 관리</span>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" class="sr-only peer ios-toggle" data-module="schedule"/>
+                      <div class="w-11 h-6 bg-white/20 rounded-full peer ios-toggle-bg transition-colors"></div>
+                      <div class="absolute left-0.5 top-0.5 bg-white w-5 h-5 rounded-full transition-transform ios-toggle-dot"></div>
+                    </label>
+                  </div>
+                  <!-- 재고 관리 -->
+                  <div class="flex items-center justify-between py-3">
+                    <div class="flex items-center gap-3">
+                      <span class="material-symbols-outlined text-white/70">inventory_2</span>
+                      <span class="font-medium">재고 관리</span>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" class="sr-only peer ios-toggle" data-module="inventory"/>
+                      <div class="w-11 h-6 bg-white/20 rounded-full peer ios-toggle-bg transition-colors"></div>
+                      <div class="absolute left-0.5 top-0.5 bg-white w-5 h-5 rounded-full transition-transform ios-toggle-dot"></div>
+                    </label>
+                  </div>
+                  <!-- 문헌 정리 -->
+                  <div class="flex items-center justify-between py-3">
+                    <div class="flex items-center gap-3">
+                      <span class="material-symbols-outlined text-white/70">menu_book</span>
+                      <span class="font-medium">문헌 정리</span>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" class="sr-only peer ios-toggle" data-module="literature"/>
+                      <div class="w-11 h-6 bg-white/20 rounded-full peer ios-toggle-bg transition-colors"></div>
+                      <div class="absolute left-0.5 top-0.5 bg-white w-5 h-5 rounded-full transition-transform ios-toggle-dot"></div>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 팀 관리 -->
+              <div>
+                <h4 class="text-[11px] font-bold text-white/40 uppercase tracking-widest mb-4">팀 관리</h4>
+                <div class="flex items-center justify-between py-3">
+                  <div class="flex items-center gap-3">
+                    <span class="material-symbols-outlined text-white/70">manage_accounts</span>
+                    <span class="font-medium">팀 &amp; 권한 관리</span>
+                  </div>
+                  <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" class="sr-only peer ios-toggle" data-module="team_mgmt"/>
+                    <div class="w-11 h-6 bg-white/20 rounded-full peer ios-toggle-bg transition-colors"></div>
+                    <div class="absolute left-0.5 top-0.5 bg-white w-5 h-5 rounded-full transition-transform ios-toggle-dot"></div>
+                  </label>
+                </div>
+              </div>
+
+              <!-- 시스템 & 보안 (대표 원장 전용) -->
+              <div>
+                <h4 class="text-[11px] font-bold text-white/40 uppercase tracking-widest mb-1">시스템 &amp; 보안</h4>
+                <p class="text-[10px] text-white/30 mb-4">대표 원장 전용 항목</p>
+                <div class="space-y-1 opacity-50 pointer-events-none">
+                  <div class="flex items-center justify-between py-3">
+                    <div class="flex items-center gap-3">
+                      <span class="material-symbols-outlined text-white/70">apartment</span>
+                      <span class="font-medium">한의원 프로필</span>
+                    </div>
+                    <label class="relative inline-flex items-center">
+                      <input type="checkbox" class="sr-only peer ios-toggle" disabled checked/>
+                      <div class="w-11 h-6 bg-white/20 rounded-full peer ios-toggle-bg transition-colors"></div>
+                      <div class="absolute left-0.5 top-0.5 bg-white w-5 h-5 rounded-full transition-transform ios-toggle-dot"></div>
+                    </label>
+                  </div>
+                  <div class="flex items-center justify-between py-3">
+                    <div class="flex items-center gap-3">
+                      <span class="material-symbols-outlined text-white/70">key</span>
+                      <span class="font-medium">AI 설정</span>
+                    </div>
+                    <label class="relative inline-flex items-center">
+                      <input type="checkbox" class="sr-only peer ios-toggle" disabled checked/>
+                      <div class="w-11 h-6 bg-white/20 rounded-full peer ios-toggle-bg transition-colors"></div>
+                      <div class="absolute left-0.5 top-0.5 bg-white w-5 h-5 rounded-full transition-transform ios-toggle-dot"></div>
+                    </label>
+                  </div>
+                  <div class="flex items-center justify-between py-3">
+                    <div class="flex items-center gap-3">
+                      <span class="material-symbols-outlined text-white/70">credit_card</span>
+                      <span class="font-medium">플랜 &amp; 사용량</span>
+                    </div>
+                    <label class="relative inline-flex items-center">
+                      <input type="checkbox" class="sr-only peer ios-toggle" disabled checked/>
+                      <div class="w-11 h-6 bg-white/20 rounded-full peer ios-toggle-bg transition-colors"></div>
+                      <div class="absolute left-0.5 top-0.5 bg-white w-5 h-5 rounded-full transition-transform ios-toggle-dot"></div>
+                    </label>
+                  </div>
+                  <div class="flex items-center justify-between py-3">
+                    <div class="flex items-center gap-3">
+                      <span class="material-symbols-outlined text-white/70">security</span>
+                      <span class="font-medium">보안</span>
+                    </div>
+                    <label class="relative inline-flex items-center">
+                      <input type="checkbox" class="sr-only peer ios-toggle" disabled checked/>
+                      <div class="w-11 h-6 bg-white/20 rounded-full peer ios-toggle-bg transition-colors"></div>
+                      <div class="absolute left-0.5 top-0.5 bg-white w-5 h-5 rounded-full transition-transform ios-toggle-dot"></div>
+                    </label>
+                  </div>
+                  <div class="flex items-center justify-between py-3">
+                    <div class="flex items-center gap-3">
+                      <span class="material-symbols-outlined text-white/70">database</span>
+                      <span class="font-medium">데이터 관리</span>
+                    </div>
+                    <label class="relative inline-flex items-center">
+                      <input type="checkbox" class="sr-only peer ios-toggle" disabled checked/>
+                      <div class="w-11 h-6 bg-white/20 rounded-full peer ios-toggle-bg transition-colors"></div>
+                      <div class="absolute left-0.5 top-0.5 bg-white w-5 h-5 rounded-full transition-transform ios-toggle-dot"></div>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div><!-- /tab-team -->
+
+    <!-- 탭: 콘텐츠 에이전트 (추후 구현) -->
+    <div id="tab-content" class="tab-content">
+      <div class="neumorphic-card bg-surface-container-lowest rounded-[2rem] p-12 min-h-[400px] flex items-center justify-center">
+        <div class="text-center text-stone-400">
+          <span class="material-symbols-outlined text-5xl mb-4 block">auto_awesome</span>
+          <p class="font-semibold text-lg text-stone-500">콘텐츠 에이전트 설정</p>
+          <p class="text-sm mt-2">블로그·SNS 콘텐츠 자동화 설정 — 준비 중입니다.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 탭: 스케줄 관리 (추후 구현) -->
+    <div id="tab-schedule" class="tab-content">
+      <div class="neumorphic-card bg-surface-container-lowest rounded-[2rem] p-12 min-h-[400px] flex items-center justify-center">
+        <div class="text-center text-stone-400">
+          <span class="material-symbols-outlined text-5xl mb-4 block">calendar_today</span>
+          <p class="font-semibold text-lg text-stone-500">스케줄 관리 설정</p>
+          <p class="text-sm mt-2">직원 근무 스케줄 자동화 설정 — 준비 중입니다.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 탭: 재고 관리 (추후 구현) -->
+    <div id="tab-inventory" class="tab-content">
+      <div class="neumorphic-card bg-surface-container-lowest rounded-[2rem] p-12 min-h-[400px] flex items-center justify-center">
+        <div class="text-center text-stone-400">
+          <span class="material-symbols-outlined text-5xl mb-4 block">inventory_2</span>
+          <p class="font-semibold text-lg text-stone-500">재고 관리 설정</p>
+          <p class="text-sm mt-2">약재·물품 재고 자동화 설정 — 준비 중입니다.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 탭: 문헌 정리 (추후 구현) -->
+    <div id="tab-literature" class="tab-content">
+      <div class="neumorphic-card bg-surface-container-lowest rounded-[2rem] p-12 min-h-[400px] flex items-center justify-center">
+        <div class="text-center text-stone-400">
+          <span class="material-symbols-outlined text-5xl mb-4 block">menu_book</span>
+          <p class="font-semibold text-lg text-stone-500">문헌 정리 설정</p>
+          <p class="text-sm mt-2">한의학 문헌 수집·분류 설정 — 준비 중입니다.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 탭: 시스템 & 보안 (추후 구현 / 대표 원장 전용) -->
+    <div id="tab-system" class="tab-content">
+      <div class="neumorphic-card bg-surface-container-lowest rounded-[2rem] p-12 min-h-[400px] flex items-center justify-center">
+        <div class="text-center text-stone-400">
+          <span class="material-symbols-outlined text-5xl mb-4 block">admin_panel_settings</span>
+          <p class="font-semibold text-lg text-stone-500">시스템 &amp; 보안</p>
+          <p class="text-sm mt-2">한의원 프로필 · AI 설정 · 플랜 &amp; 사용량 · 보안 · 데이터 관리</p>
+          <p class="text-xs mt-3 text-stone-300">대표 원장 전용 — 준비 중입니다.</p>
+        </div>
+      </div>
+    </div>
+
+  </section>
+</main>
+
+<script>
+  // ── 사이드바 접기/펴기 ─────────────────────────────────────────
+  function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const main = document.getElementById('main-content');
+    const collapsed = sidebar.classList.toggle('collapsed');
+    main.classList.toggle('collapsed', collapsed);
+    localStorage.setItem('cligent_sidebar', collapsed ? '1' : '0');
+  }
+
+  (function initSidebar() {
+    if (localStorage.getItem('cligent_sidebar') === '1') {
+      document.getElementById('sidebar').classList.add('collapsed');
+      document.getElementById('main-content').classList.add('collapsed');
+    }
+    if (window.self !== window.top) {
+      document.getElementById('sidebar').style.display = 'none';
+      const mc = document.getElementById('main-content');
+      mc.style.marginLeft = '0';
+      mc.style.width = '100%';
+    }
+  })();
+
+  // ── 탭 전환 ──────────────────────────────────────────────────────
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+
+  // ── 로그아웃 ─────────────────────────────────────────────────────
+  document.getElementById('logoutBtn').addEventListener('click', async () => {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    location.href = '/login';
+  });
+
+  // ── 저장 버튼 숨김 (자동저장으로 대체) ───────────────────────────
+  document.getElementById('saveBtn').style.display = 'none';
+
+  // ── 현재 선택된 직원 ─────────────────────────────────────────────
+  let selectedStaff = null;
+
+  const ROLE_LABELS = {
+    chief_director: '대표원장',
+    director: '원장',
+    manager: '매니저',
+    team_leader: '팀장',
+    team_member: '팀원',
+  };
+
+  // ── 저장됨 토스트 ─────────────────────────────────────────────────
+  function showSaved() {
+    let toast = document.getElementById('savedToast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'savedToast';
+      toast.className = 'fixed bottom-6 right-6 bg-emerald-900 text-white text-sm font-semibold px-5 py-3 rounded-xl shadow-lg transition-opacity duration-300';
+      toast.textContent = '저장됨';
+      document.body.appendChild(toast);
+    }
+    toast.style.opacity = '1';
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => { toast.style.opacity = '0'; }, 1500);
+  }
+
+  // ── 토글 자동저장 ─────────────────────────────────────────────────
+  async function autoSaveModules() {
+    if (!selectedStaff) return;
+    const modules = Array.from(
+      document.querySelectorAll('.ios-toggle[data-module]:not([disabled]):checked')
+    ).map(el => el.dataset.module);
+
+    await fetch('/api/settings/staff/modules', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ staff_id: selectedStaff.id, modules }),
+    });
+    showSaved();
+  }
+
+  document.querySelectorAll('.ios-toggle[data-module]:not([disabled])').forEach(toggle => {
+    toggle.addEventListener('change', autoSaveModules);
+  });
+
+  // ── 직원 선택 → 우측 권한 패널 업데이트 ─────────────────────────
+  const CHIEF_ROLES = ['chief_director', 'director'];
+
+  function selectStaff(member) {
+    selectedStaff = member;
+
+    const isChief = CHIEF_ROLES.includes(member.role);
+
+    // 설명 업데이트
+    document.getElementById('permDesc').textContent =
+      isChief
+        ? `${member.name}(${ROLE_LABELS[member.role] || member.role})는 모든 모듈에 항상 접근할 수 있습니다.`
+        : `${member.name}(${ROLE_LABELS[member.role] || member.role})의 모듈 접근 권한을 설정합니다.`;
+
+    // 토글 상태 업데이트 + chief/director는 전체 잠금
+    document.querySelectorAll('.ios-toggle[data-module]').forEach(toggle => {
+      if (isChief) {
+        toggle.checked = true;
+        toggle.disabled = true;
+        toggle.parentElement.style.opacity = '0.6';
+        toggle.parentElement.style.cursor = 'not-allowed';
+      } else {
+        toggle.disabled = false;
+        toggle.parentElement.style.opacity = '';
+        toggle.parentElement.style.cursor = '';
+        toggle.checked = member.modules.includes(toggle.dataset.module);
+      }
+    });
+
+    // 선택 행 하이라이트
+    document.querySelectorAll('.staff-row').forEach(r => {
+      r.classList.remove('bg-primary-container', 'text-white');
+      r.classList.add('hover:bg-stone-50');
+    });
+    const activeRow = document.querySelector(`.staff-row[data-id="${member.id}"]`);
+    if (activeRow) {
+      activeRow.classList.add('bg-primary-container', 'text-white');
+      activeRow.classList.remove('hover:bg-stone-50');
+    }
+  }
+
+  // ── 직원 목록 로드 ───────────────────────────────────────────────
+  async function loadStaff() {
+    const list = document.getElementById('staffList');
+    const placeholder = document.getElementById('staffPlaceholder');
+
+    try {
+      const res = await fetch('/api/settings/staff');
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+
+      placeholder.remove();
+
+      if (!data.staff || data.staff.length === 0) {
+        const empty = document.createElement('p');
+        empty.className = 'px-8 py-6 text-stone-400 text-sm';
+        empty.textContent = '등록된 직원이 없습니다.';
+        list.appendChild(empty);
+        return;
+      }
+
+      data.staff.forEach((member, idx) => {
+        const row = document.createElement('div');
+        row.className = 'staff-row px-8 py-5 flex justify-between items-center border-b border-stone-50 hover:bg-stone-50 transition-all cursor-pointer group';
+        row.dataset.id = member.id;
+        row.innerHTML = `
+          <div class="flex items-center gap-4">
+            <div class="w-11 h-11 rounded-full bg-stone-100 flex items-center justify-center flex-shrink-0">
+              <span class="material-symbols-outlined text-stone-400" style="font-variation-settings:'FILL' 1;">person</span>
+            </div>
+            <div>
+              <p class="font-bold text-emerald-900 group-hover:text-emerald-700">${member.name}</p>
+              <p class="text-xs text-stone-400">${ROLE_LABELS[member.role] || member.role} • ${member.email}</p>
+            </div>
+          </div>
+          <span class="material-symbols-outlined text-stone-300">chevron_right</span>
+        `;
+        row.addEventListener('click', () => selectStaff(member));
+        list.appendChild(row);
+
+        // 첫 번째 직원 자동 선택
+        if (idx === 0) selectStaff(member);
+      });
+    } catch (e) {
+      placeholder.textContent = '직원 목록을 불러올 수 없습니다.';
+    }
+  }
+
+  loadStaff();
+
+  // ── 초대 모달 ─────────────────────────────────────────────────────
+  document.getElementById('inviteMemberBtn').addEventListener('click', openInviteModal);
+  document.getElementById('invite-modal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeInviteModal();
+  });
+
+  function openInviteModal() {
+    document.getElementById('invite-modal').classList.remove('hidden');
+    document.getElementById('invite-modal').classList.add('flex');
+    document.getElementById('invite-email').focus();
+  }
+
+  function closeInviteModal() {
+    document.getElementById('invite-modal').classList.add('hidden');
+    document.getElementById('invite-modal').classList.remove('flex');
+    resetInviteModal();
+  }
+
+  function resetInviteModal() {
+    document.getElementById('invite-form').classList.remove('hidden');
+    document.getElementById('invite-result').classList.add('hidden');
+    document.getElementById('invite-email').value = '';
+    document.getElementById('invite-role').value = 'team_member';
+    document.getElementById('invite-error').classList.add('hidden');
+  }
+
+  async function createInvite() {
+    const email = document.getElementById('invite-email').value.trim();
+    const role  = document.getElementById('invite-role').value;
+    const errEl = document.getElementById('invite-error');
+    errEl.classList.add('hidden');
+
+    if (!email) { errEl.textContent = '이메일을 입력해주세요.'; errEl.classList.remove('hidden'); return; }
+
+    const res  = await fetch('/api/auth/invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, role }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) { errEl.textContent = data.detail || '초대 생성 실패'; errEl.classList.remove('hidden'); return; }
+
+    document.getElementById('invite-url').textContent = data.invite_url;
+    document.getElementById('invite-form').classList.add('hidden');
+    document.getElementById('invite-result').classList.remove('hidden');
+  }
+
+  async function copyInviteUrl() {
+    const url  = document.getElementById('invite-url').textContent;
+    await navigator.clipboard.writeText(url);
+    const icon = document.getElementById('copy-icon');
+    icon.textContent = 'check';
+    setTimeout(() => { icon.textContent = 'content_copy'; }, 2000);
+  }
+</script>
+</body>
+</html>
