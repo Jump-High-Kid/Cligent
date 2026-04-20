@@ -49,7 +49,7 @@ from fastapi.responses import (
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
-load_dotenv(ROOT / ".env")
+load_dotenv(ROOT / ".env", override=True)
 
 # ── 서버 시작 전 환경 변수 검증 ──────────────────────────────────
 _secret = os.getenv("SECRET_KEY", "")

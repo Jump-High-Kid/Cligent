@@ -110,6 +110,15 @@ LU7, LI4, LI11, ST25, ST36, ST40, ST44, SP6, SP10, HT7, SI3, BL17, BL23, BL40, B
 
 **API 파라미터**: `POST /generate-image-prompts` — `{ keyword, blog_content, style, tone }`
 
+**블로그 생성 결과 하단 UI (2026-04-20 추가)**
+- `resultFooter`에 사이트 바로가기 드롭다운 추가: Midjourney / DALL-E 3 / 나노바나나 / Ideogram / Leonardo AI
+- 드롭다운 선택 후 "바로가기 ↗" 클릭 → 새 탭 오픈 (`gotoAiSite()`)
+- 이미지 옵션 패널: 초록 테두리 강조 + "이미지 옵션 선택" 타이틀 추가
+
+**버그 수정 (2026-04-20)**
+- `.env` 첫 줄 탭 문자 → `ANTHROPIC_API_KEY` 미인식 수정
+- `src/main.py`: `load_dotenv(ROOT / ".env", override=True)` — 시스템 환경변수 덮어쓰기
+
 **의료 윤리 준수**
 - 환자 얼굴 정면 클로즈업 금지 (측면·후면·손 허용)
 - 처방전·의료 기록 노출 금지

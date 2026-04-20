@@ -275,20 +275,40 @@
     .img-prompt-footer { display: flex; gap: 8px; margin-top: 14px; justify-content: flex-end; }
 
     /* 이미지 옵션 패널 */
-    #imgOptionPanel { background: #f8faf9; border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; border: 1px solid #e0eeec; }
-    .img-option-group { margin-bottom: 10px; }
-    .img-option-group:last-of-type { margin-bottom: 12px; }
-    .img-option-label { font-size: 0.82rem; font-weight: 600; color: #555; margin-bottom: 7px; display: block; }
+    #imgOptionPanel { background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 16px; border: 2px solid #1a5f5a; box-shadow: 0 2px 12px rgba(26,95,90,0.08); }
+    .img-option-panel-title { font-size: 0.95rem; font-weight: 700; color: #1a5f5a; margin-bottom: 14px; display: flex; align-items: center; gap: 7px; }
+    .img-option-panel-title::before { content: ''; display: inline-block; width: 4px; height: 16px; background: #1a5f5a; border-radius: 2px; }
+    .img-option-group { margin-bottom: 14px; }
+    .img-option-group:last-of-type { margin-bottom: 16px; }
+    .img-option-label { font-size: 0.82rem; font-weight: 600; color: #555; margin-bottom: 8px; display: block; }
     .img-option-chips { display: flex; flex-wrap: wrap; gap: 6px; }
     .img-opt-chip {
-      padding: 5px 13px; border-radius: 20px; border: 1.5px solid #cce0de;
+      padding: 6px 14px; border-radius: 20px; border: 1.5px solid #cce0de;
       background: #fff; color: #1a5f5a; font-size: 0.82rem; font-weight: 600;
       cursor: pointer; font-family: inherit; transition: all 0.15s;
     }
     .img-opt-chip:hover { background: #e8f4f3; }
     .img-opt-chip.selected { background: #1a5f5a; color: #fff; border-color: #1a5f5a; }
     .img-option-actions { display: flex; justify-content: flex-end; }
-    #imgGenerateBtn { padding: 9px 22px; font-size: 0.88rem; }
+    #imgGenerateBtn { padding: 10px 26px; font-size: 0.9rem; }
+
+    /* 결과 하단 — 사이트 바로가기 */
+    .site-goto-group { display: flex; align-items: center; gap: 0; }
+    .site-goto-select {
+      padding: 7px 10px; border: 1.5px solid #cce0de; border-right: none;
+      border-radius: 8px 0 0 8px; font-size: 0.82rem; font-family: inherit;
+      color: #1a5f5a; background: #f0f7f6; cursor: pointer; outline: none;
+      -webkit-appearance: none; appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%231a5f5a' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 8px center;
+      padding-right: 26px;
+    }
+    .site-goto-btn {
+      padding: 7px 14px; border: 1.5px solid #1a5f5a; border-radius: 0 8px 8px 0;
+      background: #1a5f5a; color: #fff; font-size: 0.82rem; font-weight: 700;
+      cursor: pointer; font-family: inherit; transition: opacity 0.15s; white-space: nowrap;
+    }
+    .site-goto-btn:hover { opacity: 0.85; }
 
     /* 결과 — 마크다운 렌더링 */
     #output {
@@ -419,6 +439,16 @@
       <div id="step3Error" class="error-msg hidden"></div>
       <div class="result-footer hidden" id="resultFooter">
         <button class="btn btn-primary" onclick="copyResult()">복사</button>
+        <div class="site-goto-group">
+          <select class="site-goto-select" id="aiSiteSelect">
+            <option value="https://www.midjourney.com/imagine">Midjourney</option>
+            <option value="https://chatgpt.com">DALL-E 3</option>
+            <option value="https://www.nanobana.ai">나노바나나</option>
+            <option value="https://ideogram.ai">Ideogram</option>
+            <option value="https://leonardo.ai">Leonardo AI</option>
+          </select>
+          <button class="site-goto-btn" onclick="gotoAiSite()">바로가기 ↗</button>
+        </div>
         <button class="btn btn-secondary" id="imgPromptBtn" onclick="startImagePromptGenerate()" style="background:#e8f4f3; color:#1a5f5a;">이미지 프롬프트 생성</button>
         <button class="btn btn-secondary" onclick="reset()">처음부터</button>
         <span id="tokenInfo"></span>
@@ -434,6 +464,7 @@
 
         <!-- 옵션 패널 -->
         <div id="imgOptionPanel">
+          <div class="img-option-panel-title">이미지 옵션 선택</div>
           <div class="img-option-group">
             <span class="img-option-label">이미지 형식</span>
             <div class="img-option-chips">
@@ -883,6 +914,12 @@
         btn.textContent = '복사됨!';
         setTimeout(() => btn.textContent = orig, 1500);
       });
+    }
+
+    // 이미지 생성 사이트 바로가기
+    function gotoAiSite() {
+      const url = document.getElementById('aiSiteSelect').value;
+      window.open(url, '_blank');
     }
 
     // 프롬프트 복사 후 AI 플랫폼 새 탭으로 이동
