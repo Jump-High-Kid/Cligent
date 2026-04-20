@@ -17,7 +17,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **의학 정보**: 검증되지 않은 치료 효과는 사실로 제시 금지 — 항상 불확실성 명시
 - **처방 데이터**: 약재명은 KCD 또는 표준 한의학 용어 사용
 
-## 현재 구현 상태 (2026-04-19 기준)
+## 현재 구현 상태 (2026-04-20 기준)
 
 ### 폴더 구조
 ```
@@ -30,18 +30,24 @@ medical-assistant/
 ├── .env.example
 ├── agents/                 # Claude Code 에이전트 정의 (.md)
 ├── prompts/                # 프롬프트 텍스트 파일
+│   ├── blog.txt            # 블로그 생성 시스템 프롬프트
+│   ├── blog_patterns.txt   # ★ 블로그 패턴 카탈로그 (서론 7+본론 8+결론 7+화제전환 6)
+│   ├── questions.txt
+│   ├── conversation.txt
+│   └── image_prompt.txt
 ├── data/
 │   ├── cligent.db          # SQLite (users, invites, clinics)
 │   ├── rbac_permissions.json
-│   └── blog_history.json
+│   └── blog_history.json   # 패턴 히스토리 포함 (pattern_combos 키)
 ├── src/
 │   ├── main.py             # FastAPI 앱 (전체 라우트)
 │   ├── auth_manager.py     # JWT, bcrypt, 초대 토큰
 │   ├── db_manager.py       # SQLite 초기화 + 커넥션
 │   ├── module_manager.py   # RBAC 권한 관리
 │   ├── settings_manager.py # 설정 위자드 데이터
-│   ├── blog_generator.py   # 블로그 SSE 스트리밍
+│   ├── blog_generator.py   # 블로그 SSE 스트리밍 + 패턴 선택 통합
 │   ├── blog_history.py     # 생성 이력 저장
+│   ├── pattern_selector.py # ★ 5레이어 패턴 조합 선택 엔진
 │   ├── conversation_flow.py
 │   ├── image_prompt_generator.py
 │   └── config_loader.py
