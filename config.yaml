@@ -18,36 +18,38 @@ prompts:
   image_prompt: "prompts/image_prompt.txt"
 
 # 대시보드 모듈 설정
-# default_roles: 기본으로 볼 수 있는 역할 (owner=원장, staff=직원)
+# default_roles: 기본으로 볼 수 있는 역할 (5단계 RBAC)
+#   chief_director(대표원장) > director(원장) > manager(매니저) > team_leader(팀장) > team_member(팀원)
+# 실제 적용 권한은 data/rbac_permissions.json 기준 (위자드 저장 후 우선)
 # 직원별 개별 설정은 data/staff_permissions.json에서 덮어쓸 수 있음
 modules:
   stats_patients:
     name: "환자 수"
-    default_roles: [owner, staff]
+    default_roles: [chief_director, director, manager, team_leader, team_member]
   stats_appointments:
     name: "예약 건수"
-    default_roles: [owner, staff]
+    default_roles: [chief_director, director, manager, team_leader, team_member]
   stats_cancellations:
     name: "예약 취소"
-    default_roles: [owner, staff]
+    default_roles: [chief_director, director, manager, team_leader, team_member]
   stats_revenue:
     name: "총 매출"
-    default_roles: [owner]
+    default_roles: [chief_director, director, manager]
   stats_revenue_noninsured:
     name: "비급여 매출"
-    default_roles: [owner]
+    default_roles: [chief_director, director]
   chart_7day:
     name: "7일 추이 차트"
-    default_roles: [owner, staff]
+    default_roles: [chief_director, director, manager, team_leader, team_member]
   crm_actions:
     name: "후속 조치 리스트"
-    default_roles: [owner, staff]
+    default_roles: [chief_director, director, manager, team_leader]
   blog_generator:
     name: "Blog Generator"
-    default_roles: [owner, staff]
+    default_roles: [chief_director, director, manager, team_leader]
   insights:
     name: "New Insights"
-    default_roles: [owner]
+    default_roles: [chief_director, director]
   education_videos:
     name: "교육 영상"
-    default_roles: [owner, staff]
+    default_roles: [chief_director, director, manager, team_leader, team_member]

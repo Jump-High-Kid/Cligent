@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Cligent</title>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+  tailwind.config = {
+    theme: { extend: { fontFamily: { sans: ['Pretendard', 'sans-serif'] } } }
+  }
+</script>
+<style>
+  body { font-family: 'Pretendard', sans-serif; }
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+  }
+  #sidebar { width: 18rem; transition: width 0.22s cubic-bezier(.4,0,.2,1); overflow: hidden; }
+  #sidebar.collapsed { width: 4.5rem; padding-left: 0.75rem; padding-right: 0.75rem; }
+  #sidebar.collapsed .nav-label,
+  #sidebar.collapsed .sidebar-logo-text { display: none; }
+  #sidebar.collapsed nav a,
+  #sidebar.collapsed .sidebar-bottom-btn { justify-content: center; padding-left: 0; padding-right: 0; }
+  #sidebar.collapsed #toggle-btn .toggle-open  { display: none; }
+  #sidebar.collapsed #toggle-btn .toggle-close { display: block; }
+  #frame { flex: 1; border: none; height: 100vh; }
+</style>
+</head>
+<body class="flex flex-row h-screen bg-stone-100 overflow-hidden">
+
+<aside id="sidebar" class="h-screen flex flex-col fixed left-0 top-0 py-8 px-6 gap-y-1 bg-stone-100 z-50">
+
+  <!-- 로고 + 토글 -->
+  <div class="flex items-center justify-between mb-6 min-w-0">
+    <div class="sidebar-logo-text flex items-center gap-3 min-w-0">
+      <div class="w-10 h-10 bg-emerald-900 rounded-xl flex items-center justify-center flex-shrink-0">
+        <span class="material-symbols-outlined text-white" style="font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24;">medical_services</span>
+      </div>
+      <div class="min-w-0">
+        <h1 class="text-lg font-extrabold text-emerald-900 leading-none whitespace-nowrap">Cligent</h1>
+        <p class="text-[11px] font-medium text-stone-500 uppercase tracking-wider mt-1 whitespace-nowrap">한의원 관리 플랫폼</p>
+      </div>
+    </div>
+    <button id="toggle-btn" onclick="toggleSidebar()"
+      class="flex-shrink-0 ml-1 p-1.5 rounded-lg hover:bg-stone-200 transition-all text-stone-500">
+      <span class="material-symbols-outlined toggle-open text-[22px]">menu_open</span>
+      <span class="material-symbols-outlined toggle-close text-[22px]" style="display:none;">menu</span>
+    </button>
+  </div>
+
+  <!-- 네비게이션 -->
+  <nav class="flex flex-col gap-y-1 flex-1">
+    <a class="nav-item flex items-center gap-3 text-stone-600 px-4 py-3 rounded-xl hover:bg-stone-200 transition-all cursor-pointer" data-path="/">
+      <span class="material-symbols-outlined flex-shrink-0">dashboard</span>
+      <span class="nav-label font-medium text-sm whitespace-nowrap">대시보드</span>
+    </a>
+    <a class="nav-item flex items-center gap-3 text-stone-600 px-4 py-3 rounded-xl hover:bg-stone-200 transition-all cursor-pointer" data-path="/blog">
+      <span class="material-symbols-outlined flex-shrink-0">article</span>
+      <span class="nav-label font-medium text-sm whitespace-nowrap">블로그 생성기</span>
+    </a>
+    <a class="nav-item flex items-center gap-3 text-stone-600 px-4 py-3 rounded-xl hover:bg-stone-200 transition-all cursor-pointer" data-path="#">
+      <span class="material-symbols-outlined flex-shrink-0">inventory_2</span>
+      <span class="nav-label font-medium text-sm whitespace-nowrap">재고 관리</span>
+    </a>
+    <a class="nav-item flex items-center gap-3 text-stone-600 px-4 py-3 rounded-xl hover:bg-stone-200 transition-all cursor-pointer" data-path="#">
+      <span class="material-symbols-outlined flex-shrink-0">calendar_today</span>
+      <span class="nav-label font-medium text-sm whitespace-nowrap">스케줄 관리</span>
+    </a>
+    <a class="nav-item flex items-center gap-3 text-stone-600 px-4 py-3 rounded-xl hover:bg-stone-200 transition-all cursor-pointer" data-path="#">
+      <span class="material-symbols-outlined flex-shrink-0">group</span>
+      <span class="nav-label font-medium text-sm whitespace-nowrap">고객 관리</span>
+    </a>
+    <a class="nav-item flex items-center gap-3 text-stone-600 px-4 py-3 rounded-xl hover:bg-stone-200 transition-all cursor-pointer" data-path="/settings">
+      <span class="material-symbols-outlined flex-shrink-0">settings</span>
+      <span class="nav-label font-medium text-sm whitespace-nowrap">설정</span>
+    </a>
+  </nav>
+
+  <!-- 하단: 역할 배지 + 초대 + 로그아웃 -->
+  <div class="pt-6 mt-2 border-t border-stone-200 space-y-1">
+    <div id="role-badge" class="px-3 py-2 rounded-xl bg-stone-200 text-[0.75rem] text-center font-semibold text-emerald-900 whitespace-nowrap nav-label">
+      로딩 중...
+    </div>
+    <button id="invite-btn" style="display:none;"
+      class="sidebar-bottom-btn w-full flex items-center gap-3 text-stone-600 px-4 py-3 rounded-xl hover:bg-stone-200 transition-all">
+      <span class="material-symbols-outlined flex-shrink-0">person_add</span>
+      <span class="nav-label font-medium text-sm whitespace-nowrap">팀원 초대</span>
+    </button>
+    <button onclick="doLogout()"
+      class="sidebar-bottom-btn w-full flex items-center gap-3 text-stone-600 px-4 py-3 rounded-xl hover:bg-stone-200 transition-all">
+      <span class="material-symbols-outlined flex-shrink-0">logout</span>
+      <span class="nav-label font-medium text-sm whitespace-nowrap">로그아웃</span>
+    </button>
+  </div>
+</aside>
+
+<!-- 콘텐츠 iframe — 사이드바 너비만큼 margin -->
+<div id="frame-wrap" class="flex-1 ml-[18rem] transition-all duration-[220ms]" style="cubic-bezier(.4,0,.2,1);">
+  <iframe id="frame" src="" class="w-full h-screen border-0"></iframe>
+</div>
+
+<script>
+  const ROLE_LABELS = {
+    chief_director: '대표원장', director: '원장',
+    manager: '매니저', team_leader: '팀장', team_member: '팀원',
+  };
+  const DIRECTOR_ROLES = ['chief_director', 'director'];
+
+  // ── 역할 배지 로딩 ─────────────────────────────────────────
+  (async function loadMe() {
+    try {
+      const res = await fetch('/api/auth/me');
+      if (!res.ok) { window.location.href = '/login'; return; }
+      const user = await res.json();
+      document.getElementById('role-badge').textContent = ROLE_LABELS[user.role] || user.role;
+      if (DIRECTOR_ROLES.includes(user.role)) {
+        document.getElementById('invite-btn').style.display = 'flex';
+      }
+    } catch (_) {}
+  })();
+
+  // ── 네비게이션 ─────────────────────────────────────────────
+  function navigate(path) {
+    if (path === '#') return;
+    document.getElementById('frame').src = path;
+    history.pushState({ path }, '', path);
+    updateActive(path);
+  }
+
+  function updateActive(path) {
+    document.querySelectorAll('.nav-item').forEach(el => {
+      const p = el.dataset.path;
+      const isActive = p === path || (path === '/' && p === '/');
+      el.classList.toggle('bg-emerald-900', isActive);
+      el.classList.toggle('text-white', isActive);
+      el.classList.toggle('text-stone-600', !isActive);
+      el.classList.toggle('hover:bg-stone-200', !isActive);
+    });
+  }
+
+  document.querySelectorAll('.nav-item').forEach(el => {
+    el.addEventListener('click', e => {
+      e.preventDefault();
+      navigate(el.dataset.path);
+    });
+  });
+
+  // iframe 내부 페이지 이동 시 URL 동기화
+  document.getElementById('frame').addEventListener('load', function() {
+    try {
+      const path = this.contentWindow.location.pathname;
+      if (path !== location.pathname) {
+        history.replaceState({ path }, '', path);
+        updateActive(path);
+      }
+    } catch (_) {}
+  });
+
+  // 브라우저 뒤로/앞으로
+  window.addEventListener('popstate', e => {
+    if (e.state?.path) {
+      document.getElementById('frame').src = e.state.path;
+      updateActive(e.state.path);
+    }
+  });
+
+  // ── 사이드바 토글 ──────────────────────────────────────────
+  function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const wrap    = document.getElementById('frame-wrap');
+    const collapsed = sidebar.classList.toggle('collapsed');
+    wrap.style.marginLeft = collapsed ? '4.5rem' : '18rem';
+    document.querySelector('.toggle-open').style.display  = collapsed ? 'none'  : '';
+    document.querySelector('.toggle-close').style.display = collapsed ? '' : 'none';
+    localStorage.setItem('cligent_sidebar', collapsed ? '1' : '0');
+  }
+
+  // ── 초기 로딩 ──────────────────────────────────────────────
+  (function init() {
+    // 사이드바 상태 복원
+    if (localStorage.getItem('cligent_sidebar') === '1') {
+      document.getElementById('sidebar').classList.add('collapsed');
+      document.getElementById('frame-wrap').style.marginLeft = '4.5rem';
+      document.querySelector('.toggle-open').style.display  = 'none';
+      document.querySelector('.toggle-close').style.display = '';
+    }
+
+    // 현재 URL 기준으로 초기 페이지 결정
+    const path = location.pathname === '/app' ? '/' : location.pathname;
+    document.getElementById('frame').src = path;
+    updateActive(path);
+    history.replaceState({ path }, '', path);
+  })();
+
+  async function doLogout() {
+    await fetch('/api/logout', { method: 'POST' });
+    window.location.href = '/login';
+  }
+</script>
+</body>
+</html>

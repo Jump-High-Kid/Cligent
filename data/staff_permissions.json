@@ -1,25 +1,16 @@
 {
-  "_comment": "직원별 모듈 접근 권한. 원장(owner)은 항상 전체 접근 가능.",
-  "staff_001": {
-    "name": "이간호사",
-    "modules": [
-      "stats_patients",
-      "stats_appointments",
-      "stats_cancellations",
-      "chart_7day",
-      "crm_actions",
-      "blog_generator",
-      "education_videos"
-    ]
+  "1": {
+    "name": "owner",
+    "role": "team_member",
+    "team_id": "",
+    "modules": []
   },
-  "staff_002": {
-    "name": "김데스크",
+  "2": {
+    "name": "staff",
+    "role": "team_member",
+    "team_id": "",
     "modules": [
-      "stats_patients",
-      "stats_appointments",
-      "stats_cancellations",
-      "crm_actions",
-      "education_videos"
+      "content"
     ]
   }
 }
