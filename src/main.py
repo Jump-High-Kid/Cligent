@@ -1,7 +1,8 @@
 """
 main.py — FastAPI 앱 진입점
 엔드포인트:
-  GET  /                    → index.html (대화형 UI)
+  GET  /                    → dashboard.html (Cligent 홈 대시보드)
+  GET  /blog                → index.html (블로그 생성기)
   POST /conversation-flow   → 주제에 맞는 대화 흐름 생성 (질문+선택지)
   POST /generate            → 블로그 SSE 스트리밍 생성
 """
@@ -25,7 +26,13 @@ app = FastAPI(title="Cligent 블로그 생성기")
 
 @app.get("/")
 async def root():
-    """메인 UI 페이지"""
+    """Cligent 홈 대시보드"""
+    return FileResponse(ROOT / "templates" / "dashboard.html")
+
+
+@app.get("/blog")
+async def blog():
+    """블로그 생성기 UI"""
     return FileResponse(ROOT / "templates" / "index.html")
 
 

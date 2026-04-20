@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cligent</title>
+<style>
+  /* ── 디자인 토큰 (K-007 레퍼런스 기반) ── */
+  :root {
+    --bg:           #f0ece4;
+    --surface:      #f7f4ef;
+    --surface-raise:#ffffff;
+    --surface-press:#e8e3d9;
+    --border:       #ddd8ce;
+    --border-light: #eae6df;
+    --teal:         #1a6b5a;
+    --teal-light:   #2a8a74;
+    --teal-bg:      rgba(26,107,90,0.08);
+    --text:         #1c1c1e;
+    --text2:        #6b6860;
+    --text3:        #a09a90;
+    --shadow-sm:    3px 3px 8px rgba(180,170,155,0.35), -2px -2px 6px rgba(255,255,255,0.7);
+    --shadow-inset: inset 2px 2px 5px rgba(180,170,155,0.4), inset -2px -2px 5px rgba(255,255,255,0.6);
+    --radius:       16px;
+    --radius-sm:    10px;
+    --sidebar-w:    220px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, 'Pretendard', 'Noto Sans KR', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+  }
+
+  /* ── 사이드바 ── */
+  .sidebar {
+    width: var(--sidebar-w);
+    min-height: 100vh;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 24px 16px;
+    flex-shrink: 0;
+    box-shadow: 4px 0 12px rgba(180,170,155,0.15);
+  }
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 4px 8px 20px;
+    border-bottom: 1px solid var(--border-light);
+    margin-bottom: 20px;
+  }
+  .logo-mark {
+    width: 34px; height: 34px;
+    background: var(--teal);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    color: white;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    box-shadow: var(--shadow-sm);
+  }
+  .logo-text { font-size: 17px; font-weight: 700; letter-spacing: -0.3px; }
+  .logo-sub  { font-size: 10px; color: var(--text3); letter-spacing: 0.5px; }
+
+  .nav-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text3);
+    padding: 0 8px;
+    margin-bottom: 6px;
+  }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: var(--radius-sm);
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--text2);
+    cursor: pointer;
+    transition: all 0.15s;
+    margin-bottom: 2px;
+    text-decoration: none;
+  }
+  .nav-item:hover {
+    background: var(--teal-bg);
+    color: var(--teal);
+  }
+  .nav-item.active {
+    background: var(--teal-bg);
+    color: var(--teal);
+    font-weight: 600;
+    box-shadow: var(--shadow-sm);
+    background: var(--surface-raise);
+  }
+  .nav-item .icon { font-size: 16px; width: 20px; text-align: center; }
+  .nav-badge {
+    margin-left: auto;
+    background: var(--teal);
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 10px;
+  }
+  .nav-soon {
+    margin-left: auto;
+    font-size: 10px;
+    color: var(--text3);
+    background: var(--surface-press);
+    padding: 1px 6px;
+    border-radius: 10px;
+  }
+  .sidebar-bottom {
+    margin-top: auto;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-light);
+  }
+
+  /* ── 메인 영역 ── */
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── 상단 바 ── */
+  .topbar {
+    height: 60px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 0 28px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .cmd-wrap {
+    flex: 1;
+    max-width: 420px;
+    position: relative;
+  }
+  .cmd-input {
+    width: 100%;
+    height: 36px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0 14px 0 36px;
+    font-size: 13px;
+    color: var(--text);
+    outline: none;
+    box-shadow: var(--shadow-inset);
+    transition: border-color 0.15s;
+  }
+  .cmd-input::placeholder { color: var(--text3); }
+  .cmd-input:focus { border-color: var(--teal); }
+  .cmd-icon {
+    position: absolute;
+    left: 12px; top: 50%;
+    transform: translateY(-50%);
+    color: var(--text3);
+    font-size: 14px;
+    pointer-events: none;
+  }
+
+  /* 슬래시 자동완성 드롭다운 */
+  .cmd-dropdown {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0; right: 0;
+    background: var(--surface-raise);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 8px 24px rgba(100,90,75,0.15);
+    z-index: 100;
+    overflow: hidden;
+  }
+  .cmd-dropdown.show { display: block; }
+  .cmd-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  .cmd-option:hover, .cmd-option.focused { background: var(--teal-bg); }
+  .cmd-option .cmd-key { font-family: monospace; color: var(--teal); font-weight: 600; min-width: 80px; }
+  .cmd-option .cmd-desc { color: var(--text2); font-size: 12px; }
+
+  .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+  .topbar-date { font-size: 12px; color: var(--text3); }
+  .avatar {
+    width: 32px; height: 32px;
+    background: var(--teal);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-size: 13px; font-weight: 700;
+    box-shadow: var(--shadow-sm);
+    cursor: pointer;
+  }
+
+  /* ── 콘텐츠 영역 ── */
+  .content {
+    flex: 1;
+    padding: 28px;
+    overflow-y: auto;
+    display: grid;
+    grid-template-columns: 1fr 360px;
+    grid-template-rows: auto auto 1fr;
+    gap: 20px;
+    align-content: start;
+  }
+
+  /* ── 환영 배너 ── */
+  .welcome {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .welcome-text h2 { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 4px; }
+  .welcome-text p  { font-size: 13px; color: var(--text2); }
+  .beta-pill {
+    background: var(--teal);
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 12px;
+    border-radius: 20px;
+    letter-spacing: 0.3px;
+  }
+
+  /* ── 기능 타일 ── */
+  .tiles {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  .tile {
+    background: var(--surface-raise);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: var(--shadow-sm);
+    text-decoration: none;
+    display: block;
+  }
+  .tile:hover {
+    transform: translateY(-2px);
+    box-shadow: 5px 5px 14px rgba(180,170,155,0.4), -3px -3px 10px rgba(255,255,255,0.8);
+  }
+  .tile:active {
+    transform: translateY(0);
+    box-shadow: var(--shadow-inset);
+  }
+  .tile-icon {
+    width: 44px; height: 44px;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+    margin-bottom: 14px;
+    box-shadow: var(--shadow-sm);
+  }
+  .tile-icon.teal  { background: var(--teal-bg); }
+  .tile-icon.sand  { background: rgba(180,140,90,0.12); }
+  .tile-icon.slate { background: rgba(90,110,140,0.1); }
+  .tile h3 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+  .tile p  { font-size: 12px; color: var(--text2); line-height: 1.5; }
+  .tile-status {
+    margin-top: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 6px;
+    display: inline-block;
+  }
+  .status-live   { background: rgba(26,107,90,0.1);  color: var(--teal); }
+  .status-soon   { background: var(--surface-press); color: var(--text3); }
+
+  /* 비활성 타일 */
+  .tile.disabled {
+    opacity: 0.6;
+    cursor: default;
+    pointer-events: none;
+  }
+
+  /* ── 우측 패널 ── */
+  .side-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    grid-row: 2 / 4;
+  }
+
+  /* ── 베타 진행 카드 ── */
+  .card {
+    background: var(--surface-raise);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    padding: 20px;
+    box-shadow: var(--shadow-sm);
+  }
+  .card-title {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: var(--text3);
+    margin-bottom: 14px;
+  }
+  .progress-wrap { margin-bottom: 8px; }
+  .progress-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .progress-bar {
+    height: 8px;
+    background: var(--surface-press);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: var(--shadow-inset);
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--teal), var(--teal-light));
+    border-radius: 10px;
+    transition: width 0.6s ease;
+  }
+  .progress-sub { font-size: 11px; color: var(--text3); margin-top: 6px; }
+
+  /* 체크리스트 */
+  .checklist { display: flex; flex-direction: column; gap: 8px; }
+  .check-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--text2);
+  }
+  .check-item.done { color: var(--text3); text-decoration: line-through; }
+  .check-dot {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px;
+    box-shadow: var(--shadow-sm);
+  }
+  .check-dot.done { background: var(--teal); border-color: var(--teal); color: white; }
+
+  /* ── 유튜브 영역 ── */
+  .youtube-area {
+    grid-column: 1 / 2;
+  }
+  .yt-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .yt-header h3 { font-size: 14px; font-weight: 700; }
+  .yt-link {
+    font-size: 12px;
+    color: var(--teal);
+    text-decoration: none;
+    font-weight: 600;
+  }
+  .yt-embed {
+    background: var(--surface-raise);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+    aspect-ratio: 16/9;
+  }
+  .yt-embed iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    display: block;
+  }
+  .yt-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    color: var(--text3);
+    font-size: 13px;
+    background: var(--bg);
+  }
+  .yt-placeholder-icon { font-size: 40px; }
+  .yt-url-form {
+    display: flex;
+    gap: 8px;
+    padding: 14px;
+    background: var(--surface);
+    border-top: 1px solid var(--border-light);
+  }
+  .yt-url-input {
+    flex: 1;
+    height: 34px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0 12px;
+    font-size: 12px;
+    background: var(--bg);
+    color: var(--text);
+    outline: none;
+    box-shadow: var(--shadow-inset);
+  }
+  .yt-url-input:focus { border-color: var(--teal); }
+  .yt-url-input::placeholder { color: var(--text3); }
+  .btn-sm {
+    height: 34px;
+    padding: 0 14px;
+    border-radius: 8px;
+    border: none;
+    background: var(--teal);
+    color: white;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: var(--shadow-sm);
+    transition: opacity 0.15s;
+  }
+  .btn-sm:hover { opacity: 0.88; }
+</style>
+</head>
+<body>
+
+<!-- ── 사이드바 ── -->
+<nav class="sidebar">
+  <div class="logo">
+    <div class="logo-mark">C</div>
+    <div>
+      <div class="logo-text">Cligent</div>
+      <div class="logo-sub">Medical AI Agent</div>
+    </div>
+  </div>
+
+  <div class="nav-label">메뉴</div>
+  <a href="/" class="nav-item active">
+    <span class="icon">🏠</span> 홈
+  </a>
+  <a href="/blog" class="nav-item">
+    <span class="icon">✍️</span> 블로그 생성기
+    <span class="nav-badge">MVP</span>
+  </a>
+  <a href="#" class="nav-item">
+    <span class="icon">📦</span> 재고 관리
+    <span class="nav-soon">준비중</span>
+  </a>
+  <a href="#" class="nav-item">
+    <span class="icon">📅</span> 스케줄
+    <span class="nav-soon">준비중</span>
+  </a>
+  <a href="#" class="nav-item">
+    <span class="icon">👥</span> CRM
+    <span class="nav-soon">준비중</span>
+  </a>
+
+  <div class="nav-label" style="margin-top:20px">설정</div>
+  <a href="#" class="nav-item">
+    <span class="icon">⚙️</span> 설정
+  </a>
+
+  <div class="sidebar-bottom">
+    <div class="nav-item" style="font-size:12px">
+      <span class="icon">🔑</span>
+      <div>
+        <div style="font-size:12px;color:var(--text2)">API 키</div>
+        <div id="api-status" style="font-size:11px;color:var(--text3)">확인 중...</div>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<!-- ── 메인 ── -->
+<div class="main">
+
+  <!-- 상단 바 -->
+  <header class="topbar">
+    <div class="cmd-wrap">
+      <span class="cmd-icon">⌘</span>
+      <input
+        class="cmd-input"
+        id="cmdInput"
+        type="text"
+        placeholder="/ 로 시작하여 기능 실행  (예: /블로그)"
+        autocomplete="off"
+      />
+      <div class="cmd-dropdown" id="cmdDropdown">
+        <div class="cmd-option" data-href="/blog">
+          <span class="cmd-key">/블로그</span>
+          <span class="cmd-desc">블로그 생성기 열기</span>
+        </div>
+        <div class="cmd-option" data-href="#">
+          <span class="cmd-key">/재고</span>
+          <span class="cmd-desc">재고 관리 (준비중)</span>
+        </div>
+        <div class="cmd-option" data-href="#">
+          <span class="cmd-key">/스케줄</span>
+          <span class="cmd-desc">스케줄 관리 (준비중)</span>
+        </div>
+        <div class="cmd-option" data-href="#">
+          <span class="cmd-key">/설정</span>
+          <span class="cmd-desc">환경 설정</span>
+        </div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <span class="topbar-date" id="todayDate"></span>
+      <div class="avatar">원</div>
+    </div>
+  </header>
+
+  <!-- 콘텐츠 -->
+  <div class="content">
+
+    <!-- 환영 배너 -->
+    <div class="welcome">
+      <div class="welcome-text">
+        <h2>안녕하세요, 원장님 👋</h2>
+        <p>오늘도 Cligent가 시간을 아껴드립니다.</p>
+      </div>
+      <span class="beta-pill">BETA</span>
+    </div>
+
+    <!-- 기능 타일 -->
+    <div class="tiles">
+      <a href="/blog" class="tile">
+        <div class="tile-icon teal">✍️</div>
+        <h3>블로그 생성기</h3>
+        <p>주제를 입력하면 AI가 한의원 블로그 글을 자동 생성합니다.</p>
+        <span class="tile-status status-live">사용 가능</span>
+      </a>
+      <div class="tile disabled">
+        <div class="tile-icon sand">📦</div>
+        <h3>재고 관리</h3>
+        <p>약재·물품 재고 현황 파악 및 자동 발주 알림.</p>
+        <span class="tile-status status-soon">준비중</span>
+      </div>
+      <div class="tile disabled">
+        <div class="tile-icon slate">📅</div>
+        <h3>스케줄 관리</h3>
+        <p>진료 예약 및 직원 근무 스케줄 최적화.</p>
+        <span class="tile-status status-soon">준비중</span>
+      </div>
+    </div>
+
+    <!-- 우측 패널 -->
+    <div class="side-panel">
+
+      <!-- 베타 테스트 진행 -->
+      <div class="card">
+        <div class="card-title">베타 테스트 현황</div>
+        <div class="progress-wrap">
+          <div class="progress-label">
+            <span>블로그 업로드</span>
+            <span style="color:var(--teal)">4 / 10</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" style="width:40%"></div>
+          </div>
+          <div class="progress-sub">하루 2편 · 6편 남음</div>
+        </div>
+      </div>
+
+      <!-- 빠른 할일 -->
+      <div class="card">
+        <div class="card-title">다음 작업</div>
+        <div class="checklist">
+          <div class="check-item done">
+            <div class="check-dot done">✓</div>
+            블로그 생성기 MVP 완성
+          </div>
+          <div class="check-item done">
+            <div class="check-dot done">✓</div>
+            이미지 프롬프트 생성 (Phase B-1)
+          </div>
+          <div class="check-item">
+            <div class="check-dot"></div>
+            베타 테스트 10편 완료
+          </div>
+          <div class="check-item">
+            <div class="check-dot"></div>
+            대시보드 UI 구축
+          </div>
+          <div class="check-item">
+            <div class="check-dot"></div>
+            휴머나이저 (AI 문체 제거)
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 유튜브 영역 -->
+    <div class="youtube-area">
+      <div class="yt-header">
+        <h3>📺 참고 영상</h3>
+        <a class="yt-link" id="yt-open-link" href="#" target="_blank" style="display:none">새 탭에서 보기 ↗</a>
+      </div>
+      <div class="card" style="padding:0;overflow:hidden">
+        <div class="yt-embed" id="ytEmbed">
+          <div class="yt-placeholder">
+            <div class="yt-placeholder-icon">▶️</div>
+            <div>유튜브 URL을 입력하면 여기에 재생됩니다.</div>
+          </div>
+        </div>
+        <div class="yt-url-form">
+          <input
+            class="yt-url-input"
+            id="ytInput"
+            type="text"
+            placeholder="유튜브 URL 붙여넣기  (예: https://youtube.com/watch?v=...)"
+          />
+          <button class="btn-sm" onclick="loadYoutube()">재생</button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<script>
+  // ── 오늘 날짜 표시 ──
+  const d = new Date();
+  const days = ['일','월','화','수','목','금','토'];
+  document.getElementById('todayDate').textContent =
+    `${d.getFullYear()}. ${d.getMonth()+1}. ${d.getDate()}. (${days[d.getDay()]})`;
+
+  // ── API 키 상태 확인 ──
+  fetch('/conversation-flow', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({keyword: 'test'})
+  }).then(r => r.json()).then(data => {
+    const el = document.getElementById('api-status');
+    if (data.error && data.error.includes('API')) {
+      el.textContent = '키 미설정';
+      el.style.color = '#c0392b';
+    } else {
+      el.textContent = '연결됨';
+      el.style.color = 'var(--teal)';
+    }
+  }).catch(() => {
+    document.getElementById('api-status').textContent = '오프라인';
+  });
+
+  // ── 슬래시 명령어 ──
+  const cmdInput    = document.getElementById('cmdInput');
+  const cmdDropdown = document.getElementById('cmdDropdown');
+  const options     = document.querySelectorAll('.cmd-option');
+  let focusedIdx    = -1;
+
+  cmdInput.addEventListener('input', () => {
+    const v = cmdInput.value;
+    if (v.startsWith('/')) {
+      cmdDropdown.classList.add('show');
+      focusedIdx = -1;
+      // 필터링
+      options.forEach(opt => {
+        const key = opt.querySelector('.cmd-key').textContent;
+        opt.style.display = key.includes(v) || v === '/' ? 'flex' : 'none';
+      });
+    } else {
+      cmdDropdown.classList.remove('show');
+    }
+  });
+
+  cmdInput.addEventListener('keydown', e => {
+    const visible = [...options].filter(o => o.style.display !== 'none');
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      focusedIdx = (focusedIdx + 1) % visible.length;
+      visible.forEach((o, i) => o.classList.toggle('focused', i === focusedIdx));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      focusedIdx = (focusedIdx - 1 + visible.length) % visible.length;
+      visible.forEach((o, i) => o.classList.toggle('focused', i === focusedIdx));
+    } else if (e.key === 'Enter' && focusedIdx >= 0) {
+      const href = visible[focusedIdx].dataset.href;
+      if (href && href !== '#') window.location.href = href;
+    } else if (e.key === 'Escape') {
+      cmdDropdown.classList.remove('show');
+    }
+  });
+
+  options.forEach(opt => {
+    opt.addEventListener('click', () => {
+      const href = opt.dataset.href;
+      if (href && href !== '#') window.location.href = href;
+    });
+  });
+
+  document.addEventListener('click', e => {
+    if (!cmdInput.contains(e.target) && !cmdDropdown.contains(e.target)) {
+      cmdDropdown.classList.remove('show');
+    }
+  });
+
+  // ── 유튜브 로드 ──
+  function extractVideoId(url) {
+    const m = url.match(/(?:v=|youtu\.be\/|embed\/)([A-Za-z0-9_-]{11})/);
+    return m ? m[1] : null;
+  }
+  function loadYoutube() {
+    const url = document.getElementById('ytInput').value.trim();
+    const id  = extractVideoId(url);
+    if (!id) { alert('유튜브 URL을 확인해주세요.'); return; }
+    document.getElementById('ytEmbed').innerHTML =
+      `<iframe src="https://www.youtube.com/embed/${id}?rel=0" allowfullscreen></iframe>`;
+    const openLink = document.getElementById('yt-open-link');
+    openLink.href = `https://www.youtube.com/watch?v=${id}`;
+    openLink.style.display = 'inline';
+  }
+  document.getElementById('ytInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') loadYoutube();
+  });
+</script>
+</body>
+</html>
