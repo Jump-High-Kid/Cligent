@@ -91,25 +91,29 @@ prompts:
   blog: "prompts/blog.txt"
 ```
 
-#### 이미지 프롬프트 생성 기능 (Phase B-1, 2026-04-16 추가)
-블로그 생성 완료 후 "이미지 프롬프트 생성" 버튼으로 이미지 AI용 프롬프트 5개 자동 생성.
+#### 이미지 프롬프트 생성 기능 (2단계 파이프라인, 2026-04-20 전면 개선)
+블로그 생성 완료 후 "이미지 프롬프트 생성" 버튼 → 옵션 패널 표시 → "생성하기" 클릭으로 5개 프롬프트 생성.
 
-**이미지 프롬프트 조건 (prompts/image_prompt.txt 참조)**
-1. 신뢰성 — 의료 공간의 전문성·청결함이 느껴질 것
-2. 과장 금지 — 치료 효과를 단정하는 시각 요소 없음
-3. 배경 단순화 — 단색·흐린 공간·자연 텍스처
-4. 본문 맥락 밀착 — 각 프롬프트는 블로그 섹션과 직접 연결
-5. 순차 배치 — 도입 → 원인 → 치료 → 생활 → 마무리 순서
-6. 치료 클로즈업 1개 필수 — 침·뜸·한약 조제 등 클로즈업
-7. 차분한 톤 — warm beige, natural wood, muted palette
-8. 한의원 분위기 — 우드·한지·베이지 기반 미니멀 공간 (2025 트렌드 반영)
+**아키텍처 (Option C — 구조화 JSON 출력)**
+- Stage 1: `image_analysis.txt` — 블로그 분석 → 장면 계획 JSON (경혈 자동 선택, 카메라 앵글)
+- Stage 2: `image_generation.txt` — JSON + 스타일/톤 → 이미지 프롬프트 배열 JSON
+- `image_prompt_generator.py` — 2단계 파이프라인 오케스트레이터 (SSE)
+
+**경혈 테이블: 30개 (WHO 기준)**
+LU7, LI4, LI11, ST25, ST36, ST40, ST44, SP6, SP10, HT7, SI3, BL17, BL23, BL40, BL60, KD3, KD6, PC6, TE5, GB20, GB21, GB34, LV3, GV4, GV14, GV20, CV4, CV6, CV12, CV17
+
+**이미지 형식 옵션 (6종)**
+사실적(photorealistic) / 애니메이션(anime) / 카툰(cartoon) / 일러스트(illustration) / 수채화(watercolor) / 3D 렌더(3d_render)
+
+**이미지 톤 옵션 (6종)**
+따뜻한(warm) / 클린 화이트(cool_white) / 소프트(soft) / 에디토리얼(editorial) / 미니멀(minimal) / 내추럴(natural)
+
+**API 파라미터**: `POST /generate-image-prompts` — `{ keyword, blog_content, style, tone }`
 
 **의료 윤리 준수**
 - 환자 얼굴 정면 클로즈업 금지 (측면·후면·손 허용)
 - 처방전·의료 기록 노출 금지
 - 특정 약재 치료 효과 암시 금지
-
-**사용자 팁** — 이미지 AI에 실제 진료실 사진을 함께 제공하면 품질이 향상됨 (Midjourney `--iw`, DALL-E 이미지 편집, 나노바나나 참조 이미지)
 
 #### 블로그 생성기 추가 개선사항 (2026-04-16)
 - **복사 기능**: ClipboardItem API — HTML 형식 복사로 네이버 붙여넣기 시 서식(굵기·제목) 유지, 폴백 시 마크다운 기호 제거

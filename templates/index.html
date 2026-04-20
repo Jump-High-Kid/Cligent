@@ -241,7 +241,7 @@
     #imagePromptSection {
       margin-top: 20px; border-top: 1.5px solid #e8f4f3; padding-top: 20px;
     }
-    #imagePromptSection h3 {
+    #imagePromptSection > h3 {
       font-size: 0.95rem; font-weight: 700; color: #1a5f5a; margin-bottom: 12px;
     }
     #imagePromptTip {
@@ -249,18 +249,46 @@
       padding: 10px 14px; border-radius: 0 8px 8px 0;
       font-size: 0.85rem; line-height: 1.6; color: #444; margin-bottom: 14px;
     }
-    #imagePromptOutput {
-      font-size: 0.88rem; line-height: 1.85; padding: 14px;
-      background: #fafafa; border-radius: 8px; border: 1.5px solid #eee;
-      min-height: 80px; word-break: keep-all;
+    #imgPromptLabel { display: block; font-size: 0.9rem; font-weight: 600; color: #555; margin-bottom: 12px; }
+    #imagePromptOutput { display: flex; flex-direction: column; gap: 14px; }
+
+    /* 프롬프트 카드 */
+    .img-card { border: 1.5px solid #e0eeec; border-radius: 12px; overflow: hidden; background: #fff; box-shadow: 0 1px 6px rgba(0,0,0,0.04); }
+    .img-card-header { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: #f0f7f6; border-bottom: 1px solid #e0eeec; }
+    .img-card-num { width: 24px; height: 24px; border-radius: 50%; background: #1a5f5a; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 0.78rem; font-weight: 700; flex-shrink: 0; }
+    .img-card-meta { flex: 1; min-width: 0; }
+    .img-card-title { font-size: 0.88rem; font-weight: 700; color: #1a5f5a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .img-card-placement { font-size: 0.78rem; color: #888; margin-top: 1px; }
+    .img-card-ar { font-size: 0.75rem; font-weight: 600; color: #1a5f5a; background: #d4ecea; padding: 2px 8px; border-radius: 10px; flex-shrink: 0; }
+    .img-card-body { padding: 12px 14px; }
+    .img-card-prompt { display: block; background: #f4f8f7; border-radius: 8px; padding: 10px 12px; font-size: 0.8rem; font-family: 'Menlo', 'Courier New', monospace; color: #333; white-space: pre-wrap; word-break: break-all; line-height: 1.6; border: 1px solid #e0eeec; margin-bottom: 8px; }
+    .img-card-negative-wrap summary { font-size: 0.78rem; color: #888; cursor: pointer; list-style: none; display: flex; align-items: center; gap: 4px; }
+    .img-card-negative-wrap summary::-webkit-details-marker { display: none; }
+    .img-card-negative-wrap summary::before { content: '▶'; font-size: 0.65rem; }
+    .img-card-negative-wrap[open] summary::before { content: '▼'; }
+    .img-card-negative { display: block; margin-top: 6px; background: #fdf4f4; border-radius: 6px; padding: 8px 10px; font-size: 0.77rem; font-family: 'Menlo', 'Courier New', monospace; color: #888; white-space: pre-wrap; word-break: break-all; border: 1px solid #f0dede; }
+    .img-card-actions { display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 14px; border-top: 1px solid #f0f0f0; background: #fafafa; }
+    .img-btn-copy { padding: 6px 14px; border-radius: 6px; background: #1a5f5a; color: #fff; border: none; font-size: 0.8rem; font-weight: 600; cursor: pointer; font-family: inherit; transition: opacity 0.2s; }
+    .img-btn-copy:hover { opacity: 0.85; }
+    .img-btn-ai { padding: 6px 12px; border-radius: 6px; background: #f0f7f6; color: #1a5f5a; border: 1.5px solid #cce0de; font-size: 0.8rem; font-weight: 600; cursor: pointer; font-family: inherit; text-decoration: none; transition: background 0.15s; display: inline-flex; align-items: center; gap: 3px; }
+    .img-btn-ai:hover { background: #d4ecea; }
+    .img-prompt-footer { display: flex; gap: 8px; margin-top: 14px; justify-content: flex-end; }
+
+    /* 이미지 옵션 패널 */
+    #imgOptionPanel { background: #f8faf9; border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; border: 1px solid #e0eeec; }
+    .img-option-group { margin-bottom: 10px; }
+    .img-option-group:last-of-type { margin-bottom: 12px; }
+    .img-option-label { font-size: 0.82rem; font-weight: 600; color: #555; margin-bottom: 7px; display: block; }
+    .img-option-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .img-opt-chip {
+      padding: 5px 13px; border-radius: 20px; border: 1.5px solid #cce0de;
+      background: #fff; color: #1a5f5a; font-size: 0.82rem; font-weight: 600;
+      cursor: pointer; font-family: inherit; transition: all 0.15s;
     }
-    #imagePromptOutput strong { font-weight: 700; color: #1a5f5a; }
-    #imagePromptOutput code {
-      display: block; background: #f0f4f3; border-radius: 6px;
-      padding: 8px 12px; font-size: 0.82rem; font-family: 'Menlo', 'Courier New', monospace;
-      color: #333; margin: 6px 0 14px; white-space: pre-wrap; word-break: break-all;
-    }
-    .img-prompt-footer { display: flex; gap: 8px; margin-top: 12px; justify-content: flex-end; }
+    .img-opt-chip:hover { background: #e8f4f3; }
+    .img-opt-chip.selected { background: #1a5f5a; color: #fff; border-color: #1a5f5a; }
+    .img-option-actions { display: flex; justify-content: flex-end; }
+    #imgGenerateBtn { padding: 9px 22px; font-size: 0.88rem; }
 
     /* 결과 — 마크다운 렌더링 */
     #output {
@@ -400,14 +428,45 @@
       <div id="imagePromptSection" class="hidden">
         <h3>이미지 프롬프트</h3>
         <div id="imagePromptTip">
-          <strong>품질 향상 팁</strong> — 아래 프롬프트를 이미지 AI에 입력할 때, 실제 진료실·공간 사진을 함께 업로드하면 훨씬 현실감 있는 이미지가 생성됩니다.<br>
-          예: Midjourney <code>--iw</code> 파라미터 / DALL-E 이미지 편집 / 나노바나나 참조 이미지
+          <strong>사용법</strong> — 각 프롬프트 옆 버튼으로 복사 후 이미지 AI 페이지로 이동하세요.<br>
+          실제 진료실 사진을 함께 업로드하면 품질이 향상됩니다. (Midjourney <code>--iw</code>, DALL-E 이미지 편집)
         </div>
-        <label id="imgPromptLabel">생성 중<span class="dots"></span></label>
+
+        <!-- 옵션 패널 -->
+        <div id="imgOptionPanel">
+          <div class="img-option-group">
+            <span class="img-option-label">이미지 형식</span>
+            <div class="img-option-chips">
+              <button class="img-opt-chip selected" data-group="style" data-value="photorealistic" onclick="selectImgOpt('style',this)">사실적</button>
+              <button class="img-opt-chip" data-group="style" data-value="anime" onclick="selectImgOpt('style',this)">애니메이션</button>
+              <button class="img-opt-chip" data-group="style" data-value="cartoon" onclick="selectImgOpt('style',this)">카툰</button>
+              <button class="img-opt-chip" data-group="style" data-value="illustration" onclick="selectImgOpt('style',this)">일러스트</button>
+              <button class="img-opt-chip" data-group="style" data-value="watercolor" onclick="selectImgOpt('style',this)">수채화</button>
+              <button class="img-opt-chip" data-group="style" data-value="3d_render" onclick="selectImgOpt('style',this)">3D 렌더</button>
+            </div>
+          </div>
+          <div class="img-option-group">
+            <span class="img-option-label">이미지 톤</span>
+            <div class="img-option-chips">
+              <button class="img-opt-chip selected" data-group="tone" data-value="warm" onclick="selectImgOpt('tone',this)">따뜻한</button>
+              <button class="img-opt-chip" data-group="tone" data-value="cool_white" onclick="selectImgOpt('tone',this)">클린 화이트</button>
+              <button class="img-opt-chip" data-group="tone" data-value="soft" onclick="selectImgOpt('tone',this)">소프트</button>
+              <button class="img-opt-chip" data-group="tone" data-value="editorial" onclick="selectImgOpt('tone',this)">에디토리얼</button>
+              <button class="img-opt-chip" data-group="tone" data-value="minimal" onclick="selectImgOpt('tone',this)">미니멀</button>
+              <button class="img-opt-chip" data-group="tone" data-value="natural" onclick="selectImgOpt('tone',this)">내추럴</button>
+            </div>
+          </div>
+          <div class="img-option-actions">
+            <button class="btn btn-primary" id="imgGenerateBtn" onclick="runImagePromptGenerate()">생성하기</button>
+          </div>
+        </div>
+
+        <label id="imgPromptLabel" class="hidden"></label>
         <div id="imagePromptOutput"></div>
         <div id="step3ImgError" class="error-msg hidden"></div>
         <div class="img-prompt-footer hidden" id="imgPromptFooter">
-          <button class="btn btn-primary" onclick="copyImagePrompts()">프롬프트 복사</button>
+          <button class="btn btn-secondary" onclick="copyAllPrompts()">전체 복사</button>
+          <button class="btn btn-primary" id="imgRegenBtn" onclick="runImagePromptGenerate()">다시 생성</button>
         </div>
       </div>
     </div>
@@ -421,8 +480,10 @@
     let collectedAnswers     = {};
     let selectedOptions      = {};  // {index: Set()}
     let collectedMaterials   = { text: '', webLinks: [], youtubeLinks: [] };
-    let rawOutputText        = ''; // 복사용 원본 블로그 텍스트
-    let rawImagePromptText   = ''; // 복사용 이미지 프롬프트 텍스트
+    let rawOutputText   = ''; // 복사용 원본 블로그 텍스트
+    let allPrompts      = []; // 구조화된 이미지 프롬프트 배열
+    let selectedStyle   = 'photorealistic';
+    let selectedTone    = 'warm';
 
     // ── 단계 1 → 2 ─────────────────────────────────────────
     async function goToConversation() {
@@ -681,28 +742,49 @@
       }
     }
 
-    // ── 이미지 프롬프트 생성 ──────────────────────────────
-    async function startImagePromptGenerate() {
+    // ── 이미지 프롬프트 섹션 열기 (옵션 패널만 표시) ─────
+    function startImagePromptGenerate() {
+      if (!rawOutputText) return;
+      const section = document.getElementById('imagePromptSection');
+      section.classList.remove('hidden');
+      section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    // ── 옵션 칩 선택 ─────────────────────────────────────
+    function selectImgOpt(group, el) {
+      const value = el.dataset.value;
+      document.querySelectorAll(`.img-opt-chip[data-group="${group}"]`)
+        .forEach(c => c.classList.remove('selected'));
+      el.classList.add('selected');
+      if (group === 'style') selectedStyle = value;
+      else selectedTone = value;
+    }
+
+    // ── 이미지 프롬프트 실제 생성 ────────────────────────
+    async function runImagePromptGenerate() {
       if (!rawOutputText) return;
 
-      const section = document.getElementById('imagePromptSection');
       const output  = document.getElementById('imagePromptOutput');
       const label   = document.getElementById('imgPromptLabel');
-      const btn     = document.getElementById('imgPromptBtn');
+      const genBtn  = document.getElementById('imgGenerateBtn');
+      const regenBtn = document.getElementById('imgRegenBtn');
 
-      section.classList.remove('hidden');
       output.innerHTML = '';
-      rawImagePromptText = '';
+      allPrompts = [];
       hideError('step3ImgError');
       document.getElementById('imgPromptFooter').classList.add('hidden');
-      label.innerHTML = '생성 중<span class="dots"></span>';
-      btn.disabled = true;
-      section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      label.classList.remove('hidden');
+      label.innerHTML = '분석 중<span class="dots"></span>';
+      if (genBtn)  genBtn.disabled  = true;
+      if (regenBtn) regenBtn.disabled = true;
 
       try {
         const res = await fetch('/generate-image-prompts', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ keyword: currentKeyword, blog_content: rawOutputText }),
+          body: JSON.stringify({
+            keyword: currentKeyword, blog_content: rawOutputText,
+            style: selectedStyle, tone: selectedTone,
+          }),
         });
 
         const reader  = res.body.getReader();
@@ -727,15 +809,14 @@
                 showError('step3ImgError', msg.error);
                 return;
               }
-              if (msg.text) {
-                rawImagePromptText += msg.text;
-                output.innerHTML = renderImagePrompts(rawImagePromptText);
+              if (msg.status) {
+                label.innerHTML = escapeHtml(msg.message) + '<span class="dots"></span>';
               }
               if (msg.done) {
-                label.textContent = '이미지 프롬프트 완성';
+                allPrompts = msg.prompts || [];
+                allPrompts.forEach(p => output.appendChild(buildPromptCard(p)));
+                label.textContent = '이미지 프롬프트 완성 ✓';
                 document.getElementById('imgPromptFooter').classList.remove('hidden');
-                btn.textContent = '다시 생성';
-                btn.disabled = false;
               }
             } catch (_) {}
           }
@@ -744,31 +825,83 @@
         label.textContent = '연결 오류';
         showError('step3ImgError', '연결이 끊겼습니다. 다시 시도해주세요.');
       } finally {
-        btn.disabled = false;
+        if (genBtn)  genBtn.disabled  = false;
+        if (regenBtn) regenBtn.disabled = false;
       }
     }
 
-    // 이미지 프롬프트 마크다운 렌더링
-    // **[N번 이미지] 제목** → <strong> 처리
-    // `...` → <code> 처리 (프롬프트 코드 블록)
-    function renderImagePrompts(text) {
-      let html = text
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    // 프롬프트 카드 DOM 생성
+    function buildPromptCard(p) {
+      const typeLabels = {
+        intro: '도입부', cause: '원인 설명', treatment: '치료 장면',
+        lifestyle: '생활 관리', outro: '마무리',
+      };
+      const aiPlatforms = [
+        { name: 'Midjourney', url: 'https://www.midjourney.com/imagine' },
+        { name: 'DALL-E',     url: 'https://chatgpt.com' },
+        { name: '나노바나나', url: 'https://www.nanobana.ai' },
+      ];
 
-      // `코드 블록` → <code>
-      html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-      // **굵게**
-      html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-      // 줄바꿈
-      html = html.replace(/\n/g, '<br>');
-      return html;
+      const card     = document.createElement('div');
+      card.className = 'img-card';
+      const typeLabel = typeLabels[p.type] || p.type;
+      const promptId  = `img-prompt-text-${p.number}`;
+      const safeUrl   = s => escapeAttr(s);
+
+      const aiLinksHtml = aiPlatforms.map(ai =>
+        `<a class="img-btn-ai" href="${safeUrl(ai.url)}" target="_blank"
+            onclick="copyOnAiClick(event,'${promptId}','${safeUrl(ai.url)}')">${escapeHtml(ai.name)} ↗</a>`
+      ).join('');
+
+      card.innerHTML = `
+        <div class="img-card-header">
+          <div class="img-card-num">${p.number}</div>
+          <div class="img-card-meta">
+            <div class="img-card-title">${escapeHtml(typeLabel)} — ${escapeHtml(p.title_ko)}</div>
+            <div class="img-card-placement">배치: ${escapeHtml(p.placement)}</div>
+          </div>
+          <span class="img-card-ar">${escapeHtml(p.aspect_ratio)}</span>
+        </div>
+        <div class="img-card-body">
+          <code id="${promptId}" class="img-card-prompt">${escapeHtml(p.prompt)}</code>
+          <details class="img-card-negative-wrap">
+            <summary>Negative prompt 보기</summary>
+            <code class="img-card-negative">${escapeHtml(p.negative_prompt)}</code>
+          </details>
+        </div>
+        <div class="img-card-actions">
+          <button class="img-btn-copy" onclick="copyPrompt('${promptId}', this)">복사</button>
+          ${aiLinksHtml}
+        </div>`;
+      return card;
     }
 
-    function copyImagePrompts() {
-      navigator.clipboard.writeText(rawImagePromptText).then(() => {
+    function copyPrompt(promptId, btn) {
+      const text = document.getElementById(promptId).textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        const orig = btn.textContent;
+        btn.textContent = '복사됨!';
+        setTimeout(() => btn.textContent = orig, 1500);
+      });
+    }
+
+    // 프롬프트 복사 후 AI 플랫폼 새 탭으로 이동
+    function copyOnAiClick(event, promptId, url) {
+      event.preventDefault();
+      const text = document.getElementById(promptId).textContent;
+      navigator.clipboard.writeText(text)
+        .then(() => window.open(url, '_blank'))
+        .catch(() => window.open(url, '_blank'));
+    }
+
+    function copyAllPrompts() {
+      const texts = allPrompts.map((p, i) =>
+        `[${i + 1}번 이미지] ${p.title_ko} (${p.placement})\n${p.prompt}\n\nNegative: ${p.negative_prompt}`
+      ).join('\n\n---\n\n');
+      navigator.clipboard.writeText(texts).then(() => {
         const btn = event.target;
         btn.textContent = '복사됨!';
-        setTimeout(() => btn.textContent = '프롬프트 복사', 1500);
+        setTimeout(() => btn.textContent = '전체 복사', 1500);
       });
     }
 
@@ -850,15 +983,19 @@
     function reset() {
       currentKeyword = ''; conversationFlow = []; currentIndex = 0;
       collectedAnswers = {}; selectedOptions = {}; rawOutputText = '';
-      rawImagePromptText = '';
+      allPrompts = []; selectedStyle = 'photorealistic'; selectedTone = 'warm';
       collectedMaterials = { text: '', webLinks: [], youtubeLinks: [] };
       document.getElementById('keyword').value          = '';
       document.getElementById('output').innerHTML       = '';
       document.getElementById('chatArea').innerHTML     = '';
       document.getElementById('imagePromptOutput').innerHTML = '';
       document.getElementById('imagePromptSection').classList.add('hidden');
-      document.getElementById('imgPromptBtn').textContent = '이미지 프롬프트 생성';
-      document.getElementById('imgPromptBtn').disabled = false;
+      document.getElementById('imgPromptLabel').classList.add('hidden');
+      document.getElementById('imgPromptFooter').classList.add('hidden');
+      // 옵션 칩 초기화
+      document.querySelectorAll('.img-opt-chip').forEach(c => {
+        c.classList.toggle('selected', c.dataset.value === 'photorealistic' || c.dataset.value === 'warm');
+      });
       showStep(1);
     }
 

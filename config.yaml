@@ -16,6 +16,20 @@ prompts:
   conversation: "prompts/conversation.txt"
   blog: "prompts/blog.txt"
   image_prompt: "prompts/image_prompt.txt"
+  image_analysis: "prompts/image_analysis.txt"
+  image_generation: "prompts/image_generation.txt"
+
+image_prompt:
+  ai_platforms:
+    midjourney:
+      name: "Midjourney"
+      url: "https://www.midjourney.com/imagine"
+    dalle:
+      name: "DALL-E"
+      url: "https://chatgpt.com"
+    nanobana:
+      name: "나노바나나"
+      url: "https://www.nanobana.ai"
 
 # 대시보드 모듈 설정
 # default_roles: 기본으로 볼 수 있는 역할 (5단계 RBAC)

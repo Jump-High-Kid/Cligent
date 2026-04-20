@@ -499,8 +499,10 @@ async def generate(request: Request, user: dict = Depends(get_current_user)):
 @app.post("/generate-image-prompts")
 async def generate_image_prompts(request: Request, user: dict = Depends(get_current_user)):
     body = await request.json()
-    keyword = body.get("keyword", "").strip()
+    keyword     = body.get("keyword", "").strip()
     blog_content = body.get("blog_content", "").strip()
+    style       = body.get("style", "photorealistic")
+    tone        = body.get("tone", "warm")
 
     if not keyword or not blog_content:
         async def _err():
@@ -514,7 +516,7 @@ async def generate_image_prompts(request: Request, user: dict = Depends(get_curr
         return StreamingResponse(_err(), media_type="text/event-stream")
 
     return StreamingResponse(
-        generate_image_prompts_stream(keyword, blog_content, api_key),
+        generate_image_prompts_stream(keyword, blog_content, api_key, style, tone),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
