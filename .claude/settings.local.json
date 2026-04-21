@@ -10,7 +10,19 @@
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
       "Bash(python3 -m pytest tests/ -v -x)",
-      "Bash(python3 -m pytest tests/ -v)"
+      "Bash(python3 -m pytest tests/ -v)",
+      "Bash(git cherry-pick *)",
+      "Bash(python3 -c \"import fastapi, yaml, anthropic; print('dependencies ok')\")",
+      "Bash(python3 run.py)",
+      "Bash(python3 -m uvicorn src.main:app --port 8001 --reload)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8000/settings/setup)",
+      "mcp__Claude_in_Chrome__tabs_context_mcp",
+      "mcp__Claude_in_Chrome__navigate",
+      "mcp__Claude_in_Chrome__computer",
+      "Bash(pip install *)",
+      "Bash(python3 -m pip install *)",
+      "Bash(git push *)",
+      "mcp__Claude_Preview__preview_start"
     ]
   }
 }

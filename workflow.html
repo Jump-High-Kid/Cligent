@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cligent — Claude 워크플로우</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #222536;
+    --border: #2e3147;
+    --accent: #7c6af7;
+    --accent2: #4fa3e8;
+    --accent3: #52c98a;
+    --accent4: #f0a05a;
+    --accent5: #e85c8a;
+    --text: #e8eaf2;
+    --text2: #8b8fa8;
+    --text3: #5a5d74;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, 'Pretendard', 'Noto Sans KR', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 32px 24px;
+  }
+  h1 {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    margin-bottom: 4px;
+  }
+  .subtitle {
+    color: var(--text2);
+    font-size: 13px;
+    margin-bottom: 32px;
+  }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+  }
+
+  /* ── 레이아웃 ── */
+  .grid {
+    display: grid;
+    gap: 16px;
+  }
+  .row { display: flex; gap: 16px; }
+  .col { flex: 1; }
+
+  /* ── 카드 ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+  }
+  .card-title {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: var(--text2);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-title .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+  }
+
+  /* ── 흐름 단계 ── */
+  .flow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+  }
+  .step {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 13px;
+    font-size: 13px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    white-space: nowrap;
+  }
+  .step-num {
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .arrow {
+    color: var(--text3);
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+
+  /* ── 툴 칩 ── */
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid transparent;
+  }
+
+  /* ── 섹션 구분선 ── */
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text3);
+    margin: 20px 0 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ── 컬러 테마 ── */
+  .purple { background: rgba(124,106,247,0.12); border-color: rgba(124,106,247,0.3); color: #b8aefc; }
+  .blue   { background: rgba(79,163,232,0.12); border-color: rgba(79,163,232,0.3); color: #8dc9f5; }
+  .green  { background: rgba(82,201,138,0.12); border-color: rgba(82,201,138,0.3); color: #8eeab6; }
+  .orange { background: rgba(240,160,90,0.12); border-color: rgba(240,160,90,0.3); color: #f5c08a; }
+  .pink   { background: rgba(232,92,138,0.12); border-color: rgba(232,92,138,0.3); color: #f29cbc; }
+  .gray   { background: rgba(139,143,168,0.1); border-color: rgba(139,143,168,0.2); color: var(--text2); }
+
+  .dot-purple { background: #7c6af7; }
+  .dot-blue   { background: #4fa3e8; }
+  .dot-green  { background: #52c98a; }
+  .dot-orange { background: #f0a05a; }
+  .dot-pink   { background: #e85c8a; }
+
+  .sn-purple { background: rgba(124,106,247,0.25); color: #b8aefc; }
+  .sn-blue   { background: rgba(79,163,232,0.25); color: #8dc9f5; }
+  .sn-green  { background: rgba(82,201,138,0.25); color: #8eeab6; }
+  .sn-orange { background: rgba(240,160,90,0.25); color: #f5c08a; }
+
+  /* ── 컨텍스트 레이어 ── */
+  .ctx-layer {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 14px;
+    background: var(--surface2);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    margin-bottom: 8px;
+  }
+  .ctx-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+  .ctx-title { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+  .ctx-desc { font-size: 12px; color: var(--text2); line-height: 1.5; }
+
+  /* ── 페이즈 타임라인 ── */
+  .timeline { display: flex; gap: 0; }
+  .phase {
+    flex: 1;
+    padding: 12px 14px;
+    border-radius: 0;
+    border-top: 3px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    background: var(--surface2);
+  }
+  .phase:first-child { border-left: 1px solid var(--border); border-radius: 8px 0 0 8px; }
+  .phase:last-child { border-radius: 0 8px 8px 0; }
+  .phase.active { border-top-color: #7c6af7; background: rgba(124,106,247,0.06); }
+  .phase.next { border-top-color: #4fa3e8; }
+  .phase.future { border-top-color: #52c98a; }
+  .phase-label { font-size: 10px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text3); margin-bottom: 4px; }
+  .phase-title { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+  .phase-items { font-size: 11px; color: var(--text2); line-height: 1.8; }
+
+  /* ── 연결선 ── */
+  .connector {
+    text-align: center;
+    color: var(--text3);
+    font-size: 20px;
+    margin: 4px 0;
+  }
+
+  /* ── 명령어 블록 ── */
+  .cmd-list { display: flex; flex-direction: column; gap: 6px; }
+  .cmd-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: var(--surface2);
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    font-size: 12px;
+  }
+  .cmd-trigger { font-family: monospace; color: #8dc9f5; font-weight: 600; flex-shrink: 0; }
+  .cmd-desc { color: var(--text2); }
+
+  /* ── 메모리 시스템 ── */
+  .mem-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .mem-item {
+    padding: 10px 12px;
+    background: var(--surface2);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+  .mem-type { font-size: 10px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 3px; }
+  .mem-desc { font-size: 12px; color: var(--text2); }
+</style>
+</head>
+<body>
+
+<h1>Cligent — Claude 워크플로우</h1>
+<p class="subtitle">Anthropic 공식 권장 패턴 기반 · Claude Desktop + Claude Code</p>
+
+<!-- ────────── 1. 컨텍스트 레이어 ────────── -->
+<div class="section-label">컨텍스트 레이어 (영속 기억)</div>
+<div class="row">
+  <div class="col">
+    <div class="card">
+      <div class="card-title"><span class="dot dot-purple"></span>프로젝트 지식</div>
+      <div class="ctx-layer">
+        <div class="ctx-icon">📄</div>
+        <div>
+          <div class="ctx-title">CLAUDE.md</div>
+          <div class="ctx-desc">프로젝트 규칙 · 도메인 지식 · gstack 라우팅 · 실행 방법<br>
+          <span class="badge purple" style="margin-top:4px;display:inline-block">모든 세션 자동 로드</span></div>
+        </div>
+      </div>
+      <div class="ctx-layer">
+        <div class="ctx-icon">🧠</div>
+        <div>
+          <div class="ctx-title">Auto Memory (~/.claude/projects/.../memory/)</div>
+          <div class="ctx-desc">사용자 프로필 · 피드백 패턴 · 프로젝트 맥락 · 외부 레퍼런스<br>
+          <span class="badge blue" style="margin-top:4px;display:inline-block">세션 간 자동 복원</span></div>
+        </div>
+      </div>
+      <div class="ctx-layer">
+        <div class="ctx-icon">📓</div>
+        <div>
+          <div class="ctx-title">Obsidian Vault (MCP 연결)</div>
+          <div class="ctx-desc">프로젝트 로그 · 설계 문서 v0.3 · 할일 목록 · 베타 테스트 기록</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="card">
+      <div class="card-title"><span class="dot dot-blue"></span>메모리 유형 (자동 저장)</div>
+      <div class="mem-grid">
+        <div class="mem-item">
+          <div class="mem-type purple">user</div>
+          <div class="mem-desc">한의사 · 바이브 코딩 · 코딩 비전공 → 단계별 설명</div>
+        </div>
+        <div class="mem-item">
+          <div class="mem-type blue">project</div>
+          <div class="mem-desc">Cligent MVP 완성 · 베타 테스트 2편/일 · Phase 2 계획</div>
+        </div>
+        <div class="mem-item">
+          <div class="mem-type green">feedback</div>
+          <div class="mem-desc">작업 접근 방식 · 이전 세션 수정 사항 · 선호 패턴</div>
+        </div>
+        <div class="mem-item">
+          <div class="mem-type orange">reference</div>
+          <div class="mem-desc">GitHub: Jump-High-Kid/Cligent · Obsidian 경로</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ────────── 2. 도구 레이어 ────────── -->
+<div class="section-label">도구 레이어</div>
+<div class="row">
+  <div class="col" style="flex: 1.2">
+    <div class="card">
+      <div class="card-title"><span class="dot dot-orange"></span>Claude Desktop (신규)</div>
+      <div class="chips">
+        <span class="chip orange">대화형 기획</span>
+        <span class="chip orange">아이디어 탐색</span>
+        <span class="chip orange">Obsidian MCP</span>
+        <span class="chip orange">Google Drive MCP</span>
+        <span class="chip orange">파일 직접 편집</span>
+        <span class="chip orange">Project 기능</span>
+      </div>
+      <div style="margin-top:12px; padding:10px 12px; background:rgba(240,160,90,0.08); border-radius:8px; border:1px solid rgba(240,160,90,0.2); font-size:12px; color:var(--text2);">
+        💡 <strong style="color:var(--text)">Best for:</strong> 설계 논의, 문서 작업, 기획 브레인스토밍, MCP 기반 노트 연동
+      </div>
+    </div>
+  </div>
+  <div class="col" style="flex: 1.2">
+    <div class="card">
+      <div class="card-title"><span class="dot dot-purple"></span>Claude Code (기존)</div>
+      <div class="chips">
+        <span class="chip purple">코드 작성/수정</span>
+        <span class="chip purple">gstack 스킬</span>
+        <span class="chip purple">ECC 스킬</span>
+        <span class="chip purple">superpowers</span>
+        <span class="chip purple">Worktree</span>
+        <span class="chip purple">Git 작업</span>
+      </div>
+      <div style="margin-top:12px; padding:10px 12px; background:rgba(124,106,247,0.08); border-radius:8px; border:1px solid rgba(124,106,247,0.2); font-size:12px; color:var(--text2);">
+        💡 <strong style="color:var(--text)">Best for:</strong> 기능 구현, 디버깅, 테스트, 배포, PR 생성
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="card">
+      <div class="card-title"><span class="dot dot-green"></span>스킬 시스템</div>
+      <div class="cmd-list">
+        <div class="cmd-item"><span class="cmd-trigger">/ship</span><span class="cmd-desc">배포 · PR 생성</span></div>
+        <div class="cmd-item"><span class="cmd-trigger">/qa</span><span class="cmd-desc">QA · 버그 탐지</span></div>
+        <div class="cmd-item"><span class="cmd-trigger">/review</span><span class="cmd-desc">코드 리뷰</span></div>
+        <div class="cmd-item"><span class="cmd-trigger">/investigate</span><span class="cmd-desc">버그 원인 분석</span></div>
+        <div class="cmd-item"><span class="cmd-trigger">/tdd</span><span class="cmd-desc">테스트 주도 개발</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ────────── 3. 개발 플로우 ────────── -->
+<div class="section-label">개발 플로우 (기능 구현 시)</div>
+<div class="card">
+  <div class="flow">
+    <div class="step">
+      <span class="step-num sn-orange">1</span>
+      📓 Obsidian 기록<br><small style="color:var(--text2);font-size:10px">요구사항 정리</small>
+    </div>
+    <span class="arrow">→</span>
+    <div class="step">
+      <span class="step-num sn-orange">2</span>
+      💬 Desktop 기획<br><small style="color:var(--text2);font-size:10px">설계 논의</small>
+    </div>
+    <span class="arrow">→</span>
+    <div class="step">
+      <span class="step-num sn-purple">3</span>
+      📋 CLAUDE.md 반영<br><small style="color:var(--text2);font-size:10px">컨텍스트 업데이트</small>
+    </div>
+    <span class="arrow">→</span>
+    <div class="step">
+      <span class="step-num sn-purple">4</span>
+      🔀 Worktree 생성<br><small style="color:var(--text2);font-size:10px">격리된 작업 공간</small>
+    </div>
+    <span class="arrow">→</span>
+    <div class="step">
+      <span class="step-num sn-blue">5</span>
+      🧪 /tdd 실행<br><small style="color:var(--text2);font-size:10px">테스트 먼저</small>
+    </div>
+    <span class="arrow">→</span>
+    <div class="step">
+      <span class="step-num sn-blue">6</span>
+      ⚙️ 코드 구현<br><small style="color:var(--text2);font-size:10px">Claude Code</small>
+    </div>
+    <span class="arrow">→</span>
+    <div class="step">
+      <span class="step-num sn-green">7</span>
+      🔍 /review<br><small style="color:var(--text2);font-size:10px">코드 리뷰</small>
+    </div>
+    <span class="arrow">→</span>
+    <div class="step">
+      <span class="step-num sn-green">8</span>
+      🚀 /ship<br><small style="color:var(--text2);font-size:10px">GitHub push</small>
+    </div>
+  </div>
+</div>
+
+<!-- ────────── 4. Claude Desktop 세션 시작 루틴 ────────── -->
+<div class="section-label">Claude Desktop 세션 시작 루틴</div>
+<div class="row">
+  <div class="col">
+    <div class="card">
+      <div class="card-title"><span class="dot dot-orange"></span>매 세션 체크리스트</div>
+      <div class="cmd-list">
+        <div class="cmd-item">
+          <span class="cmd-trigger">①</span>
+          <span class="cmd-desc"><strong style="color:var(--text)">Project 열기</strong> — Cligent 프로젝트 선택 (CLAUDE.md 자동 로드)</span>
+        </div>
+        <div class="cmd-item">
+          <span class="cmd-trigger">②</span>
+          <span class="cmd-desc"><strong style="color:var(--text)">메모리 확인</strong> — "지난 작업 이어서 해줘" 또는 맥락 요청</span>
+        </div>
+        <div class="cmd-item">
+          <span class="cmd-trigger">③</span>
+          <span class="cmd-desc"><strong style="color:var(--text)">Obsidian MCP 확인</strong> — 할일 목록 / 프로젝트 로그 동기화 상태</span>
+        </div>
+        <div class="cmd-item">
+          <span class="cmd-trigger">④</span>
+          <span class="cmd-desc"><strong style="color:var(--text)">Git 상태 확인</strong> — main 브랜치 최신 여부 (push 필요 시 처리)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="card">
+      <div class="card-title"><span class="dot dot-pink"></span>세션 종료 루틴</div>
+      <div class="cmd-list">
+        <div class="cmd-item">
+          <span class="cmd-trigger">①</span>
+          <span class="cmd-desc"><strong style="color:var(--text)">Git commit & push</strong> — 작업 내용 GitHub 반영</span>
+        </div>
+        <div class="cmd-item">
+          <span class="cmd-trigger">②</span>
+          <span class="cmd-desc"><strong style="color:var(--text)">Obsidian 로그 업데이트</strong> — 오늘 날짜 프로젝트 로그 기록</span>
+        </div>
+        <div class="cmd-item">
+          <span class="cmd-trigger">③</span>
+          <span class="cmd-desc"><strong style="color:var(--text)">CLAUDE.md 업데이트</strong> — 새 기능/변경사항 반영</span>
+        </div>
+        <div class="cmd-item">
+          <span class="cmd-trigger">④</span>
+          <span class="cmd-desc"><strong style="color:var(--text)">Memory 저장</strong> — 중요 결정사항 자동 저장 확인</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ────────── 5. 현재 페이즈 ────────── -->
+<div class="section-label">프로젝트 로드맵</div>
+<div class="timeline">
+  <div class="phase active">
+    <div class="phase-label" style="color:#9d8eff">▶ 현재 (4월)</div>
+    <div class="phase-title">MVP 베타 테스트</div>
+    <div class="phase-items">
+      • 블로그 2편/일 업로드<br>
+      • 품질 기준 확립<br>
+      • 이미지 프롬프트 생성<br>
+      • 서식 복사 (네이버)
+    </div>
+  </div>
+  <div class="phase next">
+    <div class="phase-label" style="color:#7dc4f5">5~6월</div>
+    <div class="phase-title">Phase 2 확장</div>
+    <div class="phase-items">
+      • 휴머나이저 (AI 냄새 제거)<br>
+      • 대시보드 UI<br>
+      • BYOAI 온보딩 영상<br>
+      • 고객 온보딩
+    </div>
+  </div>
+  <div class="phase future">
+    <div class="phase-label" style="color:#7ee0b2">6~7월</div>
+    <div class="phase-title">멀티에이전트</div>
+    <div class="phase-items">
+      • 재고 관리 에이전트<br>
+      • 스케줄 관리 에이전트<br>
+      • CRM 에이전트<br>
+      • 통합 대시보드
+    </div>
+  </div>
+  <div class="phase" style="border-top-color:#e85c8a">
+    <div class="phase-label" style="color:#f29cbc">8월+</div>
+    <div class="phase-title">상용 출시</div>
+    <div class="phase-items">
+      • BEP: 고객 8명<br>
+      • Starter 5만 / Pro 9만<br>
+      • 월 흑자 전환<br>
+      • 한의원 네트워크 확장
+    </div>
+  </div>
+</div>
+
+<div style="margin-top:24px; padding:14px 18px; background:var(--surface); border:1px solid var(--border); border-radius:10px; font-size:12px; color:var(--text2); line-height:1.7;">
+  <strong style="color:var(--text)">Anthropic 공식 권장 패턴 적용 현황:</strong>
+  <span class="badge green" style="margin-left:8px">CLAUDE.md ✓</span>
+  <span class="badge purple" style="margin-left:4px">Auto Memory ✓</span>
+  <span class="badge blue" style="margin-left:4px">MCP (Obsidian) ✓</span>
+  <span class="badge orange" style="margin-left:4px">Hooks ✓</span>
+  <span class="badge green" style="margin-left:4px">Superpowers v5 ✓</span>
+  <span class="badge purple" style="margin-left:4px">ECC 설치완료 ✓</span>
+  <span class="badge orange" style="margin-left:4px">gstack 라우팅 ✓</span>
+</div>
+
+</body>
+</html>
