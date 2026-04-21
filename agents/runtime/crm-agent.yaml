@@ -1,0 +1,20 @@
+name: crm-agent
+display_name: 환자 관리 도우미
+description: 환자 예약, 재방문 유도, CRM 관리
+prompt_file: prompts/agents/crm-agent.txt
+keywords:
+  - 예약
+  - 환자
+  - CRM
+  - 재방문
+  - 상담
+  - 연락
+allowed_roles:
+  - team_member
+  - team_leader
+  - manager
+  - director
+  - chief_director
+model: claude-sonnet-4-6
+max_tokens: 2000
+stream: true

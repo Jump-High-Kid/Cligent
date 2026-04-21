@@ -1,0 +1,20 @@
+name: blog-agent
+display_name: 블로그 작성 도우미
+description: 한의원 블로그 콘텐츠 생성 및 SEO 최적화
+prompt_file: prompts/agents/blog-agent.txt
+keywords:
+  - 블로그
+  - 포스팅
+  - 콘텐츠
+  - 글쓰기
+  - 원고
+  - 작성
+allowed_roles:
+  - team_member
+  - team_leader
+  - manager
+  - director
+  - chief_director
+model: claude-sonnet-4-6
+max_tokens: 3000
+stream: true

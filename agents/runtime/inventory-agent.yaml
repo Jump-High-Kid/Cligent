@@ -1,0 +1,19 @@
+name: inventory-agent
+display_name: 재고 관리 도우미
+description: 약재 및 물품 재고 현황 파악, 발주 시점 알림
+prompt_file: prompts/agents/inventory-agent.txt
+keywords:
+  - 재고
+  - 약재
+  - 발주
+  - 물품
+  - 재료
+  - 수량
+allowed_roles:
+  - team_leader
+  - manager
+  - director
+  - chief_director
+model: claude-sonnet-4-6
+max_tokens: 2000
+stream: false

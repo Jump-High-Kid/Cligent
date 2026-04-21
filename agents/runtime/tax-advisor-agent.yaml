@@ -1,0 +1,18 @@
+name: tax-advisor-agent
+display_name: 세무 자문 도우미
+description: 세무, 회계 관련 참고 정보 제공 (세무사 상담 권장)
+prompt_file: prompts/agents/tax-advisor-agent.txt
+keywords:
+  - 세무
+  - 세금
+  - 부가세
+  - 소득세
+  - 신고
+  - 회계
+  - 비용처리
+allowed_roles:
+  - director
+  - chief_director
+model: claude-sonnet-4-6
+max_tokens: 2000
+stream: false

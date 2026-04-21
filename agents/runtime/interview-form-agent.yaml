@@ -1,0 +1,19 @@
+name: interview-form-agent
+display_name: 문진표 도우미
+description: 환자 문진표 생성 및 관리
+prompt_file: prompts/agents/interview-form-agent.txt
+keywords:
+  - 문진표
+  - 문진
+  - 설문
+  - 증상
+  - 병력
+allowed_roles:
+  - team_member
+  - team_leader
+  - manager
+  - director
+  - chief_director
+model: claude-sonnet-4-6
+max_tokens: 2000
+stream: false
