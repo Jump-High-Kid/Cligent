@@ -4,10 +4,11 @@ FastAPI의 StreamingResponse와 연결되어 실시간으로 텍스트를 전달
 """
 import json
 from pathlib import Path
-from typing import Generator, Optional
+from typing import Generator, List, Optional
 import anthropic
 from config_loader import load_config, load_prompt
 from pattern_selector import select_patterns
+from blog_history import get_recent_posts
 
 # claude-sonnet-4-6 가격 (2025년 기준, 달러 기준)
 PRICE_INPUT_PER_M = 3.0    # $3 / 1M 입력 토큰
@@ -57,6 +58,76 @@ _READER_LEVEL_INSTRUCTIONS = {
 }
 
 
+def _fix_keyword_counts(text: str, seo_keywords: List[str], target_min: int = 6) -> str:
+    """스트리밍 완료 후 키워드 횟수가 부족하면 코드로 직접 보강합니다."""
+    # 관련 글 / 태그 섹션 이후는 수정 대상에서 제외
+    tail = ""
+    for marker in ["---\n**관련 글", "\n**관련 글", "\n관련 글", "\n태그:"]:
+        idx = text.find(marker)
+        if idx != -1:
+            tail = text[idx:]
+            text = text[:idx]
+            break
+
+    for kw in seo_keywords:
+        if text.count(kw) >= target_min:
+            continue
+
+        needed = target_min - text.count(kw)
+        parts = kw.split()
+
+        # 복합 키워드: suffix만 단독으로 쓰인 곳에 prefix 추가
+        # 단, 마크다운 링크 [텍스트](url) 내부는 건드리지 않음
+        if len(parts) >= 2 and needed > 0:
+            suffix = parts[-1]
+            prefix_space = " ".join(parts[:-1]) + " "
+            pos = 0
+            replaced = 0
+            chunks: list[str] = []
+
+            while pos < len(text) and replaced < needed:
+                idx = text.find(suffix, pos)
+                if idx == -1:
+                    break
+
+                # 마크다운 링크 내부 여부 확인: idx 직전의 마지막 [ vs ] 위치 비교
+                open_bracket = text.rfind("[", 0, idx)
+                close_bracket = text.rfind("]", 0, idx)
+                inside_link = open_bracket > close_bracket
+
+                already_full = (
+                    idx >= len(prefix_space)
+                    and text[idx - len(prefix_space):idx] == prefix_space
+                )
+
+                if not already_full and not inside_link:
+                    chunks.append(text[pos:idx])
+                    chunks.append(kw)
+                    pos = idx + len(suffix)
+                    replaced += 1
+                else:
+                    chunks.append(text[pos:idx + len(suffix)])
+                    pos = idx + len(suffix)
+
+            chunks.append(text[pos:])
+            text = "".join(chunks)
+
+        # 여전히 부족하면 소제목(##) 바로 뒤 줄에 삽입
+        still_needed = target_min - text.count(kw)
+        if still_needed > 0:
+            lines = text.split("\n")
+            new_lines: list[str] = []
+            added = 0
+            for line in lines:
+                new_lines.append(line)
+                if added < still_needed and line.startswith("## ") and kw not in line:
+                    new_lines.append(f"{kw}에 대해 더 자세히 살펴보겠습니다.")
+                    added += 1
+            text = "\n".join(new_lines)
+
+    return text + tail
+
+
 def generate_series_suggestions(keyword: str, blog_text: str, api_key: str) -> list[str]:
     """블로그 완성 후 연관 시리즈 주제 3개 추천"""
     client = anthropic.Anthropic(api_key=api_key)
@@ -72,47 +143,108 @@ def generate_series_suggestions(keyword: str, blog_text: str, api_key: str) -> l
             max_tokens=200,
             messages=[{"role": "user", "content": prompt}],
         )
-        lines = [l.strip() for l in resp.content[0].text.strip().splitlines() if l.strip()]
+        lines = [
+            l.strip() for l in resp.content[0].text.strip().splitlines()
+            if l.strip() and not l.strip().startswith('#')
+        ]
         return lines[:3]
     except Exception:
         return []
 
 
+def _build_seo_keywords_section(seo_keywords: List[str]) -> str:
+    """SEO 키워드 프롬프트 블록 생성"""
+    if not seo_keywords:
+        return ""
+    tag_line = " ".join("#" + k for k in seo_keywords)
+    kw_blocks = []
+    for kw in seo_keywords:
+        kw_blocks.append(
+            f"  - 키워드: '{kw}'\n"
+            f"    반드시 이 문자열 그대로 6~8회. 예시: '{kw}로 고민하시는 분' / '{kw} 치료 방법' / '{kw} 증상과 원인'"
+        )
+    kw_lines = "\n".join(kw_blocks)
+    return (
+        f"\n## 🔴 지정 SEO 키워드 — CRITICAL\n"
+        f"아래 키워드를 분리하지 말고 각각 6~8회 삽입하세요.\n"
+        f"{kw_lines}\n"
+        f"- 제목(#), 소제목(##), 각 섹션 첫 문장에 우선 배치하세요.\n"
+        f"- 글 맨 끝에 다음 한 줄을 추가하세요: 태그: {tag_line}"
+    )
+
+
+def _build_clinic_info_section(clinic_info: str) -> str:
+    """한의원 차별화 정보 프롬프트 블록 생성"""
+    if not clinic_info or not clinic_info.strip():
+        return ""
+    return (
+        f"\n## 우리 한의원 차별화 정보 (반드시 본문에 자연스럽게 녹여 반영)\n"
+        f"{clinic_info.strip()}\n"
+        f"- 위 정보를 광고 티 나지 않게 본문 치료 접근 또는 마무리 섹션에 자연스럽게 포함하세요.\n"
+        f"- 다른 한의원과의 차별점이 독자에게 전달되도록 작성하세요."
+    )
+
+
+def _build_related_posts_section(recent_posts: List[dict], current_keyword: str) -> str:
+    """이전 포스트 연관 링크 프롬프트 블록 생성"""
+    if not recent_posts:
+        return ""
+    # 현재 주제와 키워드가 겹치는 글만 필터
+    related = [
+        p for p in recent_posts
+        if p["keyword"] != current_keyword and (
+            any(k in current_keyword for k in p.get("seo_keywords", []))
+            or p["keyword"] in current_keyword
+            or current_keyword in p["keyword"]
+        )
+    ]
+    if not related:
+        return ""
+    post_lines = "\n".join(
+        f"  - 제목: {p['title']} (주제: {p['keyword']})" for p in related[:3]
+    )
+    return (
+        f"\n## 연관 이전 포스트 (글 하단 '관련 글' 섹션에 링크로 추가)\n"
+        f"아래 이전 블로그 글과 연결하여 독자의 체류 시간을 높이세요.\n"
+        f"{post_lines}\n"
+        f"- 글 맨 끝 마무리 다음에 '---\\n**관련 글 더 보기**' 섹션을 추가하고,\n"
+        f"  각 글을 '[제목](URL을_여기에_입력)' 형식으로 나열하세요.\n"
+        f"- URL은 실제 네이버 블로그 발행 후 수동으로 채워 넣으면 됩니다."
+    )
+
+
 def generate_blog_stream(
-    keyword: str, answers: dict, api_key: str,
+    keyword: str,
+    answers: dict,
+    api_key: str,
     materials: Optional[dict] = None,
     mode: str = "정보",
     reader_level: str = "일반인",
+    seo_keywords: Optional[List[str]] = None,
+    clinic_info: str = "",
 ) -> Generator[str, None, None]:
     """
     블로그 생성 스트리밍 제너레이터
 
     SSE(Server-Sent Events) 형식으로 데이터를 yield합니다.
     - 생성 중: {"text": "..."}
-    - 완료 시: {"done": true, "usage": {...}}
+    - 완료 시: {"done": true, "usage": {...}, "series": [...]}
     - 오류 시: {"error": "..."}
-
-    Args:
-        keyword: 블로그 주제
-        answers: Q&A 답변 딕셔너리 {"질문": "답변", ...}
-        api_key: Anthropic API 키
     """
     config = load_config()
-
-    # 톤: 대화에서 선택한 값 우선, 없으면 config 기본값
     tone = answers.get("tone", config["blog"]["tone"]) if answers else config["blog"]["tone"]
 
-    # 블로그 히스토리 경로 (data/ 폴더 기준)
     history_path = Path(__file__).parent.parent / "data" / "blog_history.json"
 
-    # 패턴 조합 선택 (5개 레이어 검증 + 화제 전환 포함)
     pattern_result = select_patterns(
         keyword=keyword,
         materials=materials,
         history_path=history_path,
     )
 
-    # 프롬프트 파일 로드 후 설정값 + 패턴/모드/독자수준 지시 삽입
+    # 이전 포스트 연관 링크
+    recent_posts = get_recent_posts(limit=5)
+
     prompt_template = load_prompt("blog")
     system_prompt = prompt_template.format(
         min_chars=config["blog"]["min_chars"],
@@ -123,9 +255,12 @@ def generate_blog_stream(
         reader_level_instructions=_READER_LEVEL_INSTRUCTIONS.get(
             reader_level, _READER_LEVEL_INSTRUCTIONS["일반인"]
         ),
+        seo_keywords_section=_build_seo_keywords_section(seo_keywords or []),
+        clinic_info_section=_build_clinic_info_section(clinic_info),
+        related_posts_section=_build_related_posts_section(recent_posts, keyword),
     )
 
-    # Q&A 답변을 컨텍스트로 구성 (tone 제외, 답변이 있는 항목만 포함)
+    # Q&A 답변 컨텍스트
     qa_text = ""
     if answers:
         filled = {k: v for k, v in answers.items() if k != "tone" and str(v).strip()}
@@ -134,7 +269,7 @@ def generate_blog_stream(
             for key, value in filled.items():
                 qa_text += f"- {key}: {value}\n"
 
-    # 추가 자료 컨텍스트 구성
+    # 추가 자료 컨텍스트
     materials_text = ""
     if materials:
         if materials.get("text", "").strip():
@@ -146,32 +281,78 @@ def generate_blog_stream(
             materials_text += "\n\n## 추가 자료 — 유튜브 링크 (참고)\n"
             materials_text += "\n".join(f"- {url}" for url in materials["youtubeLinks"])
 
-    user_message = f"블로그 주제: {keyword}{qa_text}{materials_text}"
+    seo_prefix = ""
+    if seo_keywords:
+        kw_blocks = []
+        for kw in seo_keywords:
+            examples = "\n".join([
+                f'    · "{kw}로 고민하시는 분들께..."',
+                f'    · "{kw} 치료, 한의학적으로 어떻게 접근할까요?"',
+                f'    · "{kw} 환자분들이 가장 많이 묻는 질문..."',
+                f'    · "{kw} 증상이 있으시다면..."',
+                f'    · "{kw}의 한방 치료 핵심은..."',
+                f'    · "오늘은 {kw}에 대해 알아보겠습니다."',
+            ])
+            kw_blocks.append(
+                f"  키워드: '{kw}' — 반드시 이 문자열 그대로 6~8회 사용\n"
+                f"  아래와 같은 형태로 각 섹션에 자연스럽게 삽입하세요:\n{examples}"
+            )
+        kw_section = "\n\n".join(kw_blocks)
+        seo_prefix = (
+            f"## ⚠ SEO 키워드 필수 삽입 — 작성 전 반드시 읽을 것\n"
+            f"아래 키워드를 절대 분리하지 말고, 제시된 예시 형태로 6~8회 삽입하세요.\n\n"
+            f"{kw_section}\n\n"
+        )
+
+    user_message = f"{seo_prefix}블로그 주제: {keyword}{qa_text}{materials_text}"
 
     client = anthropic.Anthropic(api_key=api_key)
 
     try:
         collected_text: list[str] = []
+        input_tokens = 0
+        output_tokens = 0
+
         with client.messages.stream(
             model="claude-sonnet-4-6",
-            max_tokens=3000,  # 2000자 한국어 ≈ 최대 3000토큰
+            max_tokens=4500,
             system=system_prompt,
             messages=[{"role": "user", "content": user_message}],
         ) as stream:
-            # 텍스트 청크를 SSE 형식으로 실시간 전달
             for text_chunk in stream.text_stream:
                 collected_text.append(text_chunk)
                 yield f"data: {json.dumps({'text': text_chunk}, ensure_ascii=False)}\n\n"
 
-            # 스트리밍 완료 후 토큰 사용량 및 비용 계산
-            final = stream.get_final_message()
-            input_tokens = final.usage.input_tokens
-            output_tokens = final.usage.output_tokens
-            cost_usd = (input_tokens * PRICE_INPUT_PER_M + output_tokens * PRICE_OUTPUT_PER_M) / 1_000_000
-            cost_krw = int(cost_usd * KRW_PER_USD)
+            # 1단계: 키워드 보강 (get_final_message보다 먼저 — 항상 실행 보장)
+            original_text = "".join(collected_text)
+            # 주제 키워드도 포함 (SEO 키워드 미입력 시에도 동작)
+            effective_keywords = list(seo_keywords or [])
+            if keyword and keyword not in effective_keywords:
+                effective_keywords.insert(0, keyword)
+            fixed_text = _fix_keyword_counts(original_text, effective_keywords)
+            if fixed_text != original_text:
+                yield f"data: {json.dumps({'replace': fixed_text}, ensure_ascii=False)}\n\n"
+            else:
+                fixed_text = original_text
 
-            series = generate_series_suggestions(keyword, "".join(collected_text), api_key)
-            yield f"data: {json.dumps({'done': True, 'usage': {'input': input_tokens, 'output': output_tokens, 'cost_krw': cost_krw}, 'series': series}, ensure_ascii=False)}\n\n"
+            # 2단계: 토큰 사용량 (실패해도 done은 전송)
+            try:
+                final = stream.get_final_message()
+                input_tokens = final.usage.input_tokens
+                output_tokens = final.usage.output_tokens
+            except Exception:
+                pass
+
+        cost_usd = (input_tokens * PRICE_INPUT_PER_M + output_tokens * PRICE_OUTPUT_PER_M) / 1_000_000
+        cost_krw = int(cost_usd * KRW_PER_USD)
+
+        # 3단계: 시리즈 추천 (실패해도 done은 전송)
+        try:
+            series = generate_series_suggestions(keyword, fixed_text, api_key)
+        except Exception:
+            series = []
+
+        yield f"data: {json.dumps({'done': True, 'usage': {'input': input_tokens, 'output': output_tokens, 'cost_krw': cost_krw}, 'series': series, 'seo_keywords': seo_keywords or []}, ensure_ascii=False)}\n\n"
 
     except anthropic.AuthenticationError:
         yield _error_event("API 키를 확인해주세요. .env 파일의 ANTHROPIC_API_KEY를 확인하세요.")

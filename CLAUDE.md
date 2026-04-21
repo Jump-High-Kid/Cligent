@@ -139,10 +139,14 @@ LU7, LI4, LI11, ST25, ST36, ST40, ST44, SP6, SP10, HT7, SI3, BL17, BL23, BL40, B
 
 **API 파라미터**: `POST /generate-image-prompts` — `{ keyword, blog_content, style, tone }`
 
-**블로그 생성 결과 하단 UI (2026-04-20 추가)**
-- `resultFooter`에 사이트 바로가기 드롭다운 추가: Midjourney / DALL-E 3 / 나노바나나 / Ideogram / Leonardo AI
-- 드롭다운 선택 후 "바로가기 ↗" 클릭 → 새 탭 오픈 (`gotoAiSite()`)
-- 이미지 옵션 패널: 초록 테두리 강조 + "이미지 옵션 선택" 타이틀 추가
+**블로그 생성 결과 하단 UI (2026-04-21 업데이트)**
+- `resultFooter` 바로가기 드롭다운: Midjourney / ChatGPT / Gemini / Ideogram / Leonardo AI
+- 이미지 프롬프트 카드 링크: Midjourney / ChatGPT / Gemini
+- 시리즈 주제 "선택" 버튼: 클릭 시 화면 이동 없이 localStorage 저장 → reset() 시 자동 입력
+
+**키워드 보강 로직 개선 (2026-04-21)**
+- `generate_blog_stream()`에서 주제(keyword)를 SEO 키워드에 자동 포함 (seo_keywords=[] 대응)
+- `_fix_keyword_counts()` inside_link 감지: rfind 방식으로 교체
 
 **버그 수정 (2026-04-20)**
 - `.env` 첫 줄 탭 문자 → `ANTHROPIC_API_KEY` 미인식 수정

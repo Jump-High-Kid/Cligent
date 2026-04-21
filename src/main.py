@@ -787,7 +787,9 @@ async def blog_stats(user: dict = Depends(get_current_user)):
     return JSONResponse(get_blog_stats())
 
 
-def _stream_and_save(base_gen: Generator, keyword: str, tone: str) -> Generator:
+def _stream_and_save(
+    base_gen: Generator, keyword: str, tone: str, seo_keywords: list
+) -> Generator:
     """SSE 스트림 통과 + done 이벤트 감지 시 이력 저장"""
     collected: list = []
     for chunk in base_gen:
@@ -797,10 +799,14 @@ def _stream_and_save(base_gen: Generator, keyword: str, tone: str) -> Generator:
             data = _json.loads(raw)
             if "text" in data:
                 collected.append(data["text"])
+            elif "replace" in data:
+                # 키워드 보강 후처리로 전체 텍스트 교체
+                collected = [data["replace"]]
             elif data.get("done"):
-                char_count = len("".join(collected))
+                blog_text = "".join(collected)
+                char_count = len(blog_text)
                 cost_krw = data.get("usage", {}).get("cost_krw", 0)
-                save_blog_entry(keyword, tone, char_count, cost_krw)
+                save_blog_entry(keyword, tone, char_count, cost_krw, seo_keywords, blog_text)
         except Exception:
             pass
 
@@ -836,6 +842,8 @@ async def generate(request: Request, user: dict = Depends(get_current_user)):
     materials    = body.get("materials", {})
     mode         = body.get("mode", "정보")
     reader_level = body.get("reader_level", "일반인")
+    seo_keywords = body.get("seo_keywords", [])   # ["키워드1", "키워드2"]
+    clinic_info  = body.get("clinic_info", "")    # 한의원 차별화 정보 텍스트
 
     if not keyword:
         async def _err():
@@ -851,8 +859,11 @@ async def generate(request: Request, user: dict = Depends(get_current_user)):
     tone = answers.get("tone", "전문적") if answers else "전문적"
     return StreamingResponse(
         _stream_and_save(
-            generate_blog_stream(keyword, answers, api_key, materials, mode, reader_level),
-            keyword, tone,
+            generate_blog_stream(
+                keyword, answers, api_key, materials, mode, reader_level,
+                seo_keywords=seo_keywords, clinic_info=clinic_info,
+            ),
+            keyword, tone, seo_keywords,
         ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
