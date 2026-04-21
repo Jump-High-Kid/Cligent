@@ -67,3 +67,9 @@ modules:
   education_videos:
     name: "교육 영상"
     default_roles: [chief_director, director, manager, team_leader, team_member]
+
+agents:
+  enabled: true
+  runtime_dir: agents/runtime
+  prompts_dir: prompts/agents
+  fallback_message: "죄송합니다. 해당 내용은 제가 도와드리기 어렵습니다. 더 구체적으로 질문해 주세요."
