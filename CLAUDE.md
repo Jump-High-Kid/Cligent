@@ -28,17 +28,37 @@ medical-assistant/
 ├── requirements.txt
 ├── .env                    # API 키 + SECRET_KEY (gitignore)
 ├── .env.example
-├── agents/                 # Claude Code 에이전트 정의 (.md)
+├── agents/
+│   ├── dev/                # Claude Code 에이전트 정의 (.md)
+│   └── runtime/            # ★ 배포용 에이전트 YAML 설정
+│       ├── blog-agent.yaml
+│       ├── crm-agent.yaml
+│       ├── inventory-agent.yaml
+│       ├── schedule-agent.yaml
+│       ├── interview-form-agent.yaml
+│       ├── legal-advisor-agent.yaml
+│       └── tax-advisor-agent.yaml
 ├── prompts/                # 프롬프트 텍스트 파일
 │   ├── blog.txt            # 블로그 생성 시스템 프롬프트
 │   ├── blog_patterns.txt   # ★ 블로그 패턴 카탈로그 (서론 7+본론 8+결론 7+화제전환 6)
 │   ├── questions.txt
 │   ├── conversation.txt
-│   └── image_prompt.txt
+│   ├── image_prompt.txt
+│   ├── image_analysis.txt
+│   ├── image_generation.txt
+│   └── agents/             # ★ 에이전트별 시스템 프롬프트
+│       ├── blog-agent.txt
+│       ├── crm-agent.txt
+│       ├── inventory-agent.txt
+│       ├── schedule-agent.txt
+│       ├── interview-form-agent.txt
+│       ├── legal-advisor-agent.txt
+│       └── tax-advisor-agent.txt
 ├── data/
 │   ├── cligent.db          # SQLite (users, invites, clinics)
 │   ├── rbac_permissions.json
-│   └── blog_history.json   # 패턴 히스토리 포함 (pattern_combos 키)
+│   ├── blog_history.json   # 패턴 히스토리 포함 (pattern_combos 키)
+│   └── agent_log.jsonl     # 에이전트 활동 로그 (SHA-256 해시, PIPA 준수)
 ├── src/
 │   ├── main.py             # FastAPI 앱 (전체 라우트)
 │   ├── auth_manager.py     # JWT, bcrypt, 초대 토큰
@@ -50,9 +70,12 @@ medical-assistant/
 │   ├── pattern_selector.py # ★ 5레이어 패턴 조합 선택 엔진
 │   ├── conversation_flow.py
 │   ├── image_prompt_generator.py
+│   ├── agent_router.py     # ★ 키워드 기반 의도 분류 + Path Traversal 방어
+│   ├── agent_middleware.py # ★ SHA-256 로깅, 비용 계산, 할루시네이션 감지
 │   └── config_loader.py
 ├── templates/
 │   ├── app.html            # ★ 앱 쉘 — 사이드바 고정 + iframe 내비게이션
+│   ├── chat.html           # ★ AI 도우미 채팅 (에이전트 칩바 + 채팅 UI)
 │   ├── dashboard.html      # 메인 대시보드 (iframe 내 로드)
 │   ├── dashboard_mobile.html
 │   ├── login.html          # 로그인 + 비밀번호 변경
@@ -62,7 +85,10 @@ medical-assistant/
 │   └── settings_setup.html # RBAC 초기 설정 위자드
 └── tests/
     ├── test_blog.py
-    └── test_auth.py        # 20개 유닛 테스트
+    ├── test_auth.py        # 20개 유닛 테스트
+    ├── test_agent_router.py    # ★ 12개 (라우팅, Path Traversal)
+    ├── test_agent_middleware.py # ★ 4개 (SHA-256, 할루시네이션)
+    └── test_agent_api.py       # ★ 5개 (API 엔드포인트)
 ```
 
 ### 인증 시스템 (2026-04-18 완성)
@@ -152,14 +178,15 @@ python3 -m pytest tests/ -v   # 테스트 실행
 
 **사이드바 메뉴 (정식 아이콘)**:
 
-| 메뉴 | Material Symbol | 경로 |
-|---|---|---|
-| 대시보드 | `dashboard` | `/` |
-| 블로그 생성기 | `article` | `/blog` |
-| 재고 관리 | `inventory_2` | `#` |
-| 스케줄 관리 | `calendar_today` | `#` |
-| 고객 관리 | `group` | `#` |
-| 설정 | `settings` | `/settings` |
+| 메뉴 | Material Symbol | 경로 | 상태 |
+|---|---|---|---|
+| 대시보드 | `dashboard` | `/` | 완성 |
+| 블로그 생성기 | `article` | `/blog` | 완성 |
+| AI 도우미 | `chat` | `/chat` | 완성 |
+| 재고 관리 | `inventory_2` | `#` | 미구현 |
+| 스케줄 관리 | `calendar_today` | `#` | 미구현 |
+| 고객 관리 | `group` | `#` | 미구현 |
+| 설정 | `settings` | `/settings` | 완성 |
 
 ### 설정 페이지 구조 (2026-04-19 확정)
 
