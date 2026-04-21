@@ -211,6 +211,15 @@ async def settings_page(request: Request):
     return FileResponse(ROOT / "templates" / "settings.html", headers=_NO_CACHE)
 
 
+@app.get("/help")
+async def help_page(request: Request):
+    """도움말 페이지"""
+    token = request.cookies.get(COOKIE_NAME)
+    if not token:
+        return RedirectResponse("/login")
+    return FileResponse(ROOT / "templates" / "help.html", headers=_NO_CACHE)
+
+
 @app.get("/settings/setup")
 async def settings_setup(request: Request):
     """RBAC 초기 설정 위자드 — 대표원장 전용"""

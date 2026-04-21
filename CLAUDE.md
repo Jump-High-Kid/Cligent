@@ -37,7 +37,8 @@ medical-assistant/
 │       ├── schedule-agent.yaml
 │       ├── interview-form-agent.yaml
 │       ├── legal-advisor-agent.yaml
-│       └── tax-advisor-agent.yaml
+│       ├── tax-advisor-agent.yaml
+│       └── help-agent.yaml         # ★ 도움말 전용 에이전트 (Haiku)
 ├── prompts/                # 프롬프트 텍스트 파일
 │   ├── blog.txt            # 블로그 생성 시스템 프롬프트
 │   ├── blog_patterns.txt   # ★ 블로그 패턴 카탈로그 (서론 7+본론 8+결론 7+화제전환 6)
@@ -53,7 +54,8 @@ medical-assistant/
 │       ├── schedule-agent.txt
 │       ├── interview-form-agent.txt
 │       ├── legal-advisor-agent.txt
-│       └── tax-advisor-agent.txt
+│       ├── tax-advisor-agent.txt
+│       └── help-agent.txt          # ★ 도움말 전용 프롬프트 (Cligent 범위 외 차단)
 ├── data/
 │   ├── cligent.db          # SQLite (users, invites, clinics)
 │   ├── rbac_permissions.json
@@ -78,6 +80,7 @@ medical-assistant/
 │   ├── chat.html           # ★ AI 도우미 채팅 (에이전트 칩바 + 채팅 UI)
 │   ├── dashboard.html      # 메인 대시보드 (iframe 내 로드)
 │   ├── dashboard_mobile.html
+│   ├── help.html           # ★ 도움말 페이지 (Q&A 15개 + AI 도우미 + 키워드 검색)
 │   ├── login.html          # 로그인 + 비밀번호 변경
 │   ├── onboard.html        # 초대 링크 온보딩
 │   ├── index.html          # 블로그 생성기 (iframe 내 로드)
@@ -183,10 +186,11 @@ python3 -m pytest tests/ -v   # 테스트 실행
 | 대시보드 | `dashboard` | `/` | 완성 |
 | 블로그 생성기 | `article` | `/blog` | 완성 |
 | AI 도우미 | `chat` | `/chat` | 완성 |
-| 재고 관리 | `inventory_2` | `#` | 미구현 |
-| 스케줄 관리 | `calendar_today` | `#` | 미구현 |
-| 고객 관리 | `group` | `#` | 미구현 |
+| 재고 관리 | `inventory_2` | `#` | 미구현 (Coming Soon) |
+| 스케줄 관리 | `calendar_today` | `#` | 미구현 (Coming Soon) |
+| 고객 관리 | `group` | `#` | 미구현 (Coming Soon) |
 | 설정 | `settings` | `/settings` | 완성 |
+| 도움말 | `help_outline` | `/help` | 완성 |
 
 ### 설정 페이지 구조 (2026-04-21 업데이트)
 

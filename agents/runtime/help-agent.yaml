@@ -1,0 +1,21 @@
+name: help-agent
+display_name: 도움말 AI 도우미
+description: Cligent 사용법 및 오류 해결 전용 안내 에이전트
+prompt_file: prompts/agents/help-agent.txt
+keywords:
+  - 도움말
+  - 도움
+  - 사용법
+  - 오류
+  - 에러
+  - 설정방법
+  - 어떻게
+allowed_roles:
+  - team_member
+  - team_leader
+  - manager
+  - director
+  - chief_director
+model: claude-haiku-4-5-20251001
+max_tokens: 1000
+stream: false
