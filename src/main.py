@@ -59,6 +59,10 @@ if not _secret:
         ".env 파일에 SECRET_KEY=<랜덤 32자 이상 문자열>을 추가하세요."
     )
 
+import anthropic
+from collections import defaultdict
+from time import time as _time_now
+
 from auth_manager import (
     COOKIE_NAME,
     authenticate_user,
@@ -82,6 +86,32 @@ from module_manager import (
     save_staff_permissions,
 )
 from settings_manager import get_setup_wizard_data, save_wizard_result
+from agent_router import AgentRouter
+from agent_middleware import AgentMiddleware
+
+agent_router = AgentRouter()
+agent_middleware = AgentMiddleware()
+
+# 분당 요청 수 추적 (clinic_id → [timestamp, ...])
+_rate_buckets: dict = defaultdict(list)
+_RATE_LIMIT = 60  # 분당 최대 요청 수
+
+
+def _create_anthropic_client() -> anthropic.Anthropic:
+    api_key = os.getenv("ANTHROPIC_API_KEY", "")
+    return anthropic.Anthropic(api_key=api_key)
+
+
+def _check_rate_limit(clinic_id: str) -> bool:
+    """True = 허용, False = 초과 (60 req/min per clinic)"""
+    now = _time_now()
+    bucket = _rate_buckets[clinic_id]
+    _rate_buckets[clinic_id] = [t for t in bucket if now - t < 60]
+    if len(_rate_buckets[clinic_id]) >= _RATE_LIMIT:
+        return False
+    _rate_buckets[clinic_id].append(now)
+    return True
+
 
 app = FastAPI(title="Cligent")
 
@@ -520,3 +550,89 @@ async def generate_image_prompts(request: Request, user: dict = Depends(get_curr
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+# ── 에이전트 하네스 ────────────────────────────────────────────────
+
+@app.get("/chat")
+async def chat_page(request: Request, current_user: dict = Depends(get_current_user)):
+    return FileResponse(ROOT / "templates" / "chat.html")
+
+
+@app.get("/api/agents/available")
+async def get_available_agents(current_user: dict = Depends(get_current_user)):
+    agents = agent_router.get_available_agents(role=current_user["role"])
+    return {"agents": agents}
+
+
+@app.post("/api/agent/chat")
+async def agent_chat(request: Request, current_user: dict = Depends(get_current_user)):
+    body = await request.json()
+    message = body.get("message", "").strip()
+    requested_agent = body.get("agent")
+
+    # Rate limit 확인 (clinic 단위)
+    clinic_id = str(current_user.get("clinic_id", "default"))
+    if not _check_rate_limit(clinic_id):
+        return {"agent_name": None, "response": "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.", "error": True}
+
+    # 에이전트 결정
+    if requested_agent:
+        try:
+            agent_router.get_agent_config(requested_agent)  # 화이트리스트 검증 (Path Traversal 방지)
+        except ValueError:
+            return {"agent_name": None, "response": "유효하지 않은 에이전트입니다.", "error": True}
+        available = [a["name"] for a in agent_router.get_available_agents(current_user["role"])]
+        if requested_agent not in available:
+            return {"agent_name": requested_agent, "response": "접근 권한이 없습니다.", "error": True}
+        agent_name = requested_agent
+    else:
+        agent_name = agent_router.classify_intent(message)
+
+    if not agent_name:
+        return {"agent_name": None, "response": "매칭되는 에이전트가 없습니다. 더 구체적으로 질문해 주세요."}
+
+    system_prompt = agent_router.get_system_prompt(agent_name)
+    config = agent_router.get_agent_config(agent_name)
+
+    # Claude API 호출 (최대 3회 시도 — timeout/429 대응)
+    client = _create_anthropic_client()
+    response_msg = None
+    for attempt in range(3):
+        try:
+            response_msg = client.messages.create(
+                model=config.get("model", "claude-sonnet-4-6"),
+                max_tokens=config.get("max_tokens", 2000),
+                system=system_prompt,
+                messages=[{"role": "user", "content": message}],
+            )
+            break
+        except (anthropic.APITimeoutError, anthropic.RateLimitError):
+            if attempt == 2:
+                return {"agent_name": agent_name, "response": "현재 AI 서비스에 일시적인 문제가 있습니다. 잠시 후 다시 시도해 주세요.", "error": True}
+            import time as _time
+            _time.sleep(1)
+        except anthropic.APIError:
+            return {"agent_name": agent_name, "response": "AI 서비스 연결에 실패했습니다. 잠시 후 다시 시도해 주세요.", "error": True}
+
+    response_text = response_msg.content[0].text
+
+    # 할루시네이션 감지 + 경고 주석 추가
+    hallucination_risk = agent_middleware.check_hallucination_risk(response_text)
+    if hallucination_risk:
+        response_text += "\n\n⚠️ 의료 정보는 반드시 담당 원장의 확인을 거치시기 바랍니다."
+
+    # 로깅 + 비용 추적 (메시지 원문 비저장)
+    agent_middleware.log_request(
+        user_id=str(current_user.get("id", "unknown")),
+        agent_name=agent_name,
+        message=message,
+        input_tokens=response_msg.usage.input_tokens,
+        output_tokens=response_msg.usage.output_tokens,
+    )
+
+    return {
+        "agent_name": agent_name,
+        "response": response_text,
+        "hallucination_warning": hallucination_risk,
+    }
