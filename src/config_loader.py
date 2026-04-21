@@ -25,3 +25,21 @@ def load_prompt(prompt_key: str) -> str:
     prompt_path = ROOT / config["prompts"][prompt_key]
     with open(prompt_path, encoding="utf-8") as f:
         return f.read()
+
+
+def save_blog_config(flow: dict, blog: dict) -> None:
+    """config.yaml의 flow + blog 섹션만 업데이트하고 나머지 섹션은 보존"""
+    config_path = ROOT / "config.yaml"
+    current = load_config()
+    current["flow"].update(flow)
+    current["blog"].update(blog)
+    with open(config_path, "w", encoding="utf-8") as f:
+        yaml.dump(current, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+
+
+def save_prompt(prompt_key: str, content: str) -> None:
+    """config.yaml에 정의된 프롬프트 파일 내용을 덮어씁니다"""
+    config = load_config()
+    prompt_path = ROOT / config["prompts"][prompt_key]
+    with open(prompt_path, "w", encoding="utf-8") as f:
+        f.write(content)

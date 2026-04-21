@@ -215,6 +215,33 @@ def create_invite(clinic_id: int, email: str, role: str, created_by: int) -> str
     return token
 
 
+def create_reinvite(clinic_id: int, email: str, role: str, created_by: int) -> str:
+    """
+    기존 사용자용 비밀번호 재설정 토큰 생성.
+    create_invite()와 달리 user_exists, max_slots 체크 없이 토큰만 생성.
+    이미 활성 토큰이 있으면 새로 생성(강제 갱신).
+    """
+    email = email.lower().strip()
+    expires_at = (
+        datetime.now(timezone.utc) + timedelta(hours=INVITE_EXPIRE_HOURS)
+    ).isoformat()
+
+    with get_db() as conn:
+        # 기존 미사용 토큰은 만료 처리 (새 링크 발급)
+        conn.execute(
+            "UPDATE invites SET expires_at = datetime('now') "
+            "WHERE clinic_id = ? AND email = ? AND used_at IS NULL",
+            (clinic_id, email),
+        )
+        token = secrets.token_urlsafe(32)
+        conn.execute(
+            "INSERT INTO invites (clinic_id, email, role, token, expires_at, created_by) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (clinic_id, email, role, token, expires_at, created_by),
+        )
+    return token
+
+
 def verify_invite(token: str) -> Optional[dict]:
     """
     초대 토큰 검증.
@@ -254,13 +281,27 @@ def complete_onboarding(token: str, password: str) -> dict:
     now = datetime.now(timezone.utc).isoformat()
 
     with get_db() as conn:
-        # 사용자 생성
-        cur = conn.execute(
-            "INSERT INTO users (clinic_id, email, hashed_password, role, is_active, must_change_pw) "
-            "VALUES (?, ?, ?, ?, 1, 0)",
-            (invite["clinic_id"], invite["email"], hashed, invite["role"]),
-        )
-        user_id = cur.lastrowid
+        # 기존 사용자 확인 (재초대 = 비밀번호 재설정)
+        existing = conn.execute(
+            "SELECT id FROM users WHERE email = ? AND clinic_id = ?",
+            (invite["email"], invite["clinic_id"]),
+        ).fetchone()
+
+        if existing:
+            # 비밀번호 재설정: 기존 사용자 업데이트
+            conn.execute(
+                "UPDATE users SET hashed_password = ?, must_change_pw = 0, is_active = 1 WHERE id = ?",
+                (hashed, existing["id"]),
+            )
+            user_id = existing["id"]
+        else:
+            # 신규 사용자 생성
+            cur = conn.execute(
+                "INSERT INTO users (clinic_id, email, hashed_password, role, is_active, must_change_pw) "
+                "VALUES (?, ?, ?, ?, 1, 0)",
+                (invite["clinic_id"], invite["email"], hashed, invite["role"]),
+            )
+            user_id = cur.lastrowid
 
         # 토큰 소모
         conn.execute(

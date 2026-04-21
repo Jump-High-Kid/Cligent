@@ -16,7 +16,7 @@ DB_PATH = ROOT / "data" / "cligent.db"
 
 
 def init_db() -> None:
-    """서버 시작 시 호출 — 테이블이 없으면 생성"""
+    """서버 시작 시 호출 — 테이블이 없으면 생성, 컬럼 마이그레이션 포함"""
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     with _connect() as conn:
         conn.executescript("""
@@ -54,6 +54,20 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_invites_token  ON invites(token);
             CREATE INDEX IF NOT EXISTS idx_invites_clinic ON invites(clinic_id);
         """)
+        # 한의원 프로필 컬럼 마이그레이션 (기존 DB 대응)
+        existing = {row[1] for row in conn.execute("PRAGMA table_info(clinics)")}
+        for col, definition in [
+            ("phone",              "TEXT"),
+            ("address",            "TEXT"),
+            ("specialty",          "TEXT"),
+            ("hours",              "TEXT"),       # JSON 문자열로 저장
+            ("intro",              "TEXT"),
+            ("model",              "TEXT"),       # 사용 AI 모델
+            ("monthly_budget_krw", "INTEGER"),    # 월 예산 (원)
+            ("api_key_enc",        "TEXT"),       # Fernet 암호화된 API 키
+        ]:
+            if col not in existing:
+                conn.execute(f"ALTER TABLE clinics ADD COLUMN {col} {definition}")
 
 
 @contextmanager

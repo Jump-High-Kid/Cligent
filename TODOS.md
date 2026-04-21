@@ -36,32 +36,36 @@
 
 ---
 
-### 6. [설정 페이지] 한의원 프로필
-**What**: 한의원 이름/주소/전화, 진료과목, 진료시간, 원장 소개글(블로그 자동 반영), 로고 업로드
-**Why**: 블로그 생성 시 원장/한의원 정보 자동 삽입 가능해짐
-**Context**: DB에 clinics 테이블 존재. 추가 컬럼 필요 (phone, address, intro, logo_path 등)
-**Depends on**: DB 마이그레이션
+### 6. [설정 페이지] 한의원 프로필 ✅
+**완료일**: 2026-04-21
+**What**: 한의원 이름/주소/전화, 진료과목, 진료시간, 원장 소개글(블로그 자동 반영)
+**Context**: clinics 테이블 ALTER 마이그레이션 완료. GET/POST /api/settings/clinic/profile 구현.
+  설정 > 시스템 & 보안 탭 내 서브탭 구조로 구현 (chief_director 전용)
 
 ---
 
-### 7. [설정 페이지] AI 설정
-**What**: Anthropic API Key 입력/변경 (마스킹 표시), 사용 모델 선택, 월 예산 한도 설정 (초과 시 경고)
-**Context**: 원장 전용. 현재 API 키는 서버 .env에 저장. 멀티유저 시 DB 저장 필요.
-**Depends on**: 팀 & 권한 관리 UI 완료 후
+### 7. [설정 페이지] AI 설정 ✅
+**완료일**: 2026-04-21
+**What**: API Key 마스킹 표시/변경, 모델 선택 (Haiku/Sonnet/Opus), 월 예산 한도
+**Context**: Fernet 암호화로 DB 저장. GET/POST /api/settings/clinic/ai 구현. chief_director 전용.
+  블로그 생성 시 DB 저장 키 우선 사용은 별도 연결 필요 (현재는 .env 키 유지)
 
 ---
 
-### 8. [설정 페이지] 블로그 설정
-**What**: 글 최소/최대 길이, 기본 톤, 질문 단계 ON/OFF, 질문 개수, 프롬프트 직접 편집
-**Context**: 현재 config.yaml로 관리. UI에서 수정 → config.yaml 저장
-**Depends on**: 팀 & 권한 관리 UI 완료 후
+### 8. [설정 페이지] 블로그 설정 ✅
+**완료일**: 2026-04-21
+**What**: 질문단계 ON/OFF·개수, 글자 수, 기본 톤 선택, 프롬프트 직접 편집
+**Context**: config.yaml 직접 수정 (save_blog_config). 프롬프트 편집은 chief_director 전용.
+  GET/POST /api/settings/blog + /api/settings/blog/prompt 구현. 콘텐츠 에이전트 탭으로 배치.
 
 ---
 
-### 9. 비밀번호 찾기 기능
-**What**: 원장이 직원에게 재초대 링크 발송하는 UI. 직원은 링크로 비밀번호 재설정.
-**Context**: 백엔드 `create_invite()` 이미 미사용 토큰 재사용 로직 있음. 원장이 설정 > 팀 관리에서 "재초대" 버튼 클릭 → 새 토큰 생성 → 복사.
-**Depends on**: 팀 & 권한 관리 UI 완료 후
+### 9. 비밀번호 찾기 기능 ✅
+**완료일**: 2026-04-21
+**What**: 원장이 직원 편집 패널에서 "비밀번호 재설정 링크 생성" → 72시간 유효 링크 복사 → 직원이 링크로 비밀번호 재설정
+**Context**: create_reinvite() 신규 함수 (기존 토큰 만료 처리 후 새 토큰 생성).
+  complete_onboarding()이 기존 사용자는 INSERT 대신 UPDATE로 처리하도록 수정.
+  POST /api/settings/staff/{id}/reinvite 엔드포인트 구현.
 
 ---
 

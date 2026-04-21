@@ -126,6 +126,29 @@
   /* 탭 콘텐츠 */
   .tab-content { display: none; }
   .tab-content.active { display: block; }
+  /* 시스템 서브 탭 */
+  .sys-tab-btn {
+    color: #78716c;
+    background: transparent;
+    border: 1px solid #e7e5e4;
+    transition: all 0.15s;
+  }
+  .sys-tab-btn:hover { background: #f5f5f4; color: #256959; }
+  .sys-tab-btn.active {
+    background: #00392e;
+    color: #fff;
+    border-color: #00392e;
+  }
+  .sys-tab-content { display: none; }
+  .sys-tab-content:not(.hidden) { display: block; }
+  /* AI 모델 카드 */
+  .model-card { border-color: #e7e5e4; background: #fafaf9; }
+  .model-card:hover { border-color: #6ee7b7; }
+  .model-card.selected { border-color: #00392e; background: #f0fdf4; }
+  /* 블로그 톤 버튼 */
+  .tone-btn { border-color: #e7e5e4; color: #78716c; }
+  .tone-btn:hover { border-color: #6ee7b7; color: #256959; }
+  .tone-btn.selected { border-color: #00392e; background: #00392e; color: #fff; }
 </style>
 </head>
 <body class="bg-background text-on-surface selection:bg-secondary-container overflow-hidden">
@@ -287,21 +310,7 @@
             </div>
           </div>
           <div class="flex-1" id="staffList">
-            <!-- 직원 항목: 선택됨 -->
-            <div class="staff-row bg-primary-container text-white px-8 py-6 flex justify-between items-center transition-all cursor-pointer" data-staff="owner">
-              <div class="flex items-center gap-4">
-                <div class="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
-                  <span class="material-symbols-outlined text-white" style="font-variation-settings:'FILL' 1;">person</span>
-                </div>
-                <div>
-                  <p class="font-bold">대표 원장</p>
-                  <p class="text-xs text-white/70">최고 관리자 • owner@cligent.dev</p>
-                </div>
-              </div>
-              <span class="material-symbols-outlined opacity-60">chevron_right</span>
-            </div>
-
-            <!-- 로딩 중 placeholder — JS로 실제 목록 교체 -->
+            <!-- JS로 동적 렌더링 -->
             <div id="staffPlaceholder" class="px-8 py-6 text-stone-400 text-sm">직원 목록을 불러오는 중...</div>
           </div>
         </div>
@@ -309,9 +318,53 @@
         <!-- 우측: 모듈 권한 설정 -->
         <div class="w-1/2 flex flex-col bg-primary-container text-white">
           <div class="p-10">
-            <div class="mb-10">
-              <h3 class="text-xl font-bold mb-2">모듈 권한 설정</h3>
-              <p class="text-white/60 text-sm" id="permDesc">선택한 팀원의 모듈 접근 권한을 설정합니다.</p>
+            <div class="mb-8">
+              <h3 class="text-xl font-bold mb-6">직원 정보</h3>
+              <div class="space-y-3" id="staffEditPanel">
+                <div>
+                  <label class="text-[11px] font-bold text-white/40 uppercase tracking-widest mb-1 block">이름</label>
+                  <div class="flex gap-2">
+                    <input id="editName" type="text" placeholder="표시 이름"
+                      class="flex-1 bg-white/10 border border-white/20 rounded-xl px-4 py-2 text-sm text-white placeholder-white/30 focus:outline-none focus:border-white/50"/>
+                    <button onclick="saveStaffInfo()" class="shrink-0 bg-white/20 hover:bg-white/30 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-all">저장</button>
+                  </div>
+                </div>
+                <div id="roleEditArea">
+                  <label class="text-[11px] font-bold text-white/40 uppercase tracking-widest mb-1 block">역할</label>
+                  <select id="editRole"
+                    class="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-white/50">
+                    <option value="team_member">팀원</option>
+                    <option value="team_leader">팀장</option>
+                    <option value="manager">매니저</option>
+                    <option value="director">원장</option>
+                  </select>
+                </div>
+                <div id="deactivateArea" class="pt-2">
+                  <button onclick="deactivateStaff()"
+                    class="text-red-300 hover:text-red-200 text-xs font-semibold flex items-center gap-1 transition-all">
+                    <span class="material-symbols-outlined text-sm">person_off</span>
+                    이 직원 비활성화
+                  </button>
+                </div>
+                <!-- 재초대 (비밀번호 재설정) -->
+                <div id="reinviteArea" class="pt-1">
+                  <button onclick="createReinvite()"
+                    class="text-white/60 hover:text-white/90 text-xs font-semibold flex items-center gap-1 transition-all">
+                    <span class="material-symbols-outlined text-sm">link</span>
+                    비밀번호 재설정 링크 생성
+                  </button>
+                  <div id="reinvite-result" class="hidden mt-2 bg-white/10 rounded-xl px-3 py-2">
+                    <p class="text-[10px] text-white/50 mb-1">72시간 유효 · 1회용 링크</p>
+                    <div class="flex items-center gap-2">
+                      <span id="reinvite-url" class="text-xs text-white/80 flex-1 truncate font-mono"></span>
+                      <button onclick="copyReinviteUrl()" class="shrink-0 text-white/60 hover:text-white transition-all">
+                        <span id="reinvite-copy-icon" class="material-symbols-outlined text-sm">content_copy</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <p class="text-white/60 text-sm mt-6" id="permDesc">선택한 팀원의 모듈 접근 권한을 설정합니다.</p>
             </div>
 
             <div class="space-y-8">
@@ -456,11 +509,82 @@
 
     <!-- 탭: 콘텐츠 에이전트 (추후 구현) -->
     <div id="tab-content" class="tab-content">
-      <div class="neumorphic-card bg-surface-container-lowest rounded-[2rem] p-12 min-h-[400px] flex items-center justify-center">
-        <div class="text-center text-stone-400">
-          <span class="material-symbols-outlined text-5xl mb-4 block">auto_awesome</span>
-          <p class="font-semibold text-lg text-stone-500">콘텐츠 에이전트 설정</p>
-          <p class="text-sm mt-2">블로그·SNS 콘텐츠 자동화 설정 — 준비 중입니다.</p>
+      <div class="neumorphic-card bg-surface-container-lowest rounded-[2rem] p-8">
+        <div class="flex items-center gap-3 mb-8">
+          <span class="material-symbols-outlined text-primary text-2xl">article</span>
+          <h2 class="text-lg font-semibold">블로그 설정</h2>
+          <span id="blog-save-indicator" class="ml-auto text-xs text-emerald-600 hidden">저장됨</span>
+        </div>
+
+        <!-- 생성 플로우 -->
+        <div class="mb-8 pb-8 border-b border-stone-100">
+          <h3 class="text-sm font-semibold text-stone-600 mb-4">생성 플로우</h3>
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <p class="text-sm font-medium">질문 단계 사용</p>
+              <p class="text-xs text-stone-400 mt-0.5">OFF 시 주제 입력 직후 바로 생성됩니다</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input id="blog-questions-enabled" type="checkbox" class="ios-toggle sr-only" checked/>
+              <div class="ios-toggle-bg w-11 h-6 bg-stone-200 rounded-full transition-colors"></div>
+              <div class="ios-toggle-dot absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform"></div>
+            </label>
+          </div>
+          <div id="blog-questions-count-row" class="flex items-center justify-between">
+            <div>
+              <p class="text-sm font-medium">질문 개수</p>
+              <p class="text-xs text-stone-400 mt-0.5">독자 맞춤 정보 수집용 질문 수 (1~5)</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button onclick="adjustCount(-1)" class="w-8 h-8 rounded-lg border border-stone-200 text-stone-500 hover:bg-stone-50 font-bold text-lg flex items-center justify-center">−</button>
+              <span id="blog-questions-count-display" class="w-8 text-center font-semibold text-sm">3</span>
+              <button onclick="adjustCount(1)" class="w-8 h-8 rounded-lg border border-stone-200 text-stone-500 hover:bg-stone-50 font-bold text-lg flex items-center justify-center">+</button>
+              <input type="hidden" id="blog-questions-count" value="3"/>
+            </div>
+          </div>
+        </div>
+
+        <!-- 글 설정 -->
+        <div class="mb-8 pb-8 border-b border-stone-100">
+          <h3 class="text-sm font-semibold text-stone-600 mb-4">글 설정</h3>
+          <div class="grid grid-cols-2 gap-4 mb-4">
+            <div>
+              <label class="block text-sm font-medium text-stone-600 mb-1">최소 글자 수</label>
+              <input id="blog-min-chars" type="number" min="500" max="5000" step="100"
+                class="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700"/>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-stone-600 mb-1">최대 글자 수</label>
+              <input id="blog-max-chars" type="number" min="500" max="5000" step="100"
+                class="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700"/>
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-stone-600 mb-2">기본 톤</label>
+            <div class="flex gap-2 flex-wrap">
+              <button class="tone-btn px-4 py-2 rounded-full text-sm border transition-all" data-tone="전문적">전문적</button>
+              <button class="tone-btn px-4 py-2 rounded-full text-sm border transition-all" data-tone="친근한">친근한</button>
+              <button class="tone-btn px-4 py-2 rounded-full text-sm border transition-all" data-tone="설명적">설명적</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 프롬프트 편집 (chief_director 전용) -->
+        <div id="blog-prompt-section" class="hidden">
+          <h3 class="text-sm font-semibold text-stone-600 mb-2">블로그 프롬프트 편집
+            <span class="text-xs font-normal text-stone-400 ml-1">(대표원장 전용)</span>
+          </h3>
+          <p class="text-xs text-stone-400 mb-3">변경 시 이후 생성되는 모든 블로그에 즉시 반영됩니다.</p>
+          <textarea id="blog-prompt-text" rows="14"
+            class="w-full border border-stone-200 rounded-xl px-4 py-3 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-emerald-700 resize-y"
+            placeholder="로드 중..."></textarea>
+          <div class="flex justify-end mt-2">
+            <button onclick="saveBlogPrompt()" class="bg-stone-700 hover:bg-stone-600 text-white px-6 py-2 rounded-xl text-sm font-medium transition-colors">프롬프트 저장</button>
+          </div>
+        </div>
+
+        <div class="flex justify-end mt-6">
+          <button onclick="saveBlogSettings()" class="bg-emerald-900 hover:bg-emerald-800 text-white px-8 py-2.5 rounded-xl text-sm font-medium transition-colors">저장</button>
         </div>
       </div>
     </div>
@@ -500,12 +624,156 @@
 
     <!-- 탭: 시스템 & 보안 (추후 구현 / 대표 원장 전용) -->
     <div id="tab-system" class="tab-content">
-      <div class="neumorphic-card bg-surface-container-lowest rounded-[2rem] p-12 min-h-[400px] flex items-center justify-center">
-        <div class="text-center text-stone-400">
-          <span class="material-symbols-outlined text-5xl mb-4 block">admin_panel_settings</span>
-          <p class="font-semibold text-lg text-stone-500">시스템 &amp; 보안</p>
-          <p class="text-sm mt-2">한의원 프로필 · AI 설정 · 플랜 &amp; 사용량 · 보안 · 데이터 관리</p>
-          <p class="text-xs mt-3 text-stone-300">대표 원장 전용 — 준비 중입니다.</p>
+      <!-- 시스템 & 보안: 서브 탭 내비게이션 -->
+      <div class="flex gap-2 mb-6 flex-wrap">
+        <button class="sys-tab-btn active px-4 py-2 rounded-full text-sm font-medium" data-sys="profile">한의원 프로필</button>
+        <button class="sys-tab-btn px-4 py-2 rounded-full text-sm font-medium" data-sys="ai">AI 설정</button>
+        <button class="sys-tab-btn px-4 py-2 rounded-full text-sm font-medium" data-sys="plan">플랜 &amp; 사용량</button>
+        <button class="sys-tab-btn px-4 py-2 rounded-full text-sm font-medium" data-sys="security">보안</button>
+        <button class="sys-tab-btn px-4 py-2 rounded-full text-sm font-medium" data-sys="data">데이터 관리</button>
+      </div>
+
+      <!-- 한의원 프로필 -->
+      <div id="sys-profile" class="sys-tab-content">
+        <div id="sys-chief-guard" class="hidden neumorphic-card bg-surface-container-lowest rounded-[2rem] p-12 min-h-[300px] flex items-center justify-center">
+          <div class="text-center text-stone-400">
+            <span class="material-symbols-outlined text-5xl mb-3 block">lock</span>
+            <p class="font-semibold text-stone-500">대표 원장 전용</p>
+            <p class="text-sm mt-2">시스템 &amp; 보안 설정은 대표원장만 접근할 수 있습니다.</p>
+          </div>
+        </div>
+        <div id="sys-profile-form" class="neumorphic-card bg-surface-container-lowest rounded-[2rem] p-8">
+          <div class="flex items-center gap-3 mb-8">
+            <span class="material-symbols-outlined text-primary text-2xl">store</span>
+            <h2 class="text-lg font-semibold">한의원 프로필</h2>
+            <span id="profile-save-indicator" class="ml-auto text-xs text-emerald-600 hidden">저장됨</span>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label class="block text-sm font-medium text-stone-600 mb-1">한의원 이름 <span class="text-red-400">*</span></label>
+              <input id="pf-name" type="text" class="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700" placeholder="예: 서울한의원"/>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-stone-600 mb-1">전화번호</label>
+              <input id="pf-phone" type="tel" class="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700" placeholder="예: 02-1234-5678"/>
+            </div>
+            <div class="md:col-span-2">
+              <label class="block text-sm font-medium text-stone-600 mb-1">주소</label>
+              <input id="pf-address" type="text" class="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700" placeholder="예: 서울특별시 강남구 테헤란로 123"/>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-stone-600 mb-1">진료과목</label>
+              <input id="pf-specialty" type="text" class="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700" placeholder="예: 침, 추나, 한약, 다이어트"/>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-stone-600 mb-1">진료시간</label>
+              <input id="pf-hours" type="text" class="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700" placeholder="예: 평일 9:00-18:00, 토 9:00-13:00"/>
+            </div>
+            <div class="md:col-span-2">
+              <label class="block text-sm font-medium text-stone-600 mb-1">원장 소개글 <span class="text-xs text-stone-400">(블로그 생성 시 자동 반영)</span></label>
+              <textarea id="pf-intro" rows="5" class="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700 resize-none" placeholder="원장님의 진료 철학, 전공, 경력 등을 입력하세요. 블로그 글 마무리에 자연스럽게 반영됩니다."></textarea>
+            </div>
+          </div>
+          <div class="mt-6 flex justify-end">
+            <button onclick="saveClinicProfile()" class="bg-emerald-900 hover:bg-emerald-800 text-white px-8 py-2.5 rounded-xl text-sm font-medium transition-colors">저장</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI 설정 / 플랜 / 보안 / 데이터: 준비 중 플레이스홀더 -->
+      <div id="sys-ai" class="sys-tab-content hidden">
+        <div class="neumorphic-card bg-surface-container-lowest rounded-[2rem] p-8">
+          <div class="flex items-center gap-3 mb-8">
+            <span class="material-symbols-outlined text-primary text-2xl">smart_toy</span>
+            <h2 class="text-lg font-semibold">AI 설정</h2>
+            <span id="ai-save-indicator" class="ml-auto text-xs text-emerald-600 hidden">저장됨</span>
+          </div>
+
+          <!-- API 키 -->
+          <div class="mb-8">
+            <label class="block text-sm font-semibold text-stone-700 mb-3">Anthropic API 키</label>
+            <div class="bg-stone-50 border border-stone-200 rounded-xl px-4 py-3 flex items-center justify-between mb-3">
+              <span id="ai-key-display" class="text-sm font-mono text-stone-500">로드 중...</span>
+              <button onclick="toggleApiKeyInput()" class="text-xs text-emerald-700 font-medium hover:underline ml-4 flex-shrink-0">변경</button>
+            </div>
+            <div id="ai-key-input-area" class="hidden">
+              <input id="ai-key-input" type="password" autocomplete="new-password"
+                class="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-emerald-700 mb-2"
+                placeholder="sk-ant-api03-..."/>
+              <p class="text-xs text-stone-400">새 키 입력 후 저장하면 교체됩니다. 빈 칸으로 두면 기존 키 유지.</p>
+            </div>
+            <p class="text-xs text-stone-400 mt-1">
+              키 발급: <a href="https://console.anthropic.com" target="_blank" class="text-emerald-700 underline">console.anthropic.com</a>
+            </p>
+          </div>
+
+          <!-- 모델 선택 -->
+          <div class="mb-8">
+            <label class="block text-sm font-semibold text-stone-700 mb-3">기본 AI 모델</label>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <label id="model-haiku" class="model-card cursor-pointer border-2 rounded-xl p-4 transition-all">
+                <input type="radio" name="ai-model" value="claude-haiku-4-5-20251001" class="sr-only"/>
+                <div class="font-semibold text-sm mb-1">Haiku 4.5</div>
+                <div class="text-xs text-stone-400">빠름 · 저렴</div>
+                <div class="text-xs text-stone-400 mt-1">글 1편 ≈ ₩2~4</div>
+              </label>
+              <label id="model-sonnet" class="model-card cursor-pointer border-2 rounded-xl p-4 transition-all">
+                <input type="radio" name="ai-model" value="claude-sonnet-4-6" class="sr-only"/>
+                <div class="flex items-center gap-1 font-semibold text-sm mb-1">Sonnet 4.6 <span class="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">권장</span></div>
+                <div class="text-xs text-stone-400">균형 · 기본</div>
+                <div class="text-xs text-stone-400 mt-1">글 1편 ≈ ₩7~14</div>
+              </label>
+              <label id="model-opus" class="model-card cursor-pointer border-2 rounded-xl p-4 transition-all">
+                <input type="radio" name="ai-model" value="claude-opus-4-7" class="sr-only"/>
+                <div class="font-semibold text-sm mb-1">Opus 4.7</div>
+                <div class="text-xs text-stone-400">최고품질 · 비쌈</div>
+                <div class="text-xs text-stone-400 mt-1">글 1편 ≈ ₩40~80</div>
+              </label>
+            </div>
+          </div>
+
+          <!-- 월 예산 -->
+          <div class="mb-8">
+            <label class="block text-sm font-semibold text-stone-700 mb-3">월 예산 한도</label>
+            <div class="flex items-center gap-3">
+              <input id="ai-budget" type="number" min="0" step="1000"
+                class="w-48 border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                placeholder="10000"/>
+              <span class="text-sm text-stone-500">원</span>
+            </div>
+            <p class="text-xs text-stone-400 mt-2">월 누적 비용이 한도를 초과하면 경고 알림이 표시됩니다.</p>
+          </div>
+
+          <div class="flex justify-end">
+            <button onclick="saveAiSettings()" class="bg-emerald-900 hover:bg-emerald-800 text-white px-8 py-2.5 rounded-xl text-sm font-medium transition-colors">저장</button>
+          </div>
+        </div>
+      </div>
+      <div id="sys-plan" class="sys-tab-content hidden">
+        <div class="neumorphic-card bg-surface-container-lowest rounded-[2rem] p-12 min-h-[300px] flex items-center justify-center">
+          <div class="text-center text-stone-400">
+            <span class="material-symbols-outlined text-5xl mb-3 block">bar_chart</span>
+            <p class="font-semibold text-stone-500">플랜 &amp; 사용량</p>
+            <p class="text-sm mt-2">토큰 사용량 및 예산 관리 — 준비 중입니다.</p>
+          </div>
+        </div>
+      </div>
+      <div id="sys-security" class="sys-tab-content hidden">
+        <div class="neumorphic-card bg-surface-container-lowest rounded-[2rem] p-12 min-h-[300px] flex items-center justify-center">
+          <div class="text-center text-stone-400">
+            <span class="material-symbols-outlined text-5xl mb-3 block">shield</span>
+            <p class="font-semibold text-stone-500">보안</p>
+            <p class="text-sm mt-2">비밀번호 변경 및 로그인 이력 — 준비 중입니다.</p>
+          </div>
+        </div>
+      </div>
+      <div id="sys-data" class="sys-tab-content hidden">
+        <div class="neumorphic-card bg-surface-container-lowest rounded-[2rem] p-12 min-h-[300px] flex items-center justify-center">
+          <div class="text-center text-stone-400">
+            <span class="material-symbols-outlined text-5xl mb-3 block">database</span>
+            <p class="font-semibold text-stone-500">데이터 관리</p>
+            <p class="text-sm mt-2">이력 내보내기 및 초기화 — 준비 중입니다.</p>
+          </div>
         </div>
       </div>
     </div>
@@ -565,8 +833,266 @@
       document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
       btn.classList.add('active');
       document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+      // 각 탭 진입 시 데이터 로드
+      if (btn.dataset.tab === 'system') loadClinicProfile();
+      if (btn.dataset.tab === 'content') loadBlogSettings();
     });
   });
+
+  // ── 시스템 서브탭 전환 ────────────────────────────────────────────
+  document.querySelectorAll('.sys-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.sys-tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.sys-tab-content').forEach(c => c.classList.add('hidden'));
+      btn.classList.add('active');
+      const target = document.getElementById('sys-' + btn.dataset.sys);
+      if (target) target.classList.remove('hidden');
+      if (btn.dataset.sys === 'ai') loadAiSettings();
+    });
+  });
+
+  // ── 한의원 프로필 로드 ────────────────────────────────────────────
+  let _profileLoaded = false;
+  async function loadClinicProfile() {
+    if (_profileLoaded) return;
+    try {
+      const meRes = await fetch('/api/auth/me');
+      const me = await meRes.json();
+
+      // 대표원장이 아니면 폼 숨기고 잠금 메시지 표시
+      if (me.role !== 'chief_director') {
+        document.getElementById('sys-profile-form').classList.add('hidden');
+        document.getElementById('sys-chief-guard').classList.remove('hidden');
+        _profileLoaded = true;
+        return;
+      }
+
+      const res = await fetch('/api/settings/clinic/profile');
+      if (!res.ok) return;
+      const data = await res.json();
+
+      document.getElementById('pf-name').value = data.name || '';
+      document.getElementById('pf-phone').value = data.phone || '';
+      document.getElementById('pf-address').value = data.address || '';
+      document.getElementById('pf-specialty').value = data.specialty || '';
+      document.getElementById('pf-hours').value = data.hours ? JSON.stringify(data.hours) : '';
+      // hours가 문자열 형태로 저장된 경우 처리
+      if (data.hours && typeof data.hours === 'object') {
+        document.getElementById('pf-hours').value = data.hours.text || '';
+      }
+      document.getElementById('pf-intro').value = data.intro || '';
+
+      _profileLoaded = true;
+    } catch (e) { /* 조용히 무시 */ }
+  }
+
+  // ── 한의원 프로필 저장 ────────────────────────────────────────────
+  async function saveClinicProfile() {
+    const name = document.getElementById('pf-name').value.trim();
+    const hoursRaw = document.getElementById('pf-hours').value.trim();
+    if (!name) { alert('한의원 이름을 입력해주세요.'); return; }
+
+    const hours = hoursRaw ? { text: hoursRaw } : null;
+
+    const res = await fetch('/api/settings/clinic/profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name,
+        phone: document.getElementById('pf-phone').value.trim(),
+        address: document.getElementById('pf-address').value.trim(),
+        specialty: document.getElementById('pf-specialty').value.trim(),
+        hours,
+        intro: document.getElementById('pf-intro').value.trim(),
+      }),
+    });
+    if (res.ok) {
+      showSaved();
+      const ind = document.getElementById('profile-save-indicator');
+      ind.classList.remove('hidden');
+      setTimeout(() => ind.classList.add('hidden'), 2000);
+    }
+  }
+
+  // ── AI 설정 로드 ──────────────────────────────────────────────────
+  let _aiLoaded = false;
+  async function loadAiSettings() {
+    if (_aiLoaded) return;
+    try {
+      const res = await fetch('/api/settings/clinic/ai');
+      if (!res.ok) return;
+      const data = await res.json();
+
+      document.getElementById('ai-key-display').textContent =
+        data.api_key_masked || '설정되지 않음';
+      document.getElementById('ai-budget').value = data.monthly_budget_krw || 10000;
+
+      // 모델 카드 선택 상태
+      const model = data.model || 'claude-sonnet-4-6';
+      document.querySelectorAll('.model-card').forEach(card => {
+        const radio = card.querySelector('input[type=radio]');
+        const isSelected = radio && radio.value === model;
+        card.classList.toggle('selected', isSelected);
+        if (isSelected) radio.checked = true;
+      });
+
+      _aiLoaded = true;
+    } catch (e) { /* 조용히 무시 */ }
+  }
+
+  // 모델 카드 클릭 시 시각적 선택 토글
+  document.querySelectorAll('.model-card').forEach(card => {
+    card.addEventListener('click', () => {
+      document.querySelectorAll('.model-card').forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+    });
+  });
+
+  // ── 블로그 설정 로드/저장 ─────────────────────────────────────────
+  let _blogLoaded = false;
+  let _selectedTone = '전문적';
+
+  async function loadBlogSettings() {
+    if (_blogLoaded) return;
+    try {
+      const meRes = await fetch('/api/auth/me');
+      const me = await meRes.json();
+
+      const res = await fetch('/api/settings/blog');
+      if (!res.ok) return;
+      const data = await res.json();
+
+      const flow = data.flow || {};
+      const blog = data.blog || {};
+
+      // 질문 단계 토글
+      document.getElementById('blog-questions-enabled').checked = flow.questions_enabled !== false;
+      updateQuestionsCountRow();
+
+      // 질문 개수
+      const count = flow.questions_count || 3;
+      document.getElementById('blog-questions-count').value = count;
+      document.getElementById('blog-questions-count-display').textContent = count;
+
+      // 글자 수
+      document.getElementById('blog-min-chars').value = blog.min_chars || 1500;
+      document.getElementById('blog-max-chars').value = blog.max_chars || 2000;
+
+      // 톤 선택
+      _selectedTone = blog.tone || '전문적';
+      document.querySelectorAll('.tone-btn').forEach(btn => {
+        btn.classList.toggle('selected', btn.dataset.tone === _selectedTone);
+      });
+
+      // chief_director만 프롬프트 편집 표시
+      if (me.role === 'chief_director') {
+        document.getElementById('blog-prompt-section').classList.remove('hidden');
+        const pr = await fetch('/api/settings/blog/prompt');
+        if (pr.ok) {
+          const pd = await pr.json();
+          document.getElementById('blog-prompt-text').value = pd.content || '';
+        }
+      }
+
+      _blogLoaded = true;
+    } catch (e) { /* 조용히 무시 */ }
+  }
+
+  function updateQuestionsCountRow() {
+    const enabled = document.getElementById('blog-questions-enabled').checked;
+    document.getElementById('blog-questions-count-row').style.opacity = enabled ? '' : '0.4';
+    document.getElementById('blog-questions-count-row').style.pointerEvents = enabled ? '' : 'none';
+  }
+  document.getElementById('blog-questions-enabled').addEventListener('change', updateQuestionsCountRow);
+
+  function adjustCount(delta) {
+    const inp = document.getElementById('blog-questions-count');
+    const disp = document.getElementById('blog-questions-count-display');
+    let v = Math.min(5, Math.max(1, parseInt(inp.value || 3) + delta));
+    inp.value = v;
+    disp.textContent = v;
+  }
+
+  document.querySelectorAll('.tone-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tone-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      _selectedTone = btn.dataset.tone;
+    });
+  });
+
+  async function saveBlogSettings() {
+    const res = await fetch('/api/settings/blog', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        flow: {
+          questions_enabled: document.getElementById('blog-questions-enabled').checked,
+          questions_count: parseInt(document.getElementById('blog-questions-count').value),
+        },
+        blog: {
+          min_chars: parseInt(document.getElementById('blog-min-chars').value),
+          max_chars: parseInt(document.getElementById('blog-max-chars').value),
+          tone: _selectedTone,
+        },
+      }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      showSaved();
+      const ind = document.getElementById('blog-save-indicator');
+      ind.classList.remove('hidden');
+      setTimeout(() => ind.classList.add('hidden'), 2000);
+    } else {
+      alert(data.detail || '저장 실패');
+    }
+  }
+
+  async function saveBlogPrompt() {
+    const content = document.getElementById('blog-prompt-text').value;
+    if (!confirm('프롬프트를 저장하면 이후 생성되는 모든 블로그에 즉시 반영됩니다. 계속하시겠습니까?')) return;
+    const res = await fetch('/api/settings/blog/prompt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content }),
+    });
+    const data = await res.json();
+    if (res.ok) showSaved();
+    else alert(data.detail || '저장 실패');
+  }
+
+  function toggleApiKeyInput() {
+    const area = document.getElementById('ai-key-input-area');
+    area.classList.toggle('hidden');
+    if (!area.classList.contains('hidden')) {
+      document.getElementById('ai-key-input').focus();
+    }
+  }
+
+  async function saveAiSettings() {
+    const model = document.querySelector('.model-card.selected input[type=radio]')?.value || '';
+    const budget = parseInt(document.getElementById('ai-budget').value) || 0;
+    const apiKey = document.getElementById('ai-key-input')?.value.trim() || '';
+
+    const res = await fetch('/api/settings/clinic/ai', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, monthly_budget_krw: budget, api_key: apiKey }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      showSaved();
+      const ind = document.getElementById('ai-save-indicator');
+      ind.classList.remove('hidden');
+      setTimeout(() => ind.classList.add('hidden'), 2000);
+      // 키 입력창 닫기 + masked 표시 갱신
+      document.getElementById('ai-key-input-area').classList.add('hidden');
+      document.getElementById('ai-key-input').value = '';
+      _aiLoaded = false; loadAiSettings();
+    } else {
+      alert(data.detail || '저장 실패');
+    }
+  }
 
   // ── 저장 버튼 숨김 (자동저장으로 대체) ───────────────────────────
   document.getElementById('saveBtn').style.display = 'none';
@@ -619,10 +1145,79 @@
   // ── 직원 선택 → 우측 권한 패널 업데이트 ─────────────────────────
   const CHIEF_ROLES = ['chief_director', 'director'];
 
+  async function saveStaffInfo() {
+    if (!selectedStaff) return;
+    const name = document.getElementById('editName').value.trim();
+    const role = document.getElementById('editRole').value;
+    const res = await fetch(`/api/settings/staff/${selectedStaff.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, role }),
+    });
+    if (res.ok) {
+      selectedStaff.name = name || selectedStaff.name;
+      selectedStaff.role = role;
+      // 목록 행 이름 갱신
+      const row = document.querySelector(`.staff-row[data-id="${selectedStaff.id}"] p`);
+      if (row) row.textContent = selectedStaff.name;
+      showSaved();
+    }
+  }
+
+  async function deactivateStaff() {
+    if (!selectedStaff) return;
+    if (!confirm(`${selectedStaff.name} 직원을 비활성화하시겠습니까?`)) return;
+    const res = await fetch(`/api/settings/staff/${selectedStaff.id}`, { method: 'DELETE' });
+    if (res.ok) {
+      document.querySelector(`.staff-row[data-id="${selectedStaff.id}"]`)?.remove();
+      selectedStaff = null;
+      document.getElementById('staffEditPanel').style.opacity = '0.4';
+      document.getElementById('staffEditPanel').style.pointerEvents = 'none';
+      document.getElementById('permDesc').textContent = '비활성화되었습니다.';
+    }
+  }
+
+  async function createReinvite() {
+    if (!selectedStaff) return;
+    const res = await fetch(`/api/settings/staff/${selectedStaff.id}/reinvite`, { method: 'POST' });
+    const data = await res.json();
+    if (res.ok) {
+      document.getElementById('reinvite-url').textContent = data.invite_url;
+      document.getElementById('reinvite-result').classList.remove('hidden');
+    } else {
+      alert(data.detail || '링크 생성 실패');
+    }
+  }
+
+  async function copyReinviteUrl() {
+    const url = document.getElementById('reinvite-url').textContent;
+    await navigator.clipboard.writeText(url);
+    const icon = document.getElementById('reinvite-copy-icon');
+    icon.textContent = 'check';
+    setTimeout(() => { icon.textContent = 'content_copy'; }, 2000);
+  }
+
   function selectStaff(member) {
     selectedStaff = member;
 
     const isChief = CHIEF_ROLES.includes(member.role);
+
+    // 직원 편집 패널 업데이트
+    document.getElementById('staffEditPanel').style.opacity = '';
+    document.getElementById('staffEditPanel').style.pointerEvents = '';
+    document.getElementById('editName').value = member.name || '';
+    const roleSelect = document.getElementById('editRole');
+    if (isChief) {
+      document.getElementById('roleEditArea').style.display = 'none';
+      document.getElementById('deactivateArea').style.display = 'none';
+      document.getElementById('reinviteArea').style.display = 'none';
+    } else {
+      document.getElementById('roleEditArea').style.display = '';
+      document.getElementById('deactivateArea').style.display = '';
+      document.getElementById('reinviteArea').style.display = '';
+      document.getElementById('reinvite-result').classList.add('hidden');
+      roleSelect.value = member.role;
+    }
 
     // 설명 업데이트
     document.getElementById('permDesc').textContent =

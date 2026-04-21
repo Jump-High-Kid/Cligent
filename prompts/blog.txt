@@ -93,4 +93,8 @@
 
 주제와 추가 정보를 반영하여 위 구조로 작성해주세요.
 
+{mode_instructions}
+
+{reader_level_instructions}
+
 {pattern_instructions}

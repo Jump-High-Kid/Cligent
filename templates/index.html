@@ -274,6 +274,30 @@
     .img-btn-ai:hover { background: #d4ecea; }
     .img-prompt-footer { display: flex; gap: 8px; margin-top: 14px; justify-content: flex-end; }
 
+    /* 단계 1 — 모드/독자 수준 칩 */
+    .step1-options { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 16px; }
+    .step1-option-group { display: flex; flex-direction: column; gap: 6px; }
+    .step1-option-label { font-size: 0.78rem; font-weight: 600; color: #78716c; text-transform: uppercase; letter-spacing: 0.04em; }
+    .step1-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .step1-chip {
+      padding: 5px 14px; border-radius: 20px; border: 1.5px solid #d6d3d1;
+      background: #fff; color: #57534e; font-size: 0.82rem; font-weight: 500;
+      cursor: pointer; font-family: inherit; transition: all 0.15s;
+    }
+    .step1-chip:hover { background: #f5f5f4; border-color: #a8a29e; }
+    .step1-chip.selected { background: #064e3b; color: #fff; border-color: #064e3b; }
+
+    /* 시리즈 권고 */
+    .series-section { margin-top: 24px; padding: 16px 20px; background: #f0fdf4; border-radius: 12px; border: 1px solid #bbf7d0; }
+    .series-title { font-size: 0.88rem; font-weight: 700; color: #064e3b; margin-bottom: 10px; }
+    .series-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .series-chip {
+      padding: 6px 14px; border-radius: 20px; border: 1.5px solid #6ee7b7;
+      background: #fff; color: #065f46; font-size: 0.82rem; font-weight: 500;
+      cursor: pointer; font-family: inherit; transition: all 0.15s;
+    }
+    .series-chip:hover { background: #ecfdf5; }
+
     /* 이미지 옵션 패널 */
     #imgOptionPanel { background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 16px; border: 2px solid #1a5f5a; box-shadow: 0 2px 12px rgba(26,95,90,0.08); }
     .img-option-panel-title { font-size: 0.95rem; font-weight: 700; color: #1a5f5a; margin-bottom: 14px; display: flex; align-items: center; gap: 7px; }
@@ -420,6 +444,25 @@
     <div id="step1">
       <label for="keyword">블로그 주제</label>
       <textarea id="keyword" rows="2" placeholder="예: 소화불량 한방 치료, 허리 통증 침 치료, 면역력 강화 한약"></textarea>
+
+      <div class="step1-options">
+        <div class="step1-option-group">
+          <span class="step1-option-label">글 목적</span>
+          <div class="step1-chips">
+            <button class="step1-chip selected" data-group="mode" data-value="정보" onclick="selectStep1Opt('mode',this)">정보 제공</button>
+            <button class="step1-chip" data-group="mode" data-value="광고" onclick="selectStep1Opt('mode',this)">내원 유도</button>
+          </div>
+        </div>
+        <div class="step1-option-group">
+          <span class="step1-option-label">독자 수준</span>
+          <div class="step1-chips">
+            <button class="step1-chip selected" data-group="reader_level" data-value="일반인" onclick="selectStep1Opt('reader_level',this)">일반인</button>
+            <button class="step1-chip" data-group="reader_level" data-value="건강관심" onclick="selectStep1Opt('reader_level',this)">건강 관심층</button>
+            <button class="step1-chip" data-group="reader_level" data-value="한의학관심" onclick="selectStep1Opt('reader_level',this)">한의학 관심층</button>
+          </div>
+        </div>
+      </div>
+
       <div id="step1Error" class="error-msg hidden"></div>
       <div style="margin-top:16px; text-align:right;">
         <button class="btn btn-primary" id="nextBtn" onclick="goToConversation()">다음 →</button>
@@ -515,6 +558,16 @@
     let allPrompts      = []; // 구조화된 이미지 프롬프트 배열
     let selectedStyle   = 'photorealistic';
     let selectedTone    = 'warm';
+    let selectedMode         = '정보';
+    let selectedReaderLevel  = '일반인';
+
+    function selectStep1Opt(group, el) {
+      document.querySelectorAll(`.step1-chip[data-group="${group}"]`)
+        .forEach(c => c.classList.remove('selected'));
+      el.classList.add('selected');
+      if (group === 'mode') selectedMode = el.dataset.value;
+      else selectedReaderLevel = el.dataset.value;
+    }
 
     // ── 단계 1 → 2 ─────────────────────────────────────────
     async function goToConversation() {
@@ -732,7 +785,10 @@
       try {
         const res = await fetch('/generate', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ keyword: currentKeyword, answers: collectedAnswers, materials: collectedMaterials }),
+          body: JSON.stringify({
+            keyword: currentKeyword, answers: collectedAnswers, materials: collectedMaterials,
+            mode: selectedMode, reader_level: selectedReaderLevel,
+          }),
         });
 
         const reader = res.body.getReader();
@@ -763,6 +819,7 @@
                 document.getElementById('tokenInfo').textContent =
                   `토큰: 입력 ${u.input} + 출력 ${u.output} = ${u.input + u.output}개 (≈ ${u.cost_krw}원)`;
                 document.getElementById('resultFooter').classList.remove('hidden');
+                if (msg.series && msg.series.length) renderSeriesSuggestions(msg.series);
               }
             } catch (_) {}
           }
@@ -1017,10 +1074,30 @@
         .trim();
     }
 
+    function renderSeriesSuggestions(series) {
+      const existing = document.getElementById('seriesSection');
+      if (existing) existing.remove();
+      const el = document.createElement('div');
+      el.id = 'seriesSection';
+      el.className = 'series-section';
+      el.innerHTML = `
+        <div class="series-title">다음에 쓰면 좋을 시리즈 주제</div>
+        <div class="series-chips">
+          ${series.map(s => `<button class="series-chip" onclick="useSeriesTopic(this)">${escapeHtml(s)}</button>`).join('')}
+        </div>`;
+      document.getElementById('output').after(el);
+    }
+
+    function useSeriesTopic(btn) {
+      reset();
+      document.getElementById('keyword').value = btn.textContent;
+    }
+
     function reset() {
       currentKeyword = ''; conversationFlow = []; currentIndex = 0;
       collectedAnswers = {}; selectedOptions = {}; rawOutputText = '';
       allPrompts = []; selectedStyle = 'photorealistic'; selectedTone = 'warm';
+      selectedMode = '정보'; selectedReaderLevel = '일반인';
       collectedMaterials = { text: '', webLinks: [], youtubeLinks: [] };
       document.getElementById('keyword').value          = '';
       document.getElementById('output').innerHTML       = '';
@@ -1029,10 +1106,17 @@
       document.getElementById('imagePromptSection').classList.add('hidden');
       document.getElementById('imgPromptLabel').classList.add('hidden');
       document.getElementById('imgPromptFooter').classList.add('hidden');
-      // 옵션 칩 초기화
+      const s = document.getElementById('seriesSection');
+      if (s) s.remove();
+      // 이미지 옵션 칩 초기화
       document.querySelectorAll('.img-opt-chip').forEach(c => {
         c.classList.toggle('selected', c.dataset.value === 'photorealistic' || c.dataset.value === 'warm');
       });
+      // 단계1 칩 초기화
+      document.querySelectorAll('.step1-chip[data-value="정보"], .step1-chip[data-value="일반인"]')
+        .forEach(c => c.classList.add('selected'));
+      document.querySelectorAll('.step1-chip:not([data-value="정보"]):not([data-value="일반인"])')
+        .forEach(c => c.classList.remove('selected'));
       showStep(1);
     }
 
