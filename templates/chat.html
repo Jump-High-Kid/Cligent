@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 도우미 — Cligent</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link rel="stylesheet" as="style" crossorigin
+    href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+  <link rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,100..700,0..1,0">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Pretendard Variable', 'Pretendard', sans-serif; background: #f5f6fa; height: 100vh; display: flex; flex-direction: column; }
+
+    .agent-bar {
+      background: #fff;
+      border-bottom: 1px solid #e5e7eb;
+      padding: 10px 16px;
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      flex-shrink: 0;
+    }
+    .agent-chip {
+      padding: 6px 14px;
+      border-radius: 20px;
+      border: 1px solid #d1d5db;
+      background: #fff;
+      font-size: 13px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s;
+    }
+    .agent-chip.active {
+      background: #064e3b;
+      color: #fff;
+      border-color: #064e3b;
+    }
+    .agent-chip:hover:not(.active) { background: #ecfdf5; }
+
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .msg { max-width: 70%; padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.6; white-space: pre-wrap; }
+    .msg.user { align-self: flex-end; background: #064e3b; color: #fff; border-bottom-right-radius: 4px; }
+    .msg.agent { align-self: flex-start; background: #fff; border: 1px solid #e5e7eb; border-bottom-left-radius: 4px; }
+    .msg .agent-label { font-size: 11px; color: #6b7280; margin-bottom: 4px; }
+    .msg.warning { border-left: 3px solid #f59e0b; }
+
+    .chat-input-area {
+      background: #fff;
+      border-top: 1px solid #e5e7eb;
+      padding: 12px 16px;
+      display: flex;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .chat-input-area textarea {
+      flex: 1;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 14px;
+      resize: none;
+      height: 48px;
+      font-family: inherit;
+    }
+    .chat-input-area textarea:focus { outline: none; border-color: #064e3b; }
+    .send-btn {
+      background: #064e3b;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 0 18px;
+      cursor: pointer;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .send-btn:disabled { background: #a7f3d0; cursor: not-allowed; }
+    .typing-indicator { color: #9ca3af; font-size: 13px; padding: 4px 0; }
+  </style>
+</head>
+<body>
+
+<div class="agent-bar" id="agentBar">
+  <button class="agent-chip active" data-agent="">자동 선택</button>
+</div>
+
+<div class="chat-messages" id="chatMessages">
+  <div class="msg agent">
+    <div class="agent-label">Cligent 도우미</div>
+    안녕하세요! 무엇을 도와드릴까요?<br>블로그 작성, 환자 관리, 재고, 스케줄, 문진표 등 궁금한 내용을 자유롭게 입력해 주세요.
+  </div>
+</div>
+
+<div class="chat-input-area">
+  <textarea id="chatInput" placeholder="질문을 입력하세요..." rows="1"></textarea>
+  <button class="send-btn" id="sendBtn">
+    <span class="material-symbols-outlined" style="font-size:18px">send</span>
+    전송
+  </button>
+</div>
+
+<script>
+  // iframe 내에서 실행 시 사이드바 숨김
+  if (window.self !== window.top) {
+    document.querySelectorAll('#sidebar').forEach(el => el.style.display = 'none');
+  }
+
+  let selectedAgent = "";
+
+  // 사용 가능한 에이전트 로드
+  fetch("/api/agents/available")
+    .then(r => {
+      if (r.status === 401) { window.location.href = "/login"; return null; }
+      return r.json();
+    })
+    .then(data => {
+      if (!data) return;
+      const bar = document.getElementById("agentBar");
+      if (!data.agents || data.agents.length === 0) {
+        bar.innerHTML += '<span style="color:#6b7280;font-size:13px">에이전트 목록을 불러올 수 없습니다</span>';
+        return;
+      }
+      data.agents.forEach(agent => {
+        const btn = document.createElement("button");
+        btn.className = "agent-chip";
+        btn.dataset.agent = agent.name;
+        btn.textContent = agent.display_name;
+        btn.title = agent.description;
+        btn.onclick = () => selectAgent(agent.name);
+        bar.appendChild(btn);
+      });
+    })
+    .catch(() => {
+      document.getElementById("agentBar").innerHTML += '<span style="color:#ef4444;font-size:13px">에이전트 연결 오류</span>';
+    });
+
+  function selectAgent(name) {
+    selectedAgent = name;
+    document.querySelectorAll(".agent-chip").forEach(c => c.classList.remove("active"));
+    const target = name ? document.querySelector(`[data-agent="${name}"]`) : document.querySelector("[data-agent='']");
+    target?.classList.add("active");
+  }
+
+  document.querySelector("[data-agent='']").onclick = () => selectAgent("");
+
+  const input = document.getElementById("chatInput");
+  const sendBtn = document.getElementById("sendBtn");
+  const messages = document.getElementById("chatMessages");
+
+  input.addEventListener("keydown", e => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  });
+  sendBtn.onclick = sendMessage;
+
+  function appendMessage(role, text, agentName, isWarning) {
+    const div = document.createElement("div");
+    div.className = `msg ${role}${isWarning ? " warning" : ""}`;
+    if (agentName) {
+      const label = document.createElement("div");
+      label.className = "agent-label";
+      label.textContent = agentName;
+      div.appendChild(label);
+    }
+    const content = document.createElement("span");
+    content.textContent = text;
+    div.appendChild(content);
+    messages.appendChild(div);
+    messages.scrollTop = messages.scrollHeight;
+    return div;
+  }
+
+  async function sendMessage() {
+    const text = input.value.trim();
+    if (!text) return;
+    if (text.length > 1000) {
+      alert("메시지는 1,000자 이내로 입력해 주세요.");
+      return;
+    }
+    input.value = "";
+    sendBtn.disabled = true;
+
+    appendMessage("user", text, null, false);
+
+    const typing = document.createElement("div");
+    typing.className = "typing-indicator";
+    typing.textContent = "응답 생성 중...";
+    messages.appendChild(typing);
+    messages.scrollTop = messages.scrollHeight;
+
+    try {
+      const res = await fetch("/api/agent/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text, agent: selectedAgent || undefined }),
+      });
+
+      if (res.status === 401) { window.location.href = "/login"; return; }
+
+      const data = await res.json();
+      typing.remove();
+
+      const displayName = data.agent_name
+        ? document.querySelector(`[data-agent="${data.agent_name}"]`)?.textContent || data.agent_name
+        : "Cligent";
+
+      appendMessage("agent", data.response, displayName, data.hallucination_warning);
+    } catch (e) {
+      typing.remove();
+      appendMessage("agent", "오류가 발생했습니다. 다시 시도해 주세요.", "시스템", false);
+    } finally {
+      sendBtn.disabled = false;
+      input.focus();
+    }
+  }
+</script>
+</body>
+</html>
