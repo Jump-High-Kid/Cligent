@@ -5,9 +5,14 @@ db_manager.py — SQLite 데이터베이스 초기화 및 연결 관리
   clinics  — 한의원 정보 + 슬롯 한도
   users    — 로그인 사용자 (역할 포함)
   invites  — 72시간 유효 1회용 초대 토큰
+
+trial_expires_at 정책:
+  - create_clinic() 호출 시 1회만 NOW + 14일로 설정
+  - 이미 값이 있으면 절대 덮어쓰지 않음 (trial abuse 방어)
 """
 
 import sqlite3
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from contextlib import contextmanager
 
@@ -143,6 +148,31 @@ def _connect() -> sqlite3.Connection:
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
     return conn
+
+
+# ── 클리닉 생성 (프로덕션 & 개발 공용) ──────────────────────────────
+
+def create_clinic(name: str, max_slots: int = 5) -> int:
+    """
+    신규 한의원 생성 후 clinic_id 반환.
+
+    - trial_expires_at = NOW() + 14일 을 1회만 설정 (trial abuse 방어)
+    - 이미 trial_expires_at이 있는 행에는 절대 덮어쓰지 않음
+    """
+    # 체험 기간 만료 시각: 현재 UTC + 14일
+    trial_expires_at = (
+        datetime.now(timezone.utc) + timedelta(days=14)
+    ).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+
+    with get_db() as conn:
+        cur = conn.execute(
+            """
+            INSERT INTO clinics (name, max_slots, trial_expires_at)
+            VALUES (?, ?, ?)
+            """,
+            (name, max_slots, trial_expires_at),
+        )
+        return cur.lastrowid
 
 
 # ── 개발용 시드 헬퍼 ──────────────────────────────────────────────

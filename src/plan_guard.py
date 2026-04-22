@@ -12,6 +12,10 @@ DB 장애 전략:
 
 trial abuse 방어:
   - trial_expires_at은 signup 시 1회만 설정, 이 모듈에서 재설정 경로 없음
+
+공용 함수:
+  resolve_effective_plan() — DB 조회 없는 순수 함수, plan_notify/main.py에서 공유
+  get_effective_plan()     — 캐시 활용 버전, clinic_id 기반 조회
 """
 
 import logging
@@ -57,6 +61,78 @@ def _set_cache(clinic_id: int, data: dict) -> None:
 def invalidate_plan_cache(clinic_id: int) -> None:
     """플랜 변경(결제·해지) 시 캐시 무효화."""
     _plan_cache.pop(clinic_id, None)
+
+
+# ── 공용 순수 함수 ────────────────────────────────────────────────
+
+def resolve_effective_plan(
+    plan_id: Optional[str],
+    plan_expires_at: Optional[str],
+    trial_expires_at: Optional[str],
+) -> dict:
+    """
+    실효 플랜 결정 — DB/캐시 의존 없는 순수 함수.
+
+    plan_guard, plan_notify, main.py 세 곳에서 공유.
+    세 곳 모두 동일한 우선순위 로직을 보장한다.
+
+    Returns:
+        plan_id: str            — 실효 플랜 (free | trial | standard | pro 등)
+        is_paid: bool           — 유료 플랜 활성 여부
+        is_trial: bool          — 체험 플랜 활성 여부
+        has_unlimited: bool     — 무제한 생성 가능 여부 (paid 또는 trial)
+        trial_days_left: int|None — 체험 남은 일수 (is_trial=True 일 때만)
+    """
+    now = _now_iso()
+    raw_plan = plan_id or "free"
+
+    if plan_expires_at and plan_expires_at > now:
+        return {
+            "plan_id": raw_plan,
+            "is_paid": True,
+            "is_trial": False,
+            "has_unlimited": True,
+            "trial_days_left": None,
+        }
+
+    if trial_expires_at and trial_expires_at > now:
+        days_left = None
+        try:
+            trial_dt = datetime.fromisoformat(trial_expires_at.replace("Z", "+00:00"))
+            delta = trial_dt - datetime.now(timezone.utc)
+            days_left = max(0, delta.days)
+        except ValueError:
+            pass
+        return {
+            "plan_id": "trial",
+            "is_paid": False,
+            "is_trial": True,
+            "has_unlimited": True,
+            "trial_days_left": days_left,
+        }
+
+    return {
+        "plan_id": "free",
+        "is_paid": False,
+        "is_trial": False,
+        "has_unlimited": False,
+        "trial_days_left": None,
+    }
+
+
+def get_effective_plan(clinic_id: int) -> dict:
+    """
+    캐시를 활용한 실효 플랜 조회. DB 장애 시 free 반환(fail-safe).
+    resolve_effective_plan()의 캐시 버전.
+    """
+    plan_data = _fetch_plan_data(clinic_id)
+    if plan_data is None:
+        return resolve_effective_plan(None, None, None)
+    return resolve_effective_plan(
+        plan_data.get("plan_id"),
+        plan_data.get("plan_expires_at"),
+        plan_data.get("trial_expires_at"),
+    )
 
 
 def _fetch_plan_data(clinic_id: int) -> Optional[dict]:
@@ -117,8 +193,6 @@ def check_blog_limit(clinic_id: int) -> None:
     사용 예:
         check_blog_limit(user["clinic_id"])
     """
-    now = _now_iso()
-
     plan_data = _fetch_plan_data(clinic_id)
 
     if plan_data is None:
@@ -126,21 +200,19 @@ def check_blog_limit(clinic_id: int) -> None:
         logger.warning("plan_guard: 플랜 정보 없음, fail open (clinic_id=%s)", clinic_id)
         return
 
-    # 1. 유료 플랜 체크
-    plan_expires_at = plan_data.get("plan_expires_at")
-    if plan_expires_at and plan_expires_at > now:
-        return  # 유료 플랜 활성
+    effective = resolve_effective_plan(
+        plan_data.get("plan_id"),
+        plan_data.get("plan_expires_at"),
+        plan_data.get("trial_expires_at"),
+    )
 
-    # 2. 체험 플랜 체크 (trial_expires_at은 signup 시 1회만 설정)
-    trial_expires_at = plan_data.get("trial_expires_at")
-    if trial_expires_at and trial_expires_at > now:
-        return  # 체험 플랜 활성
+    if effective["has_unlimited"]:
+        return  # 유료 또는 체험 플랜 — 한도 없음
 
-    # 3. 무료 플랜 → 월 한도 체크
+    # 무료 플랜 → 월 한도 체크
     count = _count_monthly_blogs(clinic_id)
     if count < 0:
-        # 사용량 조회 실패 → fail open
-        return
+        return  # 사용량 조회 실패 → fail open
 
     if count >= _FREE_BLOG_LIMIT:
         raise HTTPException(

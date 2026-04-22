@@ -322,6 +322,41 @@ python3 -m pytest tests/ -v   # 테스트 실행
 2. `python3 -m pip install -r requirements.txt`
 3. `python3 run.py` 로 서버 시작
 
+## 프로덕션 배포 체크리스트
+
+베타/운영 서버 배포 시 아래 항목을 반드시 확인한다.
+
+### 필수 환경 변수
+- [ ] `ENV=prod` — 미설정 시 기본값 "dev"로 동작. dev 모드에서는 서버 시작 시 `seed_demo_clinic()`이 실행되어 trial_expires_at 없는 데모 클리닉이 생성됨.
+- [ ] `SECRET_KEY` — 미설정 시 서버 시작 실패 (의도적 fast-fail)
+- [ ] `ANTHROPIC_API_KEY` — 미설정 시 블로그 생성 실패
+- [ ] `ADMIN_SECRET` — 미설정 시 `/api/admin/clinic` 엔드포인트 비활성화 (403 반환). 베타 clinic 생성을 위해 설정 필요.
+- [ ] `SMTP_HOST` / `SMTP_USER` / `SMTP_PASSWORD` — 미설정 시 80% 알림 이메일 비활성화 (로그만 남김, 서비스에는 영향 없음)
+
+### 신규 한의원 생성 (베타 참가자 등록)
+trial_expires_at(14일)은 아래 두 방법 중 하나로 설정한다. `seed_demo_clinic()` 또는 직접 DB INSERT는 사용하지 말 것.
+
+**방법 1 — CLI 스크립트** (권장):
+```bash
+python3 scripts/create_clinic.py --name "강남 한의원" --slots 5
+```
+
+**방법 2 — Admin API**:
+```bash
+curl -X POST http://localhost:8000/api/admin/clinic \
+  -H "Authorization: Bearer <ADMIN_SECRET>" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "강남 한의원", "max_slots": 5}'
+```
+
+### 플랜 우선순위 로직 (수정 시 주의)
+`plan_guard.resolve_effective_plan()` 함수가 3곳에서 공유됨:
+- `plan_guard.check_blog_limit()` — 블로그 생성 차단
+- `plan_notify._notify_worker()` — 80% 알림 (trial/paid는 skip)
+- `main.get_plan_usage()` — 설정 탭 사용량 표시
+
+플랜 우선순위 로직 변경 시 이 함수 하나만 수정하면 됨.
+
 ## 주의사항
 
 - 환자 식별 정보(이름, 주민번호, 연락처)는 로그에 출력 금지

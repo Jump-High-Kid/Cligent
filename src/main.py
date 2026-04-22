@@ -28,6 +28,7 @@ main.py — FastAPI 앱 진입점
 한의원 프로필 API:
   GET  /api/settings/clinic/profile → 한의원 프로필 조회 (인증 필요)
   POST /api/settings/clinic/profile → 한의원 프로필 저장 (chief_director 전용)
+  GET  /api/settings/plan/usage    → 플랜 & 사용량 조회 (인증 필요)
 
 블로그 API:
   GET  /api/blog/stats          → 블로그 생성 통계
@@ -40,6 +41,8 @@ import base64
 import json as _json
 import os
 import sys
+from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Generator, Optional
 
@@ -103,7 +106,7 @@ from blog_generator import generate_blog_stream
 from blog_history import get_blog_stats, save_blog_entry
 from config_loader import load_config, save_blog_config, save_prompt
 from conversation_flow import generate_conversation_flow
-from db_manager import init_db, seed_demo_clinic, seed_demo_owner
+from db_manager import create_clinic, init_db, seed_demo_clinic, seed_demo_owner
 from image_prompt_generator import generate_image_prompts_stream
 from module_manager import (
     get_allowed_modules,
@@ -114,7 +117,8 @@ from module_manager import (
 from settings_manager import get_setup_wizard_data, save_wizard_result
 from agent_router import AgentRouter
 from agent_middleware import AgentMiddleware
-from plan_guard import check_blog_limit
+from plan_guard import check_blog_limit, get_effective_plan, resolve_effective_plan
+from plan_notify import check_and_notify
 from usage_tracker import log_usage
 
 agent_router = AgentRouter()
@@ -141,17 +145,18 @@ def _check_rate_limit(clinic_id: str) -> bool:
     return True
 
 
-app = FastAPI(title="Cligent")
-
-
-@app.on_event("startup")
-async def startup():
-    """서버 시작 시 DB 초기화"""
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    """서버 시작/종료 시 리소스 초기화 및 정리."""
     init_db()
     # 개발 환경: 클리닉이 없으면 데모 클리닉 자동 생성
     if os.getenv("ENV", "dev") == "dev":
         clinic_id = seed_demo_clinic()
         seed_demo_owner(clinic_id)
+    yield
+
+
+app = FastAPI(title="Cligent", lifespan=lifespan)
 
 
 # ── 페이지 라우트 ─────────────────────────────────────────────────
@@ -730,6 +735,132 @@ async def get_rbac(user: dict = Depends(get_current_user)):
     return JSONResponse(get_setup_wizard_data())
 
 
+@app.get("/api/settings/plan/usage")
+async def get_plan_usage(user: dict = Depends(get_current_user)):
+    """
+    플랜 & 사용량 조회 — 설정 > 시스템 & 보안 > 플랜 & 사용량 탭용
+
+    응답 예시:
+    {
+      "plan_id": "trial",
+      "plan_name": "무료 체험",
+      "trial_days_left": 7,
+      "used_this_month": 2,
+      "monthly_limit": 3,
+      "usage_pct": 67
+    }
+    """
+    clinic_id = user["clinic_id"]
+
+    try:
+        from db_manager import get_db
+        month_start = datetime.now(timezone.utc).strftime("%Y-%m-01T00:00:00")
+        with get_db() as conn:
+            clinic_row = conn.execute(
+                """
+                SELECT c.plan_id, c.plan_expires_at, c.trial_expires_at,
+                       p.name AS plan_name, p.monthly_blog_limit
+                FROM clinics c
+                LEFT JOIN plans p ON c.plan_id = p.id
+                WHERE c.id = ?
+                """,
+                (clinic_id,),
+            ).fetchone()
+
+            if not clinic_row:
+                return JSONResponse({"detail": "클리닉 정보를 찾을 수 없습니다."}, status_code=404)
+
+            usage_row = conn.execute(
+                """
+                SELECT COUNT(*) AS cnt FROM usage_logs
+                WHERE clinic_id = ?
+                  AND feature = 'blog_generation'
+                  AND used_at >= ?
+                """,
+                (clinic_id, month_start),
+            ).fetchone()
+    except Exception as exc:
+        import logging as _log
+        _log.getLogger(__name__).error("plan usage query failed (clinic_id=%s): %s", clinic_id, exc)
+        return JSONResponse({"detail": "서버 오류"}, status_code=500)
+
+    used = usage_row["cnt"] if usage_row else 0
+    monthly_limit = clinic_row["monthly_blog_limit"]
+
+    effective = resolve_effective_plan(
+        clinic_row["plan_id"],
+        clinic_row["plan_expires_at"],
+        clinic_row["trial_expires_at"],
+    )
+    effective_plan = effective["plan_id"]
+
+    plan_name_map = {
+        "free": "무료",
+        "trial": "무료 체험",
+        "standard": "스탠다드",
+        "pro": "프로",
+    }
+    plan_name = plan_name_map.get(effective_plan, clinic_row["plan_name"] or effective_plan)
+
+    # 사용률: 무료 플랜일 때만 계산 (유료/체험은 무제한)
+    if not effective["has_unlimited"] and monthly_limit and monthly_limit > 0:
+        usage_pct = min(100, int(used / monthly_limit * 100))
+    else:
+        usage_pct = 0
+
+    return JSONResponse({
+        "plan_id": effective_plan,
+        "plan_name": plan_name,
+        "trial_days_left": effective["trial_days_left"],
+        "used_this_month": used,
+        "monthly_limit": monthly_limit,
+        "usage_pct": usage_pct,
+    })
+
+
+@app.post("/api/admin/clinic")
+async def admin_create_clinic(request: Request):
+    """
+    관리자 전용 — 신규 한의원 생성 (trial_expires_at 자동 설정).
+
+    인증: Authorization: Bearer <ADMIN_SECRET> 헤더.
+    ADMIN_SECRET 환경 변수 미설정 시 비활성화.
+
+    요청 예시:
+        { "name": "강남 한의원", "max_slots": 5 }
+
+    응답 예시:
+        { "clinic_id": 3, "trial_expires_at": "2026-05-06T00:00:00+00:00" }
+    """
+    admin_secret = os.getenv("ADMIN_SECRET", "")
+    if not admin_secret:
+        return JSONResponse({"detail": "관리자 기능이 비활성화되어 있습니다."}, status_code=403)
+
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer ") or auth_header[7:] != admin_secret:
+        return JSONResponse({"detail": "인증 실패"}, status_code=401)
+
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"detail": "JSON 파싱 오류"}, status_code=400)
+
+    name = body.get("name", "").strip()
+    if not name:
+        return JSONResponse({"detail": "name 필드가 필요합니다."}, status_code=400)
+
+    max_slots = int(body.get("max_slots", 5))
+
+    from db_manager import get_db
+    from datetime import timedelta
+    trial_expires_at = (
+        datetime.now(timezone.utc) + timedelta(days=14)
+    ).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+
+    clinic_id = create_clinic(name, max_slots)
+    return JSONResponse({"clinic_id": clinic_id, "trial_expires_at": trial_expires_at})
+
+
 @app.post("/api/settings/rbac")
 async def save_rbac(request: Request, user: dict = Depends(get_current_user)):
     """RBAC 설정 저장 — chief_director 전용"""
@@ -864,6 +995,8 @@ async def generate(request: Request, user: dict = Depends(get_current_user)):
     tone = answers.get("tone", "전문적") if answers else "전문적"
     # 사용량 기록 (실패해도 서비스 계속)
     log_usage(user["clinic_id"], "blog_generation", {"keyword": keyword, "mode": mode})
+    # 한도 80% 알림 — 비동기 스레드로 실행, 응답 경로에 영향 없음
+    check_and_notify(user["clinic_id"])
 
     return StreamingResponse(
         _stream_and_save(
