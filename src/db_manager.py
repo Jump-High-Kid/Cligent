@@ -53,8 +53,43 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_users_email    ON users(email);
             CREATE INDEX IF NOT EXISTS idx_invites_token  ON invites(token);
             CREATE INDEX IF NOT EXISTS idx_invites_clinic ON invites(clinic_id);
+
+            -- 플랜 정의 테이블
+            CREATE TABLE IF NOT EXISTS plans (
+                id                  TEXT    PRIMARY KEY,
+                name                TEXT    NOT NULL,
+                monthly_blog_limit  INTEGER,           -- NULL = 무제한
+                price_krw           INTEGER NOT NULL DEFAULT 0,
+                features            TEXT               -- JSON 문자열
+            );
+
+            -- 사용량 로그
+            CREATE TABLE IF NOT EXISTS usage_logs (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                clinic_id   INTEGER NOT NULL REFERENCES clinics(id),
+                feature     TEXT    NOT NULL,
+                used_at     TEXT    NOT NULL DEFAULT (datetime('now', 'utc')),
+                metadata    TEXT                       -- JSON 문자열
+            );
+
+            -- 성능: plan_guard의 월별 집계 쿼리용 복합 인덱스
+            CREATE INDEX IF NOT EXISTS idx_usage_logs_clinic_month
+                ON usage_logs (clinic_id, feature, used_at);
+
+            -- 구독 이력 (Phase 1: 빈 테이블, Phase 3에서 데이터 삽입)
+            -- CS 디버깅: 언제 어떤 결제로 플랜이 바뀌었는지 추적
+            CREATE TABLE IF NOT EXISTS subscriptions (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                clinic_id   INTEGER NOT NULL REFERENCES clinics(id),
+                plan_id     TEXT    NOT NULL REFERENCES plans(id),
+                status      TEXT    NOT NULL DEFAULT 'active',
+                starts_at   TEXT    NOT NULL,
+                ends_at     TEXT,
+                payment_id  TEXT,                      -- 포트원 payment_id (idempotency 키)
+                created_at  TEXT    NOT NULL DEFAULT (datetime('now', 'utc'))
+            );
         """)
-        # 한의원 프로필 컬럼 마이그레이션 (기존 DB 대응)
+        # clinics 컬럼 마이그레이션 (기존 DB 대응)
         existing = {row[1] for row in conn.execute("PRAGMA table_info(clinics)")}
         for col, definition in [
             ("phone",              "TEXT"),
@@ -65,9 +100,27 @@ def init_db() -> None:
             ("model",              "TEXT"),       # 사용 AI 모델
             ("monthly_budget_krw", "INTEGER"),    # 월 예산 (원)
             ("api_key_enc",        "TEXT"),       # Fernet 암호화된 API 키
+            # 플랜 관련 컬럼
+            ("plan_id",            "TEXT DEFAULT 'free'"),
+            ("plan_expires_at",    "TEXT"),       # ISO8601. NULL = 무료 플랜
+            # trial_expires_at: signup 시 1회만 설정, 절대 재설정 없음 (trial abuse 방어)
+            ("trial_expires_at",   "TEXT"),       # ISO8601. NULL = 체험 미사용
+            ("payment_status",     "TEXT"),       # 'pending': 결제 성공 but DB 저장 실패
         ]:
             if col not in existing:
                 conn.execute(f"ALTER TABLE clinics ADD COLUMN {col} {definition}")
+
+        # plans 시드 데이터 (없을 때만 삽입)
+        plan_count = conn.execute("SELECT COUNT(*) FROM plans").fetchone()[0]
+        if plan_count == 0:
+            conn.executemany(
+                "INSERT INTO plans (id, name, monthly_blog_limit, price_krw, features) VALUES (?, ?, ?, ?, ?)",
+                [
+                    ("free",     "무료",     3,    0,      '{"blog": true, "agent_chat": true}'),
+                    ("standard", "스탠다드", None, 29000,  '{"blog": true, "agent_chat": true, "blog_custom": true}'),
+                    ("pro",      "프로",     None, 59000,  '{"blog": true, "agent_chat": true, "blog_custom": true, "youtube": true, "legal": true, "tax": true}'),
+                ],
+            )
 
 
 @contextmanager

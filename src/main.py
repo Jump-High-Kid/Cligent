@@ -114,6 +114,8 @@ from module_manager import (
 from settings_manager import get_setup_wizard_data, save_wizard_result
 from agent_router import AgentRouter
 from agent_middleware import AgentMiddleware
+from plan_guard import check_blog_limit
+from usage_tracker import log_usage
 
 agent_router = AgentRouter()
 agent_middleware = AgentMiddleware()
@@ -836,6 +838,9 @@ async def get_conversation_flow(request: Request, user: dict = Depends(get_curre
 
 @app.post("/generate")
 async def generate(request: Request, user: dict = Depends(get_current_user)):
+    # 플랜 한도 체크 (무료 월 3편, 초과 시 429 반환)
+    check_blog_limit(user["clinic_id"])
+
     body = await request.json()
     keyword      = body.get("keyword", "").strip()
     answers      = body.get("answers", {})
@@ -857,6 +862,9 @@ async def generate(request: Request, user: dict = Depends(get_current_user)):
         return StreamingResponse(_err(), media_type="text/event-stream")
 
     tone = answers.get("tone", "전문적") if answers else "전문적"
+    # 사용량 기록 (실패해도 서비스 계속)
+    log_usage(user["clinic_id"], "blog_generation", {"keyword": keyword, "mode": mode})
+
     return StreamingResponse(
         _stream_and_save(
             generate_blog_stream(
