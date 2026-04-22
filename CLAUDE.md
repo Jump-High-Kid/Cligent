@@ -209,10 +209,10 @@ python3 -m pytest tests/ -v   # 테스트 실행
 | 문헌 정리 | 한의학 문헌 수집·분류 설정 | 향후 구현 |
 | 시스템 & 보안 | 서브탭 5개 — 한의원 프로필·AI 설정 완성, 나머지 준비 중 | 부분 완성 |
 
-**시스템 & 보안 서브탭 (2026-04-21 기준):**
+**시스템 & 보안 서브탭 (2026-04-22 기준):**
 - 한의원 프로필 ✅ — 이름/전화/주소/진료과목/진료시간/원장소개 (chief_director 저장)
 - AI 설정 ✅ — API 키 Fernet 암호화, 모델 선택 (Haiku/Sonnet/Opus), 월 예산 (chief_director)
-- 플랜 & 사용량 — 준비 중
+- 플랜 & 사용량 — Phase 2 CTA UI 구현 예정 (DB 기반 Phase 1 완료)
 - 보안 — 준비 중
 - 데이터 관리 — 준비 중
 
@@ -285,6 +285,28 @@ python3 -m pytest tests/ -v   # 테스트 실행
 - **Phase 1** — 설정 AI 설정 탭: 공급사별 API 키 저장(암호화), 기본 모델 선택, 월 예산 설정
 - **Phase 2** — 블로그 생성기 모델 선택 적용: 선택 모델에 따라 OpenAI/Anthropic/Gemini API 분기
 - **Phase 3** — 멀티모델 비교 패널: 동일 주제로 2~3개 모델 병렬 생성·비교
+
+### 결제 시스템 Phase 1 (2026-04-22 완료 — 커밋 aaf534a)
+
+**플랜 구조**: free(월 3편) / standard(무제한, 29,000원) / pro(무제한, 59,000원)
+
+**신규 파일:**
+- `src/plan_guard.py` — 블로그 한도 체크 (60s TTL 캐시, fail open)
+  - 체크 우선순위: `plan_expires_at` → `trial_expires_at` → 무료 월 3편
+  - trial abuse 방어: `trial_expires_at` 재설정 코드 없음
+- `src/usage_tracker.py` — 사용량 로깅 (실패 시 서비스 영향 없음)
+
+**DB 변경 (`db_manager.py`):**
+- `plans` 테이블 + 시드 데이터
+- `usage_logs` 테이블 + 인덱스 `idx_usage_logs_clinic_month`
+- `subscriptions` 테이블 (Phase 3용 빈 셸)
+- `clinics` 컬럼: `plan_id`, `plan_expires_at`, `trial_expires_at`, `payment_status`
+
+**테스트:** `tests/test_plan_guard.py`(10개) + `tests/test_usage_tracker.py`(3개) = 13/13 통과
+
+**Python 3.9 호환 주의:**
+- `Optional[dict]` 사용 (3.10+ `dict | None` 불가)
+- lazy import `get_db` 패치는 `db_manager.get_db` 경로로
 
 ## 기술 스택
 
