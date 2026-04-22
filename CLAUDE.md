@@ -363,6 +363,22 @@ curl -X POST http://localhost:8000/api/admin/clinic \
 
 플랜 우선순위 로직 변경 시 이 함수 하나만 수정하면 됨.
 
+## 인프라 현황 (2026-04-22 기준)
+
+- **도메인**: cligent.kr, cligent.co.kr (가비아 DNS A 레코드 → 61.76.131.91)
+- **서버**: 맥북 로컬 (192.168.50.132)
+- **공유기**: ASUS RT-ACRH13 — 포트 80/443 → 192.168.50.132 포트포워딩 완료
+- **리버스 프록시**: Caddy 2.11.2 (`/opt/homebrew/etc/Caddyfile`)
+- **SSL**: Let's Encrypt 자동 발급 (Caddy 관리)
+- **접속 URL**: https://cligent.kr (개통 완료)
+
+### Caddy 관리 명령
+```bash
+brew services restart caddy   # 재시작
+brew services info caddy      # 상태 확인
+cat /opt/homebrew/etc/Caddyfile  # 설정 확인
+```
+
 ## 주의사항
 
 - 환자 식별 정보(이름, 주민번호, 연락처)는 로그에 출력 금지
