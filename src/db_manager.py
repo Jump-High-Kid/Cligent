@@ -110,10 +110,20 @@ def init_db() -> None:
             ("plan_expires_at",    "TEXT"),       # ISO8601. NULL = 무료 플랜
             # trial_expires_at: signup 시 1회만 설정, 절대 재설정 없음 (trial abuse 방어)
             ("trial_expires_at",   "TEXT"),       # ISO8601. NULL = 체험 미사용
-            ("payment_status",     "TEXT"),       # 'pending': 결제 성공 but DB 저장 실패
+            ("payment_status",       "TEXT"),          # 'pending': 결제 성공 but DB 저장 실패
+            # API 키 온보딩 추적
+            ("api_key_configured",   "INTEGER DEFAULT 0"),  # 1 = API 키 등록 완료
+            ("onboarding_started_at","TEXT"),               # 온보딩 위자드 첫 표시 시각 (ISO8601)
+            ("first_blog_at",        "TEXT"),               # 첫 블로그 생성 완료 시각 (ISO8601)
         ]:
             if col not in existing:
                 conn.execute(f"ALTER TABLE clinics ADD COLUMN {col} {definition}")
+
+        # 기존 API 키 보유 한의원은 api_key_configured=1로 초기화 (마이그레이션)
+        conn.execute(
+            "UPDATE clinics SET api_key_configured = 1 "
+            "WHERE api_key_enc IS NOT NULL AND api_key_enc != '' AND api_key_configured = 0"
+        )
 
         # plans 시드 데이터 (없을 때만 삽입)
         plan_count = conn.execute("SELECT COUNT(*) FROM plans").fetchone()[0]

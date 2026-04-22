@@ -202,8 +202,14 @@
     </div>
 
     <label for="pw1">비밀번호</label>
-    <input type="password" id="pw1" placeholder="8자 이상">
+    <input type="password" id="pw1" placeholder="8자 이상" oninput="checkStrength(this.value)">
     <div class="pw-hint">영문 + 숫자 조합 8자 이상</div>
+    <div id="strength-bar" style="display:none;margin-top:-10px;margin-bottom:14px;">
+      <div style="height:4px;border-radius:2px;background:#e2e0d8;overflow:hidden;">
+        <div id="strength-fill" style="height:100%;width:0%;transition:width 0.2s,background 0.2s;border-radius:2px;"></div>
+      </div>
+      <span id="strength-label" style="font-size:11px;color:var(--muted);margin-top:4px;display:block;"></span>
+    </div>
 
     <label for="pw2">비밀번호 확인</label>
     <input type="password" id="pw2" placeholder="재입력">
@@ -218,16 +224,18 @@
     <p class="desc" style="margin-bottom:24px;">
       Cligent에 오신 것을 환영합니다.<br>잠시 후 대시보드로 이동합니다.
     </p>
-    <button class="btn" onclick="window.location.href='/'">대시보드 바로가기</button>
+    <button class="btn" onclick="window.location.href='/app?onboard=1'">다음 단계 (API 키 설정)</button>
   </div>
 
   <!-- ── 만료/오류 ── -->
   <div id="expiredScreen" class="screen">
     <div class="expired-icon">!</div>
     <h2>초대 링크 오류</h2>
-    <p class="desc" id="expiredMsg" style="margin-bottom:24px;">
-      초대 링크가 만료되었거나 이미 사용되었습니다.<br>
-      원장님께 재발송을 요청해주세요.
+    <p class="desc" id="expiredMsg" style="margin-bottom:12px;">
+      초대 링크가 만료되었거나 이미 사용되었습니다.
+    </p>
+    <p class="desc" style="margin-bottom:24px;color:#2d6a4f;font-weight:600;">
+      원장님께 설정 &gt; 팀 관리에서 "비밀번호 재설정 링크 생성"을 요청하세요.
     </p>
     <button class="btn" onclick="window.location.href='/login'" style="background:var(--muted);">
       로그인 페이지로
@@ -239,6 +247,32 @@
   const params = new URLSearchParams(location.search);
   const token = params.get('token') || '';
   let inviteData = null;
+
+  function checkStrength(pw) {
+    const bar = document.getElementById('strength-bar');
+    const fill = document.getElementById('strength-fill');
+    const label = document.getElementById('strength-label');
+    if (!pw) { bar.style.display = 'none'; return; }
+    bar.style.display = 'block';
+    let score = 0;
+    if (pw.length >= 8) score++;
+    if (pw.length >= 12) score++;
+    if (/[A-Z]/.test(pw)) score++;
+    if (/[0-9]/.test(pw)) score++;
+    if (/[^A-Za-z0-9]/.test(pw)) score++;
+    const levels = [
+      { pct: '20%', color: '#ef4444', text: '매우 약함' },
+      { pct: '40%', color: '#f97316', text: '약함' },
+      { pct: '60%', color: '#eab308', text: '보통' },
+      { pct: '80%', color: '#22c55e', text: '강함' },
+      { pct: '100%', color: '#15803d', text: '매우 강함' },
+    ];
+    const lv = levels[Math.min(score - 1, 4)] || levels[0];
+    fill.style.width = lv.pct;
+    fill.style.background = lv.color;
+    label.textContent = lv.text;
+    label.style.color = lv.color;
+  }
 
   async function init() {
     if (!token) {
@@ -289,7 +323,7 @@
       }
 
       showScreen('successScreen');
-      setTimeout(() => { window.location.href = '/'; }, 2500);
+      setTimeout(() => { window.location.href = '/app?onboard=1'; }, 2500);
     } catch {
       showError('서버 연결에 실패했습니다.');
     } finally {

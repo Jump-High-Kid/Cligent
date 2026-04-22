@@ -445,6 +445,16 @@
             <p class="text-[1.25rem] font-bold text-on-surface" id="blog-total">—</p>
           </div>
         </div>
+        <!-- 온보딩 → 첫 블로그 소요 시간 (첫 블로그 완료 후에만 표시) -->
+        <div id="blog-onboarding-time" class="mb-5 hidden">
+          <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-3 flex items-center gap-3">
+            <span class="material-symbols-outlined text-emerald-600 text-[20px]" style="font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24;">timer</span>
+            <div>
+              <p class="text-[0.65rem] text-emerald-600 font-semibold uppercase tracking-wide">첫 블로그까지 소요</p>
+              <p class="text-[1rem] font-bold text-emerald-800" id="blog-onboarding-duration">—</p>
+            </div>
+          </div>
+        </div>
         <div id="blog-recent" class="mb-5 hidden">
           <p class="text-slate-400 text-[0.7rem] mb-2">최근 생성 주제</p>
           <ul id="blog-recent-list" class="space-y-1"></ul>
@@ -637,6 +647,23 @@
           </li>`
         ).join('')
         recentEl.classList.remove('hidden')
+      }
+
+      // 온보딩 → 첫 블로그 소요 시간
+      if (data.onboarding_seconds != null) {
+        const secs = data.onboarding_seconds
+        let label
+        if (secs < 60) {
+          label = `${secs}초`
+        } else if (secs < 3600) {
+          label = `${Math.round(secs / 60)}분`
+        } else {
+          const h = Math.floor(secs / 3600)
+          const m = Math.round((secs % 3600) / 60)
+          label = m > 0 ? `${h}시간 ${m}분` : `${h}시간`
+        }
+        document.getElementById('blog-onboarding-duration').textContent = label
+        document.getElementById('blog-onboarding-time').classList.remove('hidden')
       }
     } catch (err) {
       // 통계 로드 실패 시 조용히 무시 (카드 자체는 정상 표시)

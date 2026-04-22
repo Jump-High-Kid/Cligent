@@ -169,9 +169,16 @@ python3 run.py        # 서버 시작 → http://localhost:8000
 python3 -m pytest tests/ -v   # 테스트 실행
 ```
 
-#### BYOAI 모델
+#### BYOAI 모델 + 온보딩 위자드 (2026-04-22 완료)
 - 사용자가 본인 Anthropic API 키 직접 입력
 - claude-sonnet-4-6 기준 글 1편 ≈ ₩7~14
+- **온보딩 위자드** (`app.html` 모달): 로그인 직후 `api_key_configured=false`이면 자동 오픈
+  - RBAC: `chief_director`만 설정 가능 / 그 외 → "원장님께 요청" 화면
+  - 4단계: AI 경험 선택 → 시나리오 안내 → 키 입력(실시간 검증) → 완료
+  - `POST /api/settings/clinic/ai/validate` — 실제 Anthropic API 호출로 키 유효성 검증
+  - `POST /api/settings/clinic/ai/onboarding-start` — `onboarding_started_at` COALESCE 기록
+  - `first_blog_at` — 첫 블로그 완료 시 자동 기록 (`_stream_and_save`에서)
+  - 대시보드 Blog Generator 카드에 "첫 블로그까지 소요: N분" 배지 표시
 
 ### 앱 쉘 구조 (2026-04-19 확정)
 
@@ -280,11 +287,10 @@ python3 -m pytest tests/ -v   # 테스트 실행
 - 하단 구성: `role-badge` → `invite-btn`(director 이상만 표시) → `doLogout()` 순서
 - collapsed 숨김 클래스: `nav-label`, `sidebar-logo-text`, `sidebar-role`, `sidebar-invite-label`
 
-### 다음 구현 예정: 멀티 AI 모델 지원
-설정 > 시스템 & 보안 > AI 설정 탭으로 구현 예정. 3단계 계획:
-- **Phase 1** — 설정 AI 설정 탭: 공급사별 API 키 저장(암호화), 기본 모델 선택, 월 예산 설정
-- **Phase 2** — 블로그 생성기 모델 선택 적용: 선택 모델에 따라 OpenAI/Anthropic/Gemini API 분기
-- **Phase 3** — 멀티모델 비교 패널: 동일 주제로 2~3개 모델 병렬 생성·비교
+### 멀티 AI 모델 지원 (Phase 1 완료, Phase 2+ 미구현)
+- **Phase 1** ✅ — Claude API 키 저장(Fernet 암호화), 온보딩 위자드, 기본 모델 선택, 월 예산 설정
+- **Phase 2** — 블로그 생성기에서 DB 저장 키 사용 (현재 .env 키 우선): 선택 모델 API 분기
+- **Phase 3** — 멀티모델 비교 패널 / Gemini·ChatGPT 멀티 제공자 지원
 
 ### 결제 시스템 Phase 1 (2026-04-22 완료 — 커밋 aaf534a)
 

@@ -308,12 +308,19 @@ async def api_logout():
 @app.get("/api/auth/me")
 async def api_me(user: dict = Depends(get_current_user)):
     """현재 로그인 사용자 정보"""
+    with __import__('db_manager').get_db() as conn:
+        clinic = conn.execute(
+            "SELECT api_key_configured, onboarding_started_at FROM clinics WHERE id = ?",
+            (user["clinic_id"],),
+        ).fetchone()
+    api_key_configured = bool(clinic["api_key_configured"]) if clinic else False
     return JSONResponse({
         "id": user["id"],
         "email": user["email"],
         "role": user["role"],
         "clinic_id": user["clinic_id"],
         "must_change_pw": bool(user["must_change_pw"]),
+        "api_key_configured": api_key_configured,
     })
 
 
@@ -526,6 +533,25 @@ async def deactivate_staff(staff_id: str, user: dict = Depends(get_current_user)
     return JSONResponse({"ok": True})
 
 
+@app.post("/api/settings/staff/{staff_id}/activate")
+async def activate_staff(staff_id: str, user: dict = Depends(get_current_user)):
+    """비활성화된 직원 재활성화 — director 이상 전용"""
+    if not role_has_access(user["role"], ["chief_director", "director"]):
+        return JSONResponse({"detail": "권한이 없습니다."}, status_code=403)
+
+    with __import__('db_manager').get_db() as conn:
+        row = conn.execute(
+            "SELECT id, role FROM users WHERE id = ? AND clinic_id = ?",
+            (staff_id, user["clinic_id"]),
+        ).fetchone()
+        if not row:
+            return JSONResponse({"detail": "직원을 찾을 수 없습니다."}, status_code=404)
+
+        conn.execute("UPDATE users SET is_active = 1 WHERE id = ?", (staff_id,))
+
+    return JSONResponse({"ok": True})
+
+
 @app.get("/api/settings/clinic/profile")
 async def get_clinic_profile(user: dict = Depends(get_current_user)):
     """한의원 프로필 조회 — 인증된 사용자라면 누구나 조회 가능"""
@@ -642,6 +668,8 @@ async def save_clinic_ai(request: Request, user: dict = Depends(get_current_user
             return JSONResponse({"detail": "예산은 0 이상의 정수여야 합니다."}, status_code=400)
 
     api_key_enc = None
+    clear_key = body.get("clear_key", False)  # 명시적 키 삭제 요청
+
     if api_key_new:
         if not api_key_new.startswith("sk-ant-"):
             return JSONResponse({"detail": "올바른 Anthropic API 키 형식이 아닙니다. (sk-ant- 로 시작해야 함)"}, status_code=400)
@@ -651,8 +679,15 @@ async def save_clinic_ai(request: Request, user: dict = Depends(get_current_user
         if api_key_enc:
             conn.execute(
                 "UPDATE clinics SET model=COALESCE(NULLIF(?,''),(SELECT model FROM clinics WHERE id=?)), "
-                "monthly_budget_krw=COALESCE(?,monthly_budget_krw), api_key_enc=? WHERE id=?",
+                "monthly_budget_krw=COALESCE(?,monthly_budget_krw), api_key_enc=?, api_key_configured=1 WHERE id=?",
                 (model, user["clinic_id"], budget, api_key_enc, user["clinic_id"]),
+            )
+        elif clear_key:
+            # 키 명시적 삭제 시 api_key_configured 리셋
+            conn.execute(
+                "UPDATE clinics SET model=COALESCE(NULLIF(?,''),(SELECT model FROM clinics WHERE id=?)), "
+                "monthly_budget_krw=COALESCE(?,monthly_budget_krw), api_key_enc=NULL, api_key_configured=0 WHERE id=?",
+                (model, user["clinic_id"], budget, user["clinic_id"]),
             )
         else:
             conn.execute(
@@ -660,6 +695,53 @@ async def save_clinic_ai(request: Request, user: dict = Depends(get_current_user
                 "monthly_budget_krw=COALESCE(?,monthly_budget_krw) WHERE id=?",
                 (model, user["clinic_id"], budget, user["clinic_id"]),
             )
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/settings/clinic/ai/validate")
+async def validate_clinic_ai_key(request: Request, user: dict = Depends(get_current_user)):
+    """
+    API 키 유효성 검증 — 온보딩 위자드용.
+    실제 Anthropic API를 호출해 키가 유효한지 확인한다.
+    chief_director만 호출 가능 (AI 설정 권한과 동일).
+    """
+    if not role_has_access(user["role"], ["chief_director"]):
+        return JSONResponse({"detail": "대표원장만 API 키를 설정할 수 있습니다."}, status_code=403)
+
+    body = await request.json()
+    api_key = body.get("api_key", "").strip()
+
+    if not api_key:
+        return JSONResponse({"detail": "API 키를 입력해주세요."}, status_code=400)
+    if not api_key.startswith("sk-ant-"):
+        return JSONResponse({"detail": "올바른 Claude API 키 형식이 아닙니다. (sk-ant- 로 시작해야 함)"}, status_code=400)
+
+    import anthropic
+    import httpx
+    try:
+        client = anthropic.Anthropic(api_key=api_key, timeout=8.0)
+        # models.list()는 가장 저렴한 검증용 호출
+        client.models.list(limit=1)
+        return JSONResponse({"ok": True})
+    except anthropic.AuthenticationError:
+        return JSONResponse({"detail": "유효하지 않은 API 키입니다. 키를 다시 확인해주세요."}, status_code=401)
+    except anthropic.RateLimitError:
+        return JSONResponse({"detail": "잠시 후 다시 시도해주세요. (요청 한도 초과)"}, status_code=429)
+    except (anthropic.APIConnectionError, httpx.TimeoutException):
+        return JSONResponse({"detail": "Anthropic 서버에 연결할 수 없습니다. 인터넷 연결을 확인해주세요."}, status_code=503)
+    except Exception:
+        return JSONResponse({"detail": "키 검증 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."}, status_code=500)
+
+
+@app.post("/api/settings/clinic/ai/onboarding-start")
+async def mark_onboarding_start(user: dict = Depends(get_current_user)):
+    """온보딩 위자드 첫 표시 시각 기록 (첫 블로그까지 시간 측정용)"""
+    from datetime import datetime, timezone
+    with __import__('db_manager').get_db() as conn:
+        conn.execute(
+            "UPDATE clinics SET onboarding_started_at = COALESCE(onboarding_started_at, ?) WHERE id = ?",
+            (datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S+00:00"), user["clinic_id"]),
+        )
     return JSONResponse({"ok": True})
 
 
@@ -728,6 +810,19 @@ async def save_blog_prompt(request: Request, user: dict = Depends(get_current_us
         return JSONResponse({"detail": "프롬프트 내용이 비어 있습니다."}, status_code=400)
     save_prompt("blog", content)
     return JSONResponse({"ok": True})
+
+
+@app.post("/api/settings/blog/prompt/reset")
+async def reset_blog_prompt(user: dict = Depends(get_current_user)):
+    """블로그 프롬프트를 기본값(blog.default.txt)으로 초기화 — chief_director 전용"""
+    if not role_has_access(user["role"], ["chief_director"]):
+        return JSONResponse({"detail": "대표원장만 프롬프트를 초기화할 수 있습니다."}, status_code=403)
+    default_path = ROOT / "prompts" / "blog.default.txt"
+    if not default_path.exists():
+        return JSONResponse({"detail": "기본 프롬프트 파일이 없습니다."}, status_code=404)
+    content = default_path.read_text(encoding="utf-8")
+    save_prompt("blog", content)
+    return JSONResponse({"ok": True, "content": content})
 
 
 @app.get("/api/settings/rbac")
@@ -917,13 +1012,32 @@ async def save_module_config(request: Request, user: dict = Depends(get_current_
 
 @app.get("/api/blog/stats")
 async def blog_stats(user: dict = Depends(get_current_user)):
-    return JSONResponse(get_blog_stats())
+    stats = get_blog_stats()
+    # 온보딩 소요 시간 계산 (onboarding_started_at → first_blog_at)
+    try:
+        with __import__('db_manager').get_db() as conn:
+            row = conn.execute(
+                "SELECT onboarding_started_at, first_blog_at FROM clinics WHERE id = ?",
+                (user["clinic_id"],),
+            ).fetchone()
+        if row and row["onboarding_started_at"] and row["first_blog_at"]:
+            from datetime import datetime as _dt
+            fmt = "%Y-%m-%dT%H:%M:%S+00:00"
+            started = _dt.strptime(row["onboarding_started_at"], fmt)
+            finished = _dt.strptime(row["first_blog_at"], fmt)
+            stats["onboarding_seconds"] = max(0, int((finished - started).total_seconds()))
+        else:
+            stats["onboarding_seconds"] = None
+    except Exception:
+        stats["onboarding_seconds"] = None
+    return JSONResponse(stats)
 
 
 def _stream_and_save(
-    base_gen: Generator, keyword: str, tone: str, seo_keywords: list
+    base_gen: Generator, keyword: str, tone: str, seo_keywords: list,
+    clinic_id: Optional[int] = None,
 ) -> Generator:
-    """SSE 스트림 통과 + done 이벤트 감지 시 이력 저장"""
+    """SSE 스트림 통과 + done 이벤트 감지 시 이력 저장 및 첫 블로그 시각 기록"""
     collected: list = []
     for chunk in base_gen:
         yield chunk
@@ -940,6 +1054,17 @@ def _stream_and_save(
                 char_count = len(blog_text)
                 cost_krw = data.get("usage", {}).get("cost_krw", 0)
                 save_blog_entry(keyword, tone, char_count, cost_krw, seo_keywords, blog_text)
+                # 첫 블로그 생성 완료 시각 기록 (COALESCE — 이후 호출은 무시)
+                if clinic_id:
+                    try:
+                        now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+                        with __import__('db_manager').get_db() as conn:
+                            conn.execute(
+                                "UPDATE clinics SET first_blog_at = COALESCE(first_blog_at, ?) WHERE id = ?",
+                                (now_iso, clinic_id),
+                            )
+                    except Exception:
+                        pass  # 통계 기록 실패 시 생성 서비스에 영향 없음
         except Exception:
             pass
 
@@ -1005,6 +1130,7 @@ async def generate(request: Request, user: dict = Depends(get_current_user)):
                 seo_keywords=seo_keywords, clinic_info=clinic_info,
             ),
             keyword, tone, seo_keywords,
+            clinic_id=user["clinic_id"],
         ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
