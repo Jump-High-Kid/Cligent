@@ -1,18 +1,22 @@
 """
 blog_history.py — 블로그 생성 이력 저장 및 통계 조회
 
-저장 위치: data/blog_history.json
-통계 용도: 대시보드 Blog Generator 카드에 동적 데이터 표시
+저장 구조 (두 파일 분리):
+- data/blog_stats.json  : 영구 통계 (keyword, tone, char_count, cost_krw, seo_keywords, created_at)
+- data/blog_texts.json  : 30일 만료 전문 (blog_text, expires_at)
 """
 
 import json
-import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Dict, Optional
 
 ROOT = Path(__file__).parent.parent
-HISTORY_PATH = ROOT / "data" / "blog_history.json"
+STATS_PATH = ROOT / "data" / "blog_stats.json"
+TEXTS_PATH = ROOT / "data" / "blog_texts.json"
+
+# 전문(全文) 보관 기간
+TEXT_RETENTION_DAYS = 30
 
 
 def save_blog_entry(
@@ -23,21 +27,35 @@ def save_blog_entry(
     seo_keywords: Optional[List[str]] = None,
     blog_text: str = "",
 ) -> None:
-    """블로그 생성 완료 시 이력 저장"""
-    history = _load_history()
+    """블로그 생성 완료 시 통계와 전문을 분리 저장"""
+    now = datetime.now()
+    entry_id = _next_id()
+
+    # 영구 통계 저장
+    stats = _load_json(STATS_PATH, default=[])
     title = _extract_title(blog_text) if blog_text else keyword
-    entry = {
-        "id": len(history) + 1,
+    stats.append({
+        "id": entry_id,
         "keyword": keyword,
         "title": title,
         "tone": tone,
         "char_count": char_count,
         "cost_krw": cost_krw,
         "seo_keywords": seo_keywords or [],
-        "created_at": datetime.now().isoformat(),
-    }
-    history.append(entry)
-    _save_history(history)
+        "created_at": now.isoformat(),
+    })
+    _save_json(STATS_PATH, stats)
+
+    # 30일 만료 전문 저장 (blog_text 있을 때만)
+    if blog_text:
+        texts = _load_json(TEXTS_PATH, default=[])
+        texts.append({
+            "id": entry_id,
+            "blog_text": blog_text,
+            "created_at": now.isoformat(),
+            "expires_at": (now + timedelta(days=TEXT_RETENTION_DAYS)).isoformat(),
+        })
+        _save_json(TEXTS_PATH, texts)
 
 
 def get_blog_stats() -> dict:
@@ -52,30 +70,23 @@ def get_blog_stats() -> dict:
         "last_created_at": "2026-04-16T14:30:00" | null
     }
     """
-    history = _load_history()
-    if not history:
-        return {
-            "total": 0,
-            "this_month": 0,
-            "recent_keywords": [],
-            "last_created_at": None,
-        }
+    stats = _load_json(STATS_PATH, default=[])
+    if not stats:
+        return {"total": 0, "this_month": 0, "recent_keywords": [], "last_created_at": None}
 
     now = datetime.now()
-
     this_month_count = sum(
-        1 for e in history
+        1 for e in stats
         if _parse_dt(e["created_at"]).month == now.month
         and _parse_dt(e["created_at"]).year == now.year
     )
-
-    recent_keywords = [e["keyword"] for e in reversed(history[-3:])]
+    recent_keywords = [e["keyword"] for e in reversed(stats[-3:])]
 
     return {
-        "total": len(history),
+        "total": len(stats),
         "this_month": this_month_count,
         "recent_keywords": recent_keywords,
-        "last_created_at": history[-1]["created_at"],
+        "last_created_at": stats[-1]["created_at"],
     }
 
 
@@ -84,10 +95,10 @@ def get_recent_posts(limit: int = 5) -> List[Dict]:
     최근 블로그 이력 반환 (연관 글 링크용)
 
     반환 형식:
-    [{"id": 1, "keyword": "소화불량", "title": "소화불량 한방으로 잡는 법", "created_at": "..."}]
+    [{"id": 1, "keyword": "소화불량", "title": "...", "created_at": "..."}]
     """
-    history = _load_history()
-    recent = history[-limit:] if len(history) >= limit else history
+    stats = _load_json(STATS_PATH, default=[])
+    recent = stats[-limit:] if len(stats) >= limit else stats
     return [
         {
             "id": e["id"],
@@ -100,7 +111,38 @@ def get_recent_posts(limit: int = 5) -> List[Dict]:
     ]
 
 
+def purge_expired_texts() -> int:
+    """만료된 전문 삭제. 삭제된 항목 수 반환."""
+    texts = _load_json(TEXTS_PATH, default=[])
+    if not texts:
+        return 0
+
+    now = datetime.now()
+    active = [t for t in texts if _parse_dt(t["expires_at"]) > now]
+    removed = len(texts) - len(active)
+
+    if removed > 0:
+        _save_json(TEXTS_PATH, active)
+
+    return removed
+
+
+def get_text_expiry_info(entry_id: int) -> Optional[str]:
+    """특정 항목의 전문 만료 일시 반환 (없으면 None)"""
+    texts = _load_json(TEXTS_PATH, default=[])
+    for t in texts:
+        if t.get("id") == entry_id:
+            return t.get("expires_at")
+    return None
+
+
 # ── 내부 헬퍼 ──────────────────────────────────────────────────
+
+def _next_id() -> int:
+    """stats 파일 기준으로 다음 ID 생성"""
+    stats = _load_json(STATS_PATH, default=[])
+    return len(stats) + 1
+
 
 def _extract_title(blog_text: str) -> str:
     """블로그 텍스트에서 첫 번째 제목(# 또는 ##) 추출"""
@@ -110,32 +152,25 @@ def _extract_title(blog_text: str) -> str:
             return line[2:].strip()
         if line.startswith("## "):
             return line[3:].strip()
-    # 제목 없으면 첫 비어있지 않은 줄 반환
     for line in blog_text.splitlines():
         if line.strip():
             return line.strip()[:40]
     return ""
 
 
-def _load_history() -> List[Dict]:
-    """JSON 파일에서 이력 로드. 파일 없으면 빈 리스트 반환"""
-    if not HISTORY_PATH.exists():
-        return []
-    with open(HISTORY_PATH, encoding="utf-8") as f:
+def _load_json(path: Path, default) -> list:
+    if not path.exists():
+        return default
+    with open(path, encoding="utf-8") as f:
         data = json.load(f)
-    # 구 형식(리스트) 지원
-    if isinstance(data, list):
-        return data
-    return []
+    return data if isinstance(data, list) else default
 
 
-def _save_history(history: List[Dict]) -> None:
-    """이력을 JSON 파일에 저장"""
-    HISTORY_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with open(HISTORY_PATH, "w", encoding="utf-8") as f:
-        json.dump(history, f, ensure_ascii=False, indent=2)
+def _save_json(path: Path, data: list) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
 
 
 def _parse_dt(iso_str: str) -> datetime:
-    """ISO 형식 문자열을 datetime으로 변환"""
     return datetime.fromisoformat(iso_str)

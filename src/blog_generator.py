@@ -213,6 +213,89 @@ def _build_related_posts_section(recent_posts: List[dict], current_keyword: str)
     )
 
 
+def build_prompt_text(
+    keyword: str,
+    answers: Optional[dict] = None,
+    materials: Optional[dict] = None,
+    mode: str = "정보",
+    reader_level: str = "일반인",
+    seo_keywords: Optional[List[str]] = None,
+    clinic_info: str = "",
+) -> dict:
+    """
+    Claude에 전송할 system_prompt + user_message를 반환한다.
+    API 호출 없이 프롬프트만 조립 — T1(프롬프트 복사) 기능용.
+
+    반환: {"system_prompt": str, "user_message": str}
+    """
+    config = load_config()
+    tone = answers.get("tone", config["blog"]["tone"]) if answers else config["blog"]["tone"]
+    history_path = Path(__file__).parent.parent / "data" / "blog_history.json"
+
+    pattern_result = select_patterns(keyword=keyword, materials=materials, history_path=history_path)
+    recent_posts = get_recent_posts(limit=5)
+
+    prompt_template = load_prompt("blog")
+    system_prompt = prompt_template.format(
+        min_chars=config["blog"]["min_chars"],
+        max_chars=config["blog"]["max_chars"],
+        tone=tone,
+        pattern_instructions=pattern_result["prompt_block"],
+        mode_instructions=_MODE_INSTRUCTIONS.get(mode, _MODE_INSTRUCTIONS["정보"]),
+        reader_level_instructions=_READER_LEVEL_INSTRUCTIONS.get(
+            reader_level, _READER_LEVEL_INSTRUCTIONS["일반인"]
+        ),
+        seo_keywords_section=_build_seo_keywords_section(seo_keywords or []),
+        clinic_info_section=_build_clinic_info_section(clinic_info),
+        related_posts_section=_build_related_posts_section(recent_posts, keyword),
+    )
+
+    qa_text = ""
+    if answers:
+        filled = {k: v for k, v in answers.items() if k != "tone" and str(v).strip()}
+        if filled:
+            qa_text = "\n\n## 추가 정보 (아래 내용을 블로그에 반영해주세요)\n"
+            for key, value in filled.items():
+                qa_text += f"- {key}: {value}\n"
+
+    materials_text = ""
+    if materials:
+        if materials.get("text", "").strip():
+            materials_text += f"\n\n## 추가 자료 — 텍스트 메모\n{materials['text']}"
+        if materials.get("webLinks"):
+            materials_text += "\n\n## 추가 자료 — 웹 링크 (참고)\n"
+            materials_text += "\n".join(f"- {url}" for url in materials["webLinks"])
+        if materials.get("youtubeLinks"):
+            materials_text += "\n\n## 추가 자료 — 유튜브 링크 (참고)\n"
+            materials_text += "\n".join(f"- {url}" for url in materials["youtubeLinks"])
+
+    seo_prefix = ""
+    if seo_keywords:
+        kw_blocks = []
+        for kw in seo_keywords:
+            examples = "\n".join([
+                f'    · "{kw}로 고민하시는 분들께..."',
+                f'    · "{kw} 치료, 한의학적으로 어떻게 접근할까요?"',
+                f'    · "{kw} 환자분들이 가장 많이 묻는 질문..."',
+                f'    · "{kw} 증상이 있으시다면..."',
+                f'    · "{kw}의 한방 치료 핵심은..."',
+                f'    · "오늘은 {kw}에 대해 알아보겠습니다."',
+            ])
+            kw_blocks.append(
+                f"  키워드: '{kw}' — 반드시 이 문자열 그대로 6~8회 사용\n"
+                f"  아래와 같은 형태로 각 섹션에 자연스럽게 삽입하세요:\n{examples}"
+            )
+        kw_section = "\n\n".join(kw_blocks)
+        seo_prefix = (
+            f"## ⚠ SEO 키워드 필수 삽입 — 작성 전 반드시 읽을 것\n"
+            f"아래 키워드를 절대 분리하지 말고, 제시된 예시 형태로 6~8회 삽입하세요.\n\n"
+            f"{kw_section}\n\n"
+        )
+
+    user_message = f"{seo_prefix}블로그 주제: {keyword}{qa_text}{materials_text}"
+    return {"system_prompt": system_prompt, "user_message": user_message}
+
+
 def generate_blog_stream(
     keyword: str,
     answers: dict,
