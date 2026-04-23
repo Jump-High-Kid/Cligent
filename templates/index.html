@@ -235,7 +235,34 @@
       color: #999; font-size: 1rem; padding: 0; line-height: 1;
     }
     .link-tag button:hover { color: #c0392b; }
-    .materials-footer { display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end; }
+    .materials-footer { display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end; flex-wrap: wrap; align-items: center; }
+    .materials-footer .ai-select-group { display: flex; gap: 6px; align-items: center; }
+    .materials-footer .ai-select-group select { padding: 7px 10px; border: 1.5px solid #d6d3d1; border-radius: 8px; font-size: 0.85rem; font-family: 'Pretendard', sans-serif; background: #fff; color: #292524; cursor: pointer; }
+
+    /* 개인정보 안내 모달 (1회) */
+    #privacyModal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 9998; align-items: center; justify-content: center; }
+    #privacyModal.open { display: flex; }
+    .privacy-modal-box { background: #fff; border-radius: 16px; padding: 28px 28px 22px; max-width: 400px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.18); }
+    .privacy-modal-icon { font-size: 1.5rem; margin-bottom: 8px; }
+    .privacy-modal-title { font-size: 0.95rem; font-weight: 700; color: #1c1917; margin-bottom: 10px; }
+    .privacy-modal-body { font-size: 0.84rem; color: #44403c; line-height: 1.6; margin-bottom: 6px; }
+    .privacy-modal-law { font-size: 0.76rem; color: #a8a29e; margin-bottom: 20px; }
+    .privacy-modal-confirm { width: 100%; background: #064e3b; color: #fff; border: none; border-radius: 10px; padding: 11px; font-size: 0.92rem; font-weight: 600; cursor: pointer; font-family: 'Pretendard', sans-serif; }
+    .privacy-modal-confirm:hover { background: #065f46; }
+
+    /* 클립보드 안내 모달 */
+    #clipboardModal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 9999; align-items: center; justify-content: center; }
+    #clipboardModal.open { display: flex; }
+    .clipboard-modal-box { background: #fff; border-radius: 16px; padding: 32px 28px 24px; max-width: 420px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.18); text-align: center; }
+    .clipboard-modal-icon { font-size: 2.5rem; margin-bottom: 12px; }
+    .clipboard-modal-title { font-family: 'Pretendard', sans-serif; font-size: 1.05rem; font-weight: 700; color: #1c1917; margin-bottom: 10px; line-height: 1.5; }
+    .clipboard-modal-sub { font-size: 0.82rem; color: #78716c; margin-bottom: 6px; }
+    .clipboard-modal-badge { display: inline-block; background: #f0fdf4; color: #064e3b; border: 1px solid #bbf7d0; border-radius: 20px; padding: 5px 14px; font-size: 0.78rem; font-weight: 600; margin-bottom: 22px; }
+    .clipboard-modal-actions { display: flex; gap: 10px; justify-content: center; }
+    .clipboard-modal-actions .btn-go { background: #064e3b; color: #fff; border: none; border-radius: 10px; padding: 10px 24px; font-size: 0.9rem; font-weight: 600; cursor: pointer; font-family: 'Pretendard', sans-serif; }
+    .clipboard-modal-actions .btn-go:hover { background: #065f46; }
+    .clipboard-modal-actions .btn-cancel { background: #f5f5f4; color: #78716c; border: none; border-radius: 10px; padding: 10px 18px; font-size: 0.9rem; cursor: pointer; font-family: 'Pretendard', sans-serif; }
+    .clipboard-modal-actions .btn-cancel:hover { background: #e7e5e4; }
 
     /* 이미지 프롬프트 섹션 */
     #imagePromptSection {
@@ -308,6 +335,13 @@
       margin-top: 10px; padding: 8px 12px; border-radius: 8px;
       background: #dcfce7; color: #166534; font-size: 0.82rem; font-weight: 600;
     }
+
+    /* 베타 사용량 배너 */
+    .beta-usage-banner { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 10px 16px; margin-bottom: 18px; font-size: 0.82rem; color: #166534; }
+    .beta-usage-banner .beta-tag { background: #064e3b; color: #fff; border-radius: 6px; padding: 2px 8px; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; flex-shrink: 0; }
+    .beta-usage-item { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+    .beta-usage-item .used { font-weight: 700; color: #064e3b; }
+    .beta-usage-item .warn { color: #b45309; }
 
     /* SEO 키워드 입력 */
     .seo-keyword-wrap { margin-top: 14px; }
@@ -438,7 +472,7 @@
   <!-- ── 사이드바 ─────────────────────────────────────────── -->
   <aside id="sidebar">
     <div class="sidebar-logo-area">
-      <div class="sidebar-logo-text">
+      <div class="sidebar-logo-text" onclick="window.location.href='/app'" style="cursor:pointer">
         <div class="logo-icon-box">
           <span class="material-symbols-outlined">medical_services</span>
         </div>
@@ -503,6 +537,27 @@
   <!-- ── 메인 콘텐츠 ───────────────────────────────────────── -->
   <div id="blog-main">
 
+  <!-- 피드백 입력 바 -->
+  <div id="feedbackBar" style="
+    display:flex; align-items:center; gap:10px;
+    background:#fff; border:1.5px solid #e7e5e4; border-radius:50px;
+    padding:8px 16px; margin-bottom:20px;
+    box-shadow:0 2px 8px rgba(0,0,0,0.05);
+    width:100%; max-width:680px;
+  ">
+    <span class="material-symbols-outlined" style="color:#a8a29e;font-size:1.1rem;font-variation-settings:'FILL' 0,'wght' 300,'GRAD' 0,'opsz' 24;flex-shrink:0;">edit_note</span>
+    <input id="feedbackInput" type="text" maxlength="500"
+      placeholder="오류나 불편한 점을 입력해주세요"
+      style="flex:1;border:none;outline:none;font-family:'Pretendard',sans-serif;font-size:0.9rem;color:#292524;background:transparent;"
+      onkeydown="if(event.key==='Enter') submitFeedback()">
+    <button id="feedbackSendBtn" onclick="submitFeedback()" style="
+      background:#064e3b;color:#fff;border:none;border-radius:20px;
+      padding:5px 14px;font-size:0.82rem;font-family:'Pretendard',sans-serif;
+      font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0;
+    ">전송</button>
+  </div>
+  <div id="feedbackMsg" style="display:none;font-size:0.82rem;text-align:right;margin-top:-12px;margin-bottom:12px;color:#059669;"></div>
+
   <h1>Cligent 블로그 생성기</h1>
   <p class="subtitle">한의원 블로그 글을 AI와 대화하며 만들어드립니다</p>
 
@@ -510,6 +565,13 @@
     <div class="step active" id="stepBadge1">1 주제</div>
     <div class="step" id="stepBadge2">2 대화</div>
     <div class="step" id="stepBadge3">3 생성</div>
+  </div>
+
+  <div class="beta-usage-banner" id="betaUsageBanner">
+    <span class="beta-tag">BETA</span>
+    <span class="beta-usage-item">블로그 생성 <span class="used" id="betaBlogUsed">…</span>/10건</span>
+    <span style="color:#a8a29e">|</span>
+    <span class="beta-usage-item">프롬프트 복사 <span class="used" id="betaCopyUsed">…</span>/30건</span>
   </div>
 
   <div class="card">
@@ -545,7 +607,7 @@
 
       <!-- SEO 키워드 입력 -->
       <div class="seo-keyword-wrap">
-        <span class="seo-kw-label">SEO 키워드 (선택) — 본문에 5~7회 자연스럽게 삽입됩니다</span>
+        <span class="seo-kw-label">키워드 (선택) — 본문에 5~7회 자연스럽게 삽입됩니다</span>
         <div class="seo-kw-input-row">
           <input type="text" id="seoKwInput" placeholder="띄어쓰기=하나의 키워드 / 쉼표=별개 키워드 (예: 동래구 허리디스크, 침 치료)" onkeydown="if(event.key==='Enter'){event.preventDefault();addSeoKeyword();}">
           <button class="btn btn-secondary" onclick="addSeoKeyword()" style="white-space:nowrap;">+ 추가</button>
@@ -658,6 +720,34 @@
 
   </div>
 
+  <!-- 개인정보 안내 모달 (1회) -->
+  <div id="privacyModal">
+    <div class="privacy-modal-box">
+      <div class="privacy-modal-icon">🔒</div>
+      <div class="privacy-modal-title">개인정보 입력 주의</div>
+      <div class="privacy-modal-body">
+        특정 환자의 이름·나이·증상 등 개인정보는 입력하지 마세요.<br>
+        일반적인 증상 경향이나 치료 경험으로 표현해주세요.
+      </div>
+      <div class="privacy-modal-law">의료법 제19조</div>
+      <button class="privacy-modal-confirm" onclick="closePrivacyModal()">확인했습니다</button>
+    </div>
+  </div>
+
+  <!-- 클립보드 안내 모달 -->
+  <div id="clipboardModal">
+    <div class="clipboard-modal-box">
+      <div class="clipboard-modal-icon">📋</div>
+      <div class="clipboard-modal-title">프롬프트가 클립보드에 저장되었습니다<br>Ctrl+V 또는 붙여넣기 후 전송해 주세요</div>
+      <div class="clipboard-modal-sub">아래 AI에 최적화된 프롬프트입니다</div>
+      <div class="clipboard-modal-badge">Claude AI Sonnet 3.6에 최적화되었습니다</div>
+      <div class="clipboard-modal-actions">
+        <button class="btn-cancel" onclick="closeClipboardModal()">취소</button>
+        <button class="btn-go" onclick="confirmGoToAI()">AI 사이트로 이동 ↗</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     let currentKeyword       = '';
     let conversationFlow     = [];
@@ -671,7 +761,10 @@
     let selectedTone    = 'warm';
     let selectedMode         = '정보';
     let selectedReaderLevel  = '일반인';
+    let selectedCharCount    = null;  // null = config 기본값 사용
     let seoKeywords     = [];  // SEO 키워드 배열
+    let pendingAiUrl    = '';
+    let betaUsage       = { blog_count: 0, blog_limit: 10, copy_count: 0, copy_limit: 30, api_key_configured: false };
 
     // ── 트렌딩 키워드 목록 ───────────────────────────────────
     const TRENDING_KEYWORDS = [
@@ -781,15 +874,101 @@
         if (conversationFlow.length === 0) { showStep(3); startGenerate(); return; }
 
         currentIndex = 0; collectedAnswers = {}; selectedOptions = {};
+        selectedCharCount = null;
         collectedMaterials = { text: '', webLinks: [], youtubeLinks: [] };
         document.getElementById('chatArea').innerHTML = '';
         showStep(2);
-        showNextQuestion();
+        showPrivacyModalIfNeeded(showCharCountStep);
       } catch (e) {
         showError('step1Error', '서버 연결 오류가 발생했습니다.');
       } finally {
         btn.disabled = false; btn.textContent = '다음 →';
       }
+    }
+
+    // ── 글자 수 선택 단계 ────────────────────────────────
+    const CHAR_PRESETS = [
+      { label: '기본',      desc: '2000자 내외', min: 1800, max: 2200 },
+      { label: '가벼운 글', desc: '1500자 내외', min: 1300, max: 1700 },
+      { label: '상세한 글', desc: '2500~3000자',  min: 2500, max: 3000 },
+    ];
+    const CHAR_MAX_LIMIT = 10000;
+
+    function showCharCountStep() {
+      const row = document.createElement('div');
+      row.id = 'charCountRow';
+      row.className = 'bubble-row-ai';
+      row.innerHTML = `
+        <div class="avatar">Cli</div>
+        <div class="bubble-ai">
+          <div>블로그 글 분량을 선택해 주세요.</div>
+          <div class="options-wrap" id="charCountChips">
+            ${CHAR_PRESETS.map((p, i) => `
+              <button class="chip" onclick="selectCharPreset(${i})" id="charPreset${i}">
+                ${p.label} <span style="font-size:0.8em;opacity:0.7">(${p.desc})</span>
+              </button>`).join('')}
+          </div>
+          <div style="margin-top:8px;display:flex;align-items:center;gap:6px;" id="charCustomRow">
+            <input type="number" id="charCustomInput" min="500" max="${CHAR_MAX_LIMIT}"
+              placeholder="직접 입력" style="width:110px;padding:6px 10px;border:1.5px solid #d6d3d1;border-radius:8px;font-size:0.9rem;"
+              oninput="onCharCustomInput()" onkeydown="if(event.key==='Enter') confirmCharCustom()">
+            <span style="font-size:0.9rem;color:#555">자</span>
+            <button class="chip-confirm" id="charCustomConfirm" style="display:none"
+              onclick="confirmCharCustom()">확인 →</button>
+          </div>
+          <div id="charLimitMsg" style="display:none;color:#e53e3e;font-size:0.82rem;margin-top:4px;">
+            10,000자 이상은 입력할 수 없습니다.
+          </div>
+        </div>`;
+      document.getElementById('chatArea').appendChild(row);
+      scrollToBottom();
+    }
+
+    function selectCharPreset(i) {
+      const preset = CHAR_PRESETS[i];
+      selectedCharCount = { min: preset.min, max: preset.max };
+      // 칩 잠금
+      document.querySelectorAll('#charCountChips .chip').forEach((btn, idx) => {
+        btn.disabled = true;
+        btn.classList.toggle('selected', idx === i);
+      });
+      document.getElementById('charCustomRow').style.opacity = '0.4';
+      document.getElementById('charCustomRow').style.pointerEvents = 'none';
+      addUserBubble(`${preset.label} (${preset.desc})`);
+      setTimeout(showNextQuestion, 400);
+    }
+
+    function onCharCustomInput() {
+      const val = parseInt(document.getElementById('charCustomInput').value, 10);
+      const limitMsg = document.getElementById('charLimitMsg');
+      const confirmBtn = document.getElementById('charCustomConfirm');
+      if (val >= CHAR_MAX_LIMIT) {
+        limitMsg.style.display = 'block';
+        confirmBtn.style.display = 'none';
+      } else if (val >= 300) {
+        limitMsg.style.display = 'none';
+        confirmBtn.style.display = 'inline-flex';
+      } else {
+        limitMsg.style.display = 'none';
+        confirmBtn.style.display = 'none';
+      }
+    }
+
+    function confirmCharCustom() {
+      const val = parseInt(document.getElementById('charCustomInput').value, 10);
+      if (!val || val < 300) return;
+      if (val >= CHAR_MAX_LIMIT) {
+        document.getElementById('charLimitMsg').style.display = 'block';
+        return;
+      }
+      selectedCharCount = { min: Math.round(val * 0.9), max: val };
+      // 잠금
+      document.querySelectorAll('#charCountChips .chip').forEach(btn => { btn.disabled = true; });
+      document.getElementById('charCustomInput').disabled = true;
+      document.getElementById('charCustomConfirm').style.display = 'none';
+      document.getElementById('charLimitMsg').style.display = 'none';
+      addUserBubble(`직접 입력 (${val}자)`);
+      setTimeout(showNextQuestion, 400);
     }
 
     // ── 질문 버블 (통합 입력) ──────────────────────────────
@@ -917,13 +1096,22 @@
               <div class="link-tags" id="yt-links-list"></div>
             </div>
           </div>
-          <div class="materials-footer">
-            <button class="btn btn-secondary" onclick="skipMaterials()">건너뛰기</button>
-            <button class="btn btn-primary" onclick="confirmMaterials()">완료 — 블로그 생성</button>
+          <div class="materials-footer" id="materialsFooter">
+            <button class="btn btn-secondary" onclick="reset()">← 처음으로</button>
+            <div class="ai-select-group">
+              <select id="externalAiSelect">
+                <option value="https://claude.ai/new">Claude.ai</option>
+                <option value="https://chatgpt.com">ChatGPT</option>
+                <option value="https://gemini.google.com">Gemini</option>
+              </select>
+              <button id="copyPromptBtn" class="btn btn-secondary" onclick="copyAndGoExternal()">프롬프트 복사</button>
+            </div>
+            <button id="generateBtn" class="btn btn-primary" onclick="confirmMaterials()">완료 — 블로그 생성</button>
           </div>
         </div>`;
       document.getElementById('chatArea').appendChild(row);
       scrollToBottom();
+      updateGenerateButtons();
     }
 
     function addLink(type) {
@@ -950,6 +1138,162 @@
     }
 
     function skipMaterials() { addUserBubble('건너뛰기'); startGenerate(); }
+
+    // ── 다른 AI로 작성 ────────────────────────────────────
+    function buildExternalPrompt() {
+      const keyword = currentKeyword;
+      const clinicInfo = document.getElementById('clinicInfoText')?.value?.trim() || '';
+      const matText = (document.getElementById('mat-text')?.value || '').trim();
+      const webLinks = collectedMaterials.webLinks;
+      const ytLinks  = collectedMaterials.youtubeLinks;
+
+      let parts = [];
+      parts.push(`한의원 블로그 글을 작성해 주세요.\n\n주제: ${keyword}`);
+      parts.push(`글 목적: ${selectedMode === '광고' ? '내원 유도' : '정보 제공'}`);
+      parts.push(`독자 수준: ${selectedReaderLevel}`);
+      if (seoKeywords.length) parts.push(`SEO 키워드: ${seoKeywords.join(', ')}`);
+      if (clinicInfo) parts.push(`한의원 차별화 정보:\n${clinicInfo}`);
+
+      const answerEntries = Object.entries(collectedAnswers);
+      if (answerEntries.length) {
+        const ans = answerEntries.map(([id, v]) => {
+          const q = conversationFlow.find(x => x.id === id);
+          return `Q: ${q ? q.message : id}\nA: ${v}`;
+        }).join('\n\n');
+        parts.push(`추가 정보:\n${ans}`);
+      }
+
+      if (matText)          parts.push(`메모:\n${matText}`);
+      if (webLinks.length)  parts.push(`참고 링크:\n${webLinks.join('\n')}`);
+      if (ytLinks.length)   parts.push(`유튜브:\n${ytLinks.join('\n')}`);
+
+      parts.push('글자 수: 1500~2000자, 제목 포함, 네이버 블로그 형식으로 작성해 주세요.');
+      return parts.join('\n\n');
+    }
+
+    async function copyAndGoExternal() {
+      if (betaUsage.copy_count >= betaUsage.copy_limit) {
+        alert(`베타 기간 프롬프트 복사 한도(${betaUsage.copy_limit}건)에 도달했습니다.`);
+        return;
+      }
+      const url = document.getElementById('externalAiSelect').value;
+      const prompt = buildExternalPrompt();
+      pendingAiUrl = url;
+
+      // 서버에 복사 사용량 기록 (실패해도 UX는 계속)
+      try {
+        const res = await fetch('/api/blog/track-prompt-copy', { method: 'POST' });
+        if (res.status === 429) {
+          alert('베타 기간 프롬프트 복사 한도에 도달했습니다.');
+          return;
+        }
+        betaUsage.copy_count = Math.min(betaUsage.copy_count + 1, betaUsage.copy_limit);
+        updateBetaBanner();
+      } catch (_) {}
+
+      navigator.clipboard.writeText(prompt)
+        .catch(() => {})
+        .finally(() => {
+          document.getElementById('clipboardModal').classList.add('open');
+        });
+    }
+
+    // ── 피드백 전송 ───────────────────────────────────────
+    async function submitFeedback() {
+      const input = document.getElementById('feedbackInput');
+      const msg   = (input.value || '').trim();
+      const msgEl = document.getElementById('feedbackMsg');
+      const btn   = document.getElementById('feedbackSendBtn');
+      if (!msg) return;
+      btn.disabled = true;
+      try {
+        const res = await fetch('/api/feedback', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: msg, page: 'blog' }),
+        });
+        if (res.ok) {
+          input.value = '';
+          msgEl.textContent = '접수되었습니다. 감사합니다!';
+          msgEl.style.color = '#059669';
+          msgEl.style.display = 'block';
+          setTimeout(() => { msgEl.style.display = 'none'; }, 3000);
+        } else {
+          msgEl.textContent = '전송에 실패했습니다. 다시 시도해주세요.';
+          msgEl.style.color = '#e53e3e';
+          msgEl.style.display = 'block';
+        }
+      } catch (_) {
+        msgEl.textContent = '네트워크 오류가 발생했습니다.';
+        msgEl.style.color = '#e53e3e';
+        msgEl.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    // ── 베타 사용량 배너 ──────────────────────────────────
+    async function loadBetaUsage() {
+      try {
+        const res = await fetch('/api/blog/beta-usage');
+        if (!res.ok) return;
+        betaUsage = await res.json();
+        betaUsage.api_key_configured = betaUsage.api_key_configured ?? false;
+        updateBetaBanner();
+        updateGenerateButtons();
+      } catch (_) {}
+    }
+
+    function updateGenerateButtons() {
+      const canGenerate = betaUsage.api_key_configured || betaUsage.blog_count < betaUsage.blog_limit;
+      const genBtn  = document.getElementById('generateBtn');
+      const copyBtn = document.getElementById('copyPromptBtn');
+      if (!genBtn || !copyBtn) return;
+      genBtn.disabled = !canGenerate;
+      genBtn.classList.toggle('btn-primary', canGenerate);
+      genBtn.classList.toggle('btn-secondary', !canGenerate);
+      copyBtn.classList.toggle('btn-primary', !canGenerate);
+      copyBtn.classList.toggle('btn-secondary', canGenerate);
+    }
+
+    function updateBetaBanner() {
+      const blogEl = document.getElementById('betaBlogUsed');
+      const copyEl = document.getElementById('betaCopyUsed');
+      if (blogEl) {
+        blogEl.textContent = betaUsage.blog_count;
+        blogEl.className = betaUsage.blog_count >= betaUsage.blog_limit ? 'used warn' : 'used';
+      }
+      if (copyEl) {
+        copyEl.textContent = betaUsage.copy_count;
+        copyEl.className = betaUsage.copy_count >= betaUsage.copy_limit ? 'used warn' : 'used';
+      }
+    }
+
+    // ── 개인정보 안내 모달 (세션당 1회) ──────────────────────
+    function showPrivacyModalIfNeeded(callback) {
+      if (sessionStorage.getItem('privacyNoticeSeen')) {
+        callback();
+        return;
+      }
+      document.getElementById('privacyModal').classList.add('open');
+      window._privacyCallback = callback;
+    }
+
+    function closePrivacyModal() {
+      sessionStorage.setItem('privacyNoticeSeen', '1');
+      document.getElementById('privacyModal').classList.remove('open');
+      if (window._privacyCallback) { window._privacyCallback(); window._privacyCallback = null; }
+    }
+
+    function closeClipboardModal() {
+      document.getElementById('clipboardModal').classList.remove('open');
+      pendingAiUrl = '';
+    }
+
+    function confirmGoToAI() {
+      document.getElementById('clipboardModal').classList.remove('open');
+      if (pendingAiUrl) window.open(pendingAiUrl, '_blank');
+      pendingAiUrl = '';
+    }
 
     function confirmMaterials() {
       collectedMaterials.text = (document.getElementById('mat-text').value || '').trim();
@@ -980,6 +1324,7 @@
             mode: selectedMode, reader_level: selectedReaderLevel,
             seo_keywords: seoKeywords,
             clinic_info: document.getElementById('clinicInfoText').value || '',
+            char_count: selectedCharCount,
           }),
         });
 
@@ -1010,6 +1355,8 @@
                 output.innerHTML = renderMarkdown(rawOutputText);
               }
               if (msg.done)  {
+                betaUsage.blog_count = Math.min(betaUsage.blog_count + 1, betaUsage.blog_limit);
+                updateBetaBanner();
                 label.textContent = '생성 완료';
                 const u = msg.usage;
                 document.getElementById('tokenInfo').textContent =
@@ -1317,7 +1664,7 @@
       currentKeyword = ''; conversationFlow = []; currentIndex = 0;
       collectedAnswers = {}; selectedOptions = {}; rawOutputText = '';
       allPrompts = []; selectedStyle = 'photorealistic'; selectedTone = 'warm';
-      selectedMode = '정보'; selectedReaderLevel = '일반인';
+      selectedMode = '정보'; selectedReaderLevel = '일반인'; selectedCharCount = null;
       collectedMaterials = { text: '', webLinks: [], youtubeLinks: [] };
       seoKeywords = []; renderSeoTags();
       document.getElementById('resultSeoTags').classList.add('hidden');
@@ -1382,6 +1729,7 @@
 
     initTrendingChips();
     loadClinicInfo();
+    loadBetaUsage();
 
     async function doLogout() {
       await fetch('/api/logout', { method: 'POST' });

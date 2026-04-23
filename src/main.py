@@ -117,7 +117,11 @@ from module_manager import (
 from settings_manager import get_setup_wizard_data, save_wizard_result
 from agent_router import AgentRouter
 from agent_middleware import AgentMiddleware
-from plan_guard import check_blog_limit, get_effective_plan, resolve_effective_plan
+from plan_guard import (
+    check_blog_limit, get_effective_plan, resolve_effective_plan,
+    check_prompt_copy_limit, _count_total_blogs, _count_total_prompt_copies,
+    _FREE_BLOG_LIMIT, _PROMPT_COPY_LIMIT,
+)
 from plan_notify import check_and_notify
 from usage_tracker import log_usage
 
@@ -913,6 +917,65 @@ async def get_plan_usage(user: dict = Depends(get_current_user)):
     })
 
 
+@app.get("/api/blog/beta-usage")
+async def get_beta_usage(user: dict = Depends(get_current_user)):
+    """베타 기간 사용량 조회 — 블로그 생성 / 프롬프트 복사 / API 키 여부"""
+    clinic_id = user["clinic_id"]
+    blog_count = max(0, _count_total_blogs(clinic_id))
+    copy_count = max(0, _count_total_prompt_copies(clinic_id))
+
+    api_key_configured = False
+    try:
+        from db_manager import get_db
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT api_key_configured FROM clinics WHERE id = ?", (clinic_id,)
+            ).fetchone()
+        api_key_configured = bool(row["api_key_configured"]) if row else False
+    except Exception:
+        pass
+
+    return JSONResponse({
+        "blog_count": blog_count,
+        "blog_limit": _FREE_BLOG_LIMIT,
+        "copy_count": copy_count,
+        "copy_limit": _PROMPT_COPY_LIMIT,
+        "api_key_configured": api_key_configured,
+    })
+
+
+@app.post("/api/feedback")
+async def submit_feedback(request: Request, user: dict = Depends(get_current_user)):
+    """피드백 / 오류 신고 저장"""
+    body = await request.json()
+    message = (body.get("message") or "").strip()
+    page    = (body.get("page") or "unknown").strip()[:100]
+    if not message:
+        return JSONResponse({"detail": "메시지를 입력해주세요."}, status_code=400)
+    if len(message) > 2000:
+        return JSONResponse({"detail": "2000자 이내로 입력해주세요."}, status_code=400)
+    try:
+        from db_manager import get_db
+        with get_db() as conn:
+            conn.execute(
+                "INSERT INTO feedback (clinic_id, user_id, page, message) VALUES (?,?,?,?)",
+                (user["clinic_id"], user["id"], page, message),
+            )
+            conn.commit()
+    except Exception as e:
+        return JSONResponse({"detail": f"저장 실패: {e}"}, status_code=500)
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/blog/track-prompt-copy")
+async def track_prompt_copy(user: dict = Depends(get_current_user)):
+    """프롬프트 복사 횟수 기록 — 한도 초과 시 429 반환"""
+    clinic_id = user["clinic_id"]
+    check_prompt_copy_limit(clinic_id)
+    log_usage(clinic_id, "prompt_copy", {})
+    return JSONResponse({"ok": True})
+
+
 @app.post("/api/admin/clinic")
 async def admin_create_clinic(request: Request):
     """
@@ -1105,6 +1168,7 @@ async def generate(request: Request, user: dict = Depends(get_current_user)):
     reader_level = body.get("reader_level", "일반인")
     seo_keywords = body.get("seo_keywords", [])   # ["키워드1", "키워드2"]
     clinic_info  = body.get("clinic_info", "")    # 한의원 차별화 정보 텍스트
+    char_count   = body.get("char_count", None)   # {"min": N, "max": M} or None
 
     if not keyword:
         async def _err():
@@ -1128,6 +1192,7 @@ async def generate(request: Request, user: dict = Depends(get_current_user)):
             generate_blog_stream(
                 keyword, answers, api_key, materials, mode, reader_level,
                 seo_keywords=seo_keywords, clinic_info=clinic_info,
+                char_count=char_count,
             ),
             keyword, tone, seo_keywords,
             clinic_id=user["clinic_id"],

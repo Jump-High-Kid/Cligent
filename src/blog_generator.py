@@ -222,6 +222,7 @@ def generate_blog_stream(
     reader_level: str = "일반인",
     seo_keywords: Optional[List[str]] = None,
     clinic_info: str = "",
+    char_count: Optional[dict] = None,
 ) -> Generator[str, None, None]:
     """
     블로그 생성 스트리밍 제너레이터
@@ -245,10 +246,14 @@ def generate_blog_stream(
     # 이전 포스트 연관 링크
     recent_posts = get_recent_posts(limit=5)
 
+    # char_count가 프론트에서 전달된 경우 config 값을 오버라이드
+    min_chars = char_count["min"] if char_count and "min" in char_count else config["blog"]["min_chars"]
+    max_chars = char_count["max"] if char_count and "max" in char_count else config["blog"]["max_chars"]
+
     prompt_template = load_prompt("blog")
     system_prompt = prompt_template.format(
-        min_chars=config["blog"]["min_chars"],
-        max_chars=config["blog"]["max_chars"],
+        min_chars=min_chars,
+        max_chars=max_chars,
         tone=tone,
         pattern_instructions=pattern_result["prompt_block"],
         mode_instructions=_MODE_INSTRUCTIONS.get(mode, _MODE_INSTRUCTIONS["정보"]),

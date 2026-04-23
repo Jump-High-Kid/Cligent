@@ -31,7 +31,8 @@ logger = logging.getLogger(__name__)
 _plan_cache: Dict[int, Tuple[dict, float]] = {}
 _CACHE_TTL = 60      # 초
 _MAX_CACHE = 500     # 최대 클리닉 수
-_FREE_BLOG_LIMIT = 3  # 무료 플랜 월 생성 한도
+_FREE_BLOG_LIMIT = 10      # 베타 기간 총 생성 한도
+_PROMPT_COPY_LIMIT = 30   # 베타 기간 프롬프트 복사 총 한도
 
 
 def _now_iso() -> str:
@@ -185,6 +186,56 @@ def _count_monthly_blogs(clinic_id: int) -> int:
         return -1
 
 
+def _count_total_blogs(clinic_id: int) -> int:
+    """베타 기간 전체(누적) 블로그 생성 횟수. DB 장애 시 -1 반환."""
+    try:
+        from db_manager import get_db
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS cnt FROM usage_logs WHERE clinic_id = ? AND feature = 'blog_generation'",
+                (clinic_id,),
+            ).fetchone()
+        return row["cnt"] if row else 0
+    except Exception as exc:
+        logger.warning("plan_guard: 블로그 총 횟수 조회 실패 (clinic_id=%s): %s", clinic_id, exc)
+        return -1
+
+
+def _count_total_prompt_copies(clinic_id: int) -> int:
+    """베타 기간 전체(누적) 프롬프트 복사 횟수. DB 장애 시 -1 반환."""
+    try:
+        from db_manager import get_db
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS cnt FROM usage_logs WHERE clinic_id = ? AND feature = 'prompt_copy'",
+                (clinic_id,),
+            ).fetchone()
+        return row["cnt"] if row else 0
+    except Exception as exc:
+        logger.warning("plan_guard: 프롬프트 복사 횟수 조회 실패 (clinic_id=%s): %s", clinic_id, exc)
+        return -1
+
+
+def check_prompt_copy_limit(clinic_id: int) -> None:
+    """
+    프롬프트 복사 전 한도 체크. HTTPException(429) 발생 시 차단.
+    main.py /api/blog/track-prompt-copy 에서 호출.
+    """
+    count = _count_total_prompt_copies(clinic_id)
+    if count < 0:
+        return  # DB 장애 → fail open
+    if count >= _PROMPT_COPY_LIMIT:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "error": "prompt_copy_limit_exceeded",
+                "message": f"베타 기간 프롬프트 복사 한도({_PROMPT_COPY_LIMIT}건)에 도달했습니다.",
+                "current": count,
+                "limit": _PROMPT_COPY_LIMIT,
+            },
+        )
+
+
 def check_blog_limit(clinic_id: int) -> None:
     """
     블로그 생성 전 한도 체크. HTTPException(429) 발생 시 생성 차단.
@@ -209,8 +260,8 @@ def check_blog_limit(clinic_id: int) -> None:
     if effective["has_unlimited"]:
         return  # 유료 또는 체험 플랜 — 한도 없음
 
-    # 무료 플랜 → 월 한도 체크
-    count = _count_monthly_blogs(clinic_id)
+    # 베타 무료 플랜 → 총 한도 체크
+    count = _count_total_blogs(clinic_id)
     if count < 0:
         return  # 사용량 조회 실패 → fail open
 
@@ -220,8 +271,8 @@ def check_blog_limit(clinic_id: int) -> None:
             detail={
                 "error": "plan_limit_exceeded",
                 "message": (
-                    f"이번 달 무료 플랜 한도({_FREE_BLOG_LIMIT}편)에 도달했습니다. "
-                    "스탠다드 플랜으로 업그레이드하면 제한 없이 생성할 수 있습니다."
+                    f"베타 기간 블로그 생성 한도({_FREE_BLOG_LIMIT}편)에 도달했습니다. "
+                    "정식 출시 후 플랜을 업그레이드하면 제한 없이 생성할 수 있습니다."
                 ),
                 "current": count,
                 "limit": _FREE_BLOG_LIMIT,

@@ -123,7 +123,7 @@
   class="fixed inset-0 z-[100] flex items-center justify-center"
   onclick="handleOverlayClick(event)">
   <div class="absolute inset-0 bg-black/50"></div>
-  <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-[440px] mx-4 overflow-hidden">
+  <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-[440px] mx-4 overflow-y-auto max-h-[90vh]">
 
     <!-- 닫기 버튼 -->
     <button onclick="dismissWizard()" title="나중에 하기"
@@ -186,59 +186,202 @@
       </div>
     </div>
 
-    <!-- ─── Step 2A: AI 첫 사용자 ────────────────────────── -->
+    <!-- ─── Step 2A: AI 첫 사용자 — 방법 선택 ──────────── -->
     <div id="wz-step2a" class="wz-step px-8 py-6" style="display:none;">
       <button onclick="goStep('step1')" class="text-xs text-stone-400 hover:text-stone-600 mb-4 flex items-center gap-1">
         <span class="material-symbols-outlined text-[16px]">arrow_back_ios</span> 이전
       </button>
-      <div class="mb-4">
+      <div class="mb-3">
         <div class="text-xs font-bold text-stone-400 uppercase tracking-wider mb-1">Step 2 / 3</div>
-        <h2 class="text-xl font-bold text-stone-900 mb-2">API 키가 필요한 이유</h2>
+        <h2 class="text-xl font-bold text-stone-900 mb-1">어떻게 시작할까요?</h2>
+        <p class="text-xs text-stone-500">Cligent는 <strong>Claude(클로드)</strong>에 최적화되어 있습니다.</p>
+      </div>
+
+      <!-- 비교표 -->
+      <div class="mb-4 rounded-xl border border-stone-200 overflow-hidden text-[11px]">
+        <div class="grid grid-cols-3 bg-stone-50 border-b border-stone-200">
+          <div class="px-2.5 py-2 text-stone-400 font-semibold"></div>
+          <div class="px-2.5 py-2 text-stone-600 font-semibold text-center border-l border-stone-200">복사 방식</div>
+          <div class="px-2.5 py-2 text-emerald-900 font-semibold text-center border-l border-stone-200 bg-emerald-50">API 키 ✓</div>
+        </div>
+        <div class="grid grid-cols-3 border-b border-stone-100">
+          <div class="px-2.5 py-1.5 text-stone-500 font-medium">초기 설정</div>
+          <div class="px-2.5 py-1.5 text-stone-600 text-center border-l border-stone-100">없음</div>
+          <div class="px-2.5 py-1.5 text-stone-400 text-center border-l border-stone-100 bg-emerald-50/40">신용카드 등록</div>
+        </div>
+        <div class="grid grid-cols-3 border-b border-stone-100">
+          <div class="px-2.5 py-1.5 text-stone-500 font-medium">추가 비용</div>
+          <div class="px-2.5 py-1.5 text-stone-600 text-center border-l border-stone-100">없음</div>
+          <div class="px-2.5 py-1.5 text-stone-400 text-center border-l border-stone-100 bg-emerald-50/40">₩7~14/편</div>
+        </div>
+        <div class="grid grid-cols-3 border-b border-stone-100">
+          <div class="px-2.5 py-1.5 text-stone-500 font-medium">글 품질</div>
+          <div class="px-2.5 py-1.5 text-stone-400 text-center border-l border-stone-100">모델마다 편차</div>
+          <div class="px-2.5 py-1.5 text-emerald-700 font-semibold text-center border-l border-stone-100 bg-emerald-50/40">일정한 품질</div>
+        </div>
+        <div class="grid grid-cols-3 border-b border-stone-100">
+          <div class="px-2.5 py-1.5 text-stone-500 font-medium">생성 방식</div>
+          <div class="px-2.5 py-1.5 text-stone-400 text-center border-l border-stone-100">매번 복붙</div>
+          <div class="px-2.5 py-1.5 text-emerald-700 font-semibold text-center border-l border-stone-100 bg-emerald-50/40">버튼 하나</div>
+        </div>
+        <div class="grid grid-cols-3">
+          <div class="px-2.5 py-1.5 text-stone-500 font-medium">한도</div>
+          <div class="px-2.5 py-1.5 text-stone-400 text-center border-l border-stone-100">5시간 리셋</div>
+          <div class="px-2.5 py-1.5 text-emerald-700 font-semibold text-center border-l border-stone-100 bg-emerald-50/40">무제한</div>
+        </div>
+      </div>
+
+      <div class="space-y-2">
+        <button onclick="goStep('step2a-free')"
+          class="wz-choice w-full text-left px-4 py-3.5 rounded-xl border border-stone-200 hover:border-emerald-400 hover:bg-emerald-50 transition-all group">
+          <div class="font-semibold text-sm text-stone-800 group-hover:text-emerald-900">① 클로드 코드 무료로 사용해보기</div>
+          <div class="text-xs text-stone-400 mt-0.5">비용 없이 바로 시작 — 5시간에 블로그 1~2편</div>
+        </button>
+        <button onclick="goStep('step2a-api')"
+          class="wz-choice w-full text-left px-4 py-3.5 rounded-xl border border-stone-200 hover:border-emerald-400 hover:bg-emerald-50 transition-all group">
+          <div class="font-semibold text-sm text-stone-800 group-hover:text-emerald-900">② 클로드 API 이용하기</div>
+          <div class="text-xs text-stone-400 mt-0.5">글 1편 ≈ ₩7~14 · 빠른 속도 · 무제한</div>
+        </button>
+        <button onclick="goToStep3From('step2a')"
+          class="wz-choice w-full text-left px-4 py-3.5 rounded-xl border border-emerald-200 bg-emerald-50 hover:border-emerald-500 hover:bg-emerald-100 transition-all group">
+          <div class="font-semibold text-sm text-emerald-900">③ 클로드 API 키 발급 완료 — 입력하기</div>
+          <div class="text-xs text-emerald-600 mt-0.5">이미 API 키가 있으신 분</div>
+        </button>
+        <button onclick="goStep('step2a-other')"
+          class="wz-choice w-full text-left px-4 py-3.5 rounded-xl border border-stone-200 hover:border-stone-400 hover:bg-stone-50 transition-all group">
+          <div class="font-semibold text-sm text-stone-800 group-hover:text-stone-900">④ 다른 AI 모델 이용하기</div>
+          <div class="text-xs text-stone-400 mt-0.5">ChatGPT · Gemini 등 — 프롬프트 복사 방식</div>
+        </button>
+      </div>
+    </div>
+
+    <!-- ─── Step 2A-FREE: 클로드 코드 무료 ───────────────── -->
+    <div id="wz-step2a-free" class="wz-step px-8 py-6" style="display:none;">
+      <button onclick="goStep('step2a')" class="text-xs text-stone-400 hover:text-stone-600 mb-4 flex items-center gap-1">
+        <span class="material-symbols-outlined text-[16px]">arrow_back_ios</span> 이전
+      </button>
+      <div class="mb-4">
+        <h2 class="text-xl font-bold text-stone-900 mb-1">클로드 코드 무료로 시작하기</h2>
+        <p class="text-xs text-stone-500">API 키 없이 claude.ai에서 바로 사용할 수 있습니다.</p>
       </div>
       <div class="space-y-3 text-sm text-stone-600 mb-5">
-        <p>Cligent는 AI를 사용해 블로그를 씁니다. AI를 사용하려면 <strong>AI 회사와 직접 계약</strong>(API 키 발급)이 필요합니다.</p>
-        <p>마치 전기를 쓰려면 전기 계약이 필요하듯, AI를 쓰려면 AI 회사 계정이 필요합니다.</p>
-        <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3">
-          <div class="font-semibold text-emerald-900 mb-1">글 1편 비용</div>
-          <div class="text-emerald-700">약 ₩7~14 (대행업체 대비 1/200 수준)</div>
+        <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3 space-y-1.5">
+          <div class="font-semibold text-emerald-900">Cligent + Claude.ai 무료 플랜</div>
+          <div class="text-emerald-700 text-xs leading-relaxed">
+            · <strong>5시간마다 사용량 리셋</strong> — 긴 블로그 글 1~2편 작성 가능<br>
+            · Cligent에서 블로그 프롬프트 자동 생성 후 복사<br>
+            · Claude.ai에 붙여넣기 → 완성된 글 받기
+          </div>
+        </div>
+        <p class="text-xs text-stone-500">Cligent는 Claude에 최적화되어 있어 무료 플랜으로도 고품질의 한의원 블로그를 작성할 수 있습니다.</p>
+      </div>
+      <a href="https://claude.ai" target="_blank" rel="noopener"
+        class="flex items-center justify-center gap-2 w-full py-3 bg-emerald-900 text-white rounded-xl font-semibold text-sm hover:bg-emerald-800 transition-colors mb-3">
+        <span class="material-symbols-outlined text-[18px]">open_in_new</span>
+        Claude.ai 무료 계정 만들기
+      </a>
+      <button onclick="dismissWizard()"
+        class="w-full py-3 bg-stone-100 text-stone-700 rounded-xl font-semibold text-sm hover:bg-stone-200 transition-colors">
+        블로그 생성기에서 프롬프트 복사로 시작하기
+      </button>
+    </div>
+
+    <!-- ─── Step 2A-API: 클로드 API 키 발급 안내 ─────────── -->
+    <div id="wz-step2a-api" class="wz-step px-8 py-6" style="display:none;">
+      <button onclick="goStep('step2a')" class="text-xs text-stone-400 hover:text-stone-600 mb-4 flex items-center gap-1">
+        <span class="material-symbols-outlined text-[16px]">arrow_back_ios</span> 이전
+      </button>
+      <div class="mb-4">
+        <h2 class="text-xl font-bold text-stone-900 mb-1">API 키 발급 방법</h2>
+        <p class="text-xs text-stone-500">Anthropic Console에서 무료로 발급할 수 있습니다.</p>
+      </div>
+      <div class="space-y-3 text-sm text-stone-600 mb-5">
+        <p>AI를 사용하려면 <strong>AI 회사와 직접 계약</strong>(API 키 발급)이 필요합니다.</p>
+        <div class="bg-stone-50 border border-stone-200 rounded-xl p-3 text-xs text-stone-500 leading-relaxed">
+          Console → API Keys → Create Key → 복사 → 아래 단계에서 붙여넣기
+        </div>
+        <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3 space-y-1">
+          <div class="font-semibold text-emerald-900 text-xs">글 1편 비용</div>
+          <div class="text-emerald-700 text-xs">약 ₩7~14 (콘텐츠 대행업체 대비 1/200 수준)</div>
         </div>
       </div>
       <a href="https://console.anthropic.com" target="_blank" rel="noopener"
         class="flex items-center justify-center gap-2 w-full py-3 bg-emerald-900 text-white rounded-xl font-semibold text-sm hover:bg-emerald-800 transition-colors mb-3">
         <span class="material-symbols-outlined text-[18px]">open_in_new</span>
-        Anthropic Console에서 무료 가입하기
+        Anthropic Console에서 키 발급하기
       </a>
-      <button onclick="goStep('step3')"
+      <button onclick="goToStep3From('step2a-api')"
         class="w-full py-3 bg-stone-100 text-stone-700 rounded-xl font-semibold text-sm hover:bg-stone-200 transition-colors">
         API 키 발급 완료 — 입력하기
       </button>
     </div>
 
-    <!-- ─── Step 2B: Claude 경험자, API 키 없음 ──────────── -->
+    <!-- ─── Step 2A-OTHER: 다른 AI 모델 ──────────────────── -->
+    <div id="wz-step2a-other" class="wz-step px-8 py-6" style="display:none;">
+      <button onclick="goStep('step2a')" class="text-xs text-stone-400 hover:text-stone-600 mb-4 flex items-center gap-1">
+        <span class="material-symbols-outlined text-[16px]">arrow_back_ios</span> 이전
+      </button>
+      <div class="mb-4">
+        <h2 class="text-xl font-bold text-stone-900 mb-1">다른 AI로도 사용 가능합니다</h2>
+        <p class="text-xs text-stone-500">ChatGPT · Gemini 등 익숙한 AI를 그대로 사용하세요.</p>
+      </div>
+      <div class="space-y-3 text-sm text-stone-600 mb-5">
+        <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-1.5">
+          <div class="font-semibold text-amber-900 text-xs">프롬프트 복사 방식</div>
+          <div class="text-amber-800 text-xs leading-relaxed">
+            Cligent에서 블로그 프롬프트를 자동 생성한 뒤,<br>
+            원하는 AI 사이트에 붙여넣기하면 글이 완성됩니다.
+          </div>
+        </div>
+        <p class="text-xs text-stone-500 leading-relaxed">단, Cligent는 <strong>Claude에 최적화</strong>되어 있어 Claude 사용 시 가장 자연스러운 한의원 블로그 결과물을 얻을 수 있습니다. ChatGPT · Gemini 직접 연동은 추후 지원 예정입니다.</p>
+      </div>
+      <button onclick="dismissWizard()"
+        class="w-full py-3 bg-emerald-900 text-white rounded-xl font-semibold text-sm hover:bg-emerald-800 transition-colors">
+        블로그 생성기에서 프롬프트 복사로 시작하기
+      </button>
+    </div>
+
+    <!-- ─── Step 2B: Claude 경험자 ───────────────────────── -->
     <div id="wz-step2b" class="wz-step px-8 py-6" style="display:none;">
       <button onclick="goStep('step1')" class="text-xs text-stone-400 hover:text-stone-600 mb-4 flex items-center gap-1">
         <span class="material-symbols-outlined text-[16px]">arrow_back_ios</span> 이전
       </button>
       <div class="mb-4">
         <div class="text-xs font-bold text-stone-400 uppercase tracking-wider mb-1">Step 2 / 3</div>
-        <h2 class="text-xl font-bold text-stone-900 mb-2">Claude.ai와 API 키는 달라요</h2>
+        <h2 class="text-xl font-bold text-stone-900 mb-1">Cligent는 Claude에 최적화되어 있습니다</h2>
       </div>
-      <div class="space-y-3 text-sm text-stone-600 mb-5">
-        <p>claude.ai에서 대화하는 것과 <strong>API 키는 별개</strong>입니다.</p>
-        <p>API 키는 <strong>Anthropic Console</strong>에서 무료로 발급받을 수 있습니다. (신용카드 등록 필요)</p>
-        <div class="bg-stone-50 border border-stone-200 rounded-xl p-3 text-xs text-stone-500">
-          Console → API Keys → Create Key → 복사 → 아래에 붙여넣기
+      <div class="space-y-2.5 text-xs text-stone-600 mb-5">
+        <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3 space-y-1.5">
+          <div class="font-semibold text-emerald-900">Claude.ai 무료 플랜으로도 사용 가능</div>
+          <div class="text-emerald-700 leading-relaxed">
+            · <strong>5시간마다 리셋</strong> — 긴 블로그 글 1~2편 작성 가능 (Sonnet 이용)<br>
+            · Cligent 블로그 생성기에서 프롬프트를 복사해 claude.ai에 붙여넣기
+          </div>
+        </div>
+        <div class="bg-stone-50 border border-stone-200 rounded-xl p-3 space-y-1">
+          <div class="font-semibold text-stone-700">API 키 사용 시</div>
+          <div class="text-stone-500 leading-relaxed">
+            · 글 1편 ≈ <strong>₩7~14</strong> (대행업체 대비 1/200 수준)<br>
+            · claude.ai에서 대화하는 것과 <strong>API 키는 별개</strong>입니다<br>
+            · Anthropic Console에서 별도 발급 필요
+          </div>
         </div>
       </div>
-      <a href="https://console.anthropic.com" target="_blank" rel="noopener"
-        class="flex items-center justify-center gap-2 w-full py-3 bg-emerald-900 text-white rounded-xl font-semibold text-sm hover:bg-emerald-800 transition-colors mb-3">
-        <span class="material-symbols-outlined text-[18px]">open_in_new</span>
-        Anthropic Console 바로가기
-      </a>
-      <button onclick="goStep('step3')"
-        class="w-full py-3 bg-stone-100 text-stone-700 rounded-xl font-semibold text-sm hover:bg-stone-200 transition-colors">
-        API 키 있어요 — 입력하기
-      </button>
+      <div class="space-y-2">
+        <button onclick="dismissWizard()"
+          class="w-full py-3 bg-emerald-900 text-white rounded-xl font-semibold text-sm hover:bg-emerald-800 transition-colors">
+          클로드 AI로 글 쓰기 (프롬프트 복사)
+        </button>
+        <a href="https://console.anthropic.com" target="_blank" rel="noopener"
+          class="flex items-center justify-center gap-2 w-full py-3 border border-emerald-700 text-emerald-900 rounded-xl font-semibold text-sm hover:bg-emerald-50 transition-colors">
+          <span class="material-symbols-outlined text-[16px]">open_in_new</span>
+          API 키 발급 (Anthropic Console)
+        </a>
+        <button onclick="goToStep3From('step2b')"
+          class="w-full py-3 bg-stone-100 text-stone-700 rounded-xl font-semibold text-sm hover:bg-stone-200 transition-colors">
+          API 키 입력하기
+        </button>
+      </div>
     </div>
 
     <!-- ─── Step 2C: Gemini 경험자 ───────────────────────── -->
@@ -248,24 +391,44 @@
       </button>
       <div class="mb-4">
         <div class="text-xs font-bold text-stone-400 uppercase tracking-wider mb-1">Step 2 / 3</div>
-        <h2 class="text-xl font-bold text-stone-900 mb-2">Claude API 키를 권장합니다</h2>
+        <h2 class="text-xl font-bold text-stone-900 mb-1">Cligent는 Claude에 최적화되어 있습니다</h2>
       </div>
-      <div class="space-y-3 text-sm text-stone-600 mb-5">
-        <p>Gemini를 사용하고 계시는군요! Cligent에서는 현재 <strong>Claude API 키</strong>를 권장합니다.</p>
-        <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3">
-          <div class="font-semibold text-emerald-900 mb-1">Claude를 권장하는 이유</div>
-          <div class="text-emerald-700 text-xs">한국어 한의원 블로그에 최적화된 결과물을 생성합니다. Gemini 연동은 추후 지원 예정입니다.</div>
+      <div class="space-y-2.5 text-xs text-stone-600 mb-5">
+        <div class="bg-stone-50 border border-stone-200 rounded-xl p-3 space-y-1">
+          <div class="font-semibold text-stone-700">Gemini로도 사용 가능합니다</div>
+          <div class="text-stone-500 leading-relaxed">
+            Cligent 블로그 생성기에서 프롬프트를 복사해 Gemini에 붙여넣기하면 글이 완성됩니다.
+          </div>
+        </div>
+        <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3 space-y-1.5">
+          <div class="font-semibold text-emerald-900">Claude로 전환하면</div>
+          <div class="text-emerald-700 leading-relaxed">
+            · <strong>무료 플랜</strong>: 5시간마다 리셋, 블로그 1~2편 (Sonnet)<br>
+            · <strong>API 키</strong>: 글 1편 ≈ ₩7~14, 한의원 블로그에 최적화<br>
+            · Gemini 직접 연동은 추후 지원 예정
+          </div>
         </div>
       </div>
-      <a href="https://console.anthropic.com" target="_blank" rel="noopener"
-        class="flex items-center justify-center gap-2 w-full py-3 bg-emerald-900 text-white rounded-xl font-semibold text-sm hover:bg-emerald-800 transition-colors mb-3">
-        <span class="material-symbols-outlined text-[18px]">open_in_new</span>
-        Anthropic Console에서 Claude 키 발급
-      </a>
-      <button onclick="goStep('step3')"
-        class="w-full py-3 bg-stone-100 text-stone-700 rounded-xl font-semibold text-sm hover:bg-stone-200 transition-colors">
-        Claude API 키 있어요 — 입력하기
-      </button>
+      <div class="space-y-2">
+        <button onclick="dismissWizard()"
+          class="w-full py-3 bg-stone-700 text-white rounded-xl font-semibold text-sm hover:bg-stone-800 transition-colors">
+          Gemini로 글 쓰기 (프롬프트 복사)
+        </button>
+        <a href="https://claude.ai" target="_blank" rel="noopener"
+          class="flex items-center justify-center gap-2 w-full py-3 bg-emerald-900 text-white rounded-xl font-semibold text-sm hover:bg-emerald-800 transition-colors">
+          <span class="material-symbols-outlined text-[16px]">open_in_new</span>
+          Claude AI로 글 쓰기 (Claude.ai 가입)
+        </a>
+        <a href="https://console.anthropic.com" target="_blank" rel="noopener"
+          class="flex items-center justify-center gap-2 w-full py-3 border border-emerald-700 text-emerald-900 rounded-xl font-semibold text-sm hover:bg-emerald-50 transition-colors">
+          <span class="material-symbols-outlined text-[16px]">open_in_new</span>
+          API 키 발급 (Anthropic Console)
+        </a>
+        <button onclick="goToStep3From('step2c')"
+          class="w-full py-3 bg-stone-100 text-stone-700 rounded-xl font-semibold text-sm hover:bg-stone-200 transition-colors">
+          API 키 입력하기
+        </button>
+      </div>
     </div>
 
     <!-- ─── Step 2D: ChatGPT 경험자 ──────────────────────── -->
@@ -275,24 +438,44 @@
       </button>
       <div class="mb-4">
         <div class="text-xs font-bold text-stone-400 uppercase tracking-wider mb-1">Step 2 / 3</div>
-        <h2 class="text-xl font-bold text-stone-900 mb-2">ChatGPT Plus와 API 키는 달라요</h2>
+        <h2 class="text-xl font-bold text-stone-900 mb-1">Cligent는 Claude에 최적화되어 있습니다</h2>
       </div>
-      <div class="space-y-3 text-sm text-stone-600 mb-5">
-        <p>ChatGPT Plus 구독은 chatgpt.com 전용입니다. <strong>API 키는 별도 계약</strong>이 필요합니다.</p>
-        <p>Cligent에서는 현재 <strong>Claude API 키</strong>를 권장합니다. ChatGPT 연동은 추후 지원 예정입니다.</p>
-        <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-700">
-          Claude API는 한국어 블로그에 최적화되어 있어 ChatGPT 대비 더 자연스러운 결과물을 제공합니다.
+      <div class="space-y-2.5 text-xs text-stone-600 mb-5">
+        <div class="bg-stone-50 border border-stone-200 rounded-xl p-3 space-y-1">
+          <div class="font-semibold text-stone-700">ChatGPT로도 사용 가능합니다</div>
+          <div class="text-stone-500 leading-relaxed">
+            Cligent 블로그 생성기에서 프롬프트를 복사해 ChatGPT에 붙여넣기하면 글이 완성됩니다.
+          </div>
+        </div>
+        <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3 space-y-1.5">
+          <div class="font-semibold text-emerald-900">Claude로 전환하면</div>
+          <div class="text-emerald-700 leading-relaxed">
+            · <strong>무료 플랜</strong>: 5시간마다 리셋, 블로그 1~2편 (Sonnet)<br>
+            · <strong>API 키</strong>: 글 1편 ≈ ₩7~14, 한의원 블로그에 최적화<br>
+            · ChatGPT 직접 연동은 추후 지원 예정
+          </div>
         </div>
       </div>
-      <a href="https://console.anthropic.com" target="_blank" rel="noopener"
-        class="flex items-center justify-center gap-2 w-full py-3 bg-emerald-900 text-white rounded-xl font-semibold text-sm hover:bg-emerald-800 transition-colors mb-3">
-        <span class="material-symbols-outlined text-[18px]">open_in_new</span>
-        Anthropic Console에서 Claude 키 발급
-      </a>
-      <button onclick="goStep('step3')"
-        class="w-full py-3 bg-stone-100 text-stone-700 rounded-xl font-semibold text-sm hover:bg-stone-200 transition-colors">
-        Claude API 키 있어요 — 입력하기
-      </button>
+      <div class="space-y-2">
+        <button onclick="dismissWizard()"
+          class="w-full py-3 bg-stone-700 text-white rounded-xl font-semibold text-sm hover:bg-stone-800 transition-colors">
+          ChatGPT로 글 쓰기 (프롬프트 복사)
+        </button>
+        <a href="https://claude.ai" target="_blank" rel="noopener"
+          class="flex items-center justify-center gap-2 w-full py-3 bg-emerald-900 text-white rounded-xl font-semibold text-sm hover:bg-emerald-800 transition-colors">
+          <span class="material-symbols-outlined text-[16px]">open_in_new</span>
+          Claude AI로 글 쓰기 (Claude.ai 가입)
+        </a>
+        <a href="https://console.anthropic.com" target="_blank" rel="noopener"
+          class="flex items-center justify-center gap-2 w-full py-3 border border-emerald-700 text-emerald-900 rounded-xl font-semibold text-sm hover:bg-emerald-50 transition-colors">
+          <span class="material-symbols-outlined text-[16px]">open_in_new</span>
+          API 키 발급 (Anthropic Console)
+        </a>
+        <button onclick="goToStep3From('step2d')"
+          class="w-full py-3 bg-stone-100 text-stone-700 rounded-xl font-semibold text-sm hover:bg-stone-200 transition-colors">
+          API 키 입력하기
+        </button>
+      </div>
     </div>
 
     <!-- ─── Step 3: API 키 입력 ───────────────────────────── -->
@@ -409,6 +592,11 @@
     document.querySelectorAll('.wz-step').forEach(el => { el.style.display = 'none'; });
     const el = document.getElementById('wz-' + stepId);
     if (el) el.style.display = 'block';
+  }
+
+  function goToStep3From(fromStep) {
+    document.getElementById('wz-step3-back').setAttribute('onclick', `goStep('${fromStep}')`);
+    goStep('step3');
   }
 
   // scenario: 'new' | 'claude_no_key' | 'gemini' | 'chatgpt'
