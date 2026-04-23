@@ -944,9 +944,46 @@ async def get_beta_usage(user: dict = Depends(get_current_user)):
     })
 
 
+_FEEDBACK_BATCH = 5  # 이 개수마다 리포트 갱신
+
+def _write_feedback_report() -> None:
+    """feedback.jsonl 전체를 읽어 data/feedback_report.md 생성 (개발자 전용)."""
+    import json as _json
+    log_path  = ROOT / "data" / "feedback.jsonl"
+    ack_path  = ROOT / "data" / "feedback_ack.txt"
+    rep_path  = ROOT / "data" / "feedback_report.md"
+    if not log_path.exists():
+        return
+    with open(log_path, encoding="utf-8") as f:
+        lines = [l.strip() for l in f if l.strip()]
+    total = len(lines)
+    acked = int(ack_path.read_text().strip()) if ack_path.exists() else 0
+    unread = lines[acked:]
+    if not unread:
+        return
+    items = []
+    for l in unread:
+        try:
+            items.append(_json.loads(l))
+        except Exception:
+            pass
+    page_labels = {"blog": "블로그", "dashboard": "대시보드", "help": "도움말"}
+    rows = "\n".join(
+        f"- [{page_labels.get(i.get('page',''), i.get('page','?'))}] {i.get('ts','')} — {i.get('message','')}"
+        for i in items
+    )
+    report = (
+        f"# 피드백 리포트 (미확인 {len(unread)}건 / 전체 {total}건)\n\n"
+        f"확인 후 `data/feedback_ack.txt`의 숫자를 {total}으로 변경하면 다음 리포트에서 제외됩니다.\n\n"
+        f"## 미확인 피드백\n\n{rows}\n"
+    )
+    rep_path.write_text(report, encoding="utf-8")
+
+
 @app.post("/api/feedback")
 async def submit_feedback(request: Request, user: dict = Depends(get_current_user)):
-    """피드백 / 오류 신고 저장"""
+    """피드백 / 오류 신고 저장 (개발자만 열람 — 사용자에게 미노출)"""
+    import json as _json
     body = await request.json()
     message = (body.get("message") or "").strip()
     page    = (body.get("page") or "unknown").strip()[:100]
@@ -954,6 +991,8 @@ async def submit_feedback(request: Request, user: dict = Depends(get_current_use
         return JSONResponse({"detail": "메시지를 입력해주세요."}, status_code=400)
     if len(message) > 2000:
         return JSONResponse({"detail": "2000자 이내로 입력해주세요."}, status_code=400)
+    from datetime import datetime as _dt
+    now_str = _dt.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     try:
         from db_manager import get_db
         with get_db() as conn:
@@ -964,6 +1003,25 @@ async def submit_feedback(request: Request, user: dict = Depends(get_current_use
             conn.commit()
     except Exception as e:
         return JSONResponse({"detail": f"저장 실패: {e}"}, status_code=500)
+    # jsonl 기록 + 5개마다 리포트 갱신
+    try:
+        log_path = ROOT / "data" / "feedback.jsonl"
+        entry = _json.dumps({
+            "ts": now_str, "page": page,
+            "clinic_id": user["clinic_id"],
+            "user": user.get("email", ""),
+            "message": message,
+        }, ensure_ascii=False)
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(entry + "\n")
+        with open(log_path, encoding="utf-8") as f:
+            total = sum(1 for l in f if l.strip())
+        ack_path = ROOT / "data" / "feedback_ack.txt"
+        acked = int(ack_path.read_text().strip()) if ack_path.exists() else 0
+        if (total - acked) >= _FEEDBACK_BATCH:
+            _write_feedback_report()
+    except Exception:
+        pass
     return JSONResponse({"ok": True})
 
 

@@ -239,7 +239,7 @@
       <button class="hover:bg-surface-container-highest p-2 rounded-full transition-all">
         <span class="material-symbols-outlined text-slate-600">notifications</span>
       </button>
-      <a href="/settings" class="hover:bg-surface-container-highest p-2 rounded-full transition-all inline-flex">
+      <a onclick="(window.parent!==window?window.parent.navigate('/settings'):window.location.href='/settings');return false;" href="/settings" class="hover:bg-surface-container-highest p-2 rounded-full transition-all inline-flex">
         <span class="material-symbols-outlined text-slate-600">settings</span>
       </a>
       <div class="flex items-center gap-2 ml-2">
@@ -544,6 +544,7 @@
         </div>
       </div>
     </section>
+
 
   </div>
 </main>

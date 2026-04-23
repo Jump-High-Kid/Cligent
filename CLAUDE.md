@@ -2,6 +2,11 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 세션 시작 시 자동 확인
+
+세션 시작 시 `data/feedback_report.md` 파일이 존재하면 내용을 읽어 요약 보고한다.
+파일이 없으면 무시한다. 확인 후 파일을 삭제하지 말 것 — 개발자가 수동으로 `data/feedback_ack.txt`를 갱신한다.
+
 ## 프로젝트 이름
 **Cligent** (GitHub: https://github.com/Jump-High-Kid/Cligent)
 

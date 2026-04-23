@@ -50,6 +50,15 @@
     color: #fff;
     border-radius: 12px 0 12px 12px;
   }
+
+  /* 모바일 반응형 */
+  @media (max-width: 767px) {
+    #sidebar { display: none !important; }
+    #main-content { margin-left: 0 !important; width: 100% !important; }
+    #help-panel-wrap { flex-direction: column !important; overflow: visible !important; }
+    #help-qa-panel { width: 100% !important; }
+    #help-chat-panel { width: 100% !important; position: static !important; max-height: 420px !important; }
+  }
 </style>
 </head>
 <body class="bg-stone-50 text-stone-800 flex min-h-screen">
@@ -155,10 +164,10 @@
   </div>
 
   <!-- 두 패널 레이아웃 -->
-  <div class="px-8 pb-8 pt-4 flex gap-6 flex-1 min-h-0 overflow-hidden">
+  <div id="help-panel-wrap" class="px-8 pb-8 pt-4 flex gap-6 flex-1 min-h-0 overflow-hidden">
 
     <!-- 왼쪽: Q&A 아코디언 (60%) -->
-    <div class="w-[60%] overflow-y-auto pr-1">
+    <div id="help-qa-panel" class="w-[60%] overflow-y-auto pr-1">
       <div id="qa-list" class="space-y-2"></div>
       <div id="no-results" class="hidden text-center py-16">
         <span class="material-symbols-outlined text-stone-300 text-5xl mb-3 block" style="font-variation-settings:'FILL' 0,'wght' 200,'GRAD' 0,'opsz' 48;">search_off</span>
@@ -172,7 +181,7 @@
     </div>
 
     <!-- 오른쪽: 오류/불편 접수 (40%) — sticky로 상단 고정 -->
-    <div class="w-[40%] flex flex-col bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden flex-shrink-0 sticky top-4 self-start" style="max-height: calc(100vh - 180px);">
+    <div id="help-chat-panel" class="w-[40%] flex flex-col bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden flex-shrink-0 sticky top-4 self-start" style="max-height: calc(100vh - 180px);">
       <!-- 채팅 헤더 -->
       <div class="px-5 py-4 border-b border-stone-100 flex items-center gap-3 flex-shrink-0">
         <div class="w-8 h-8 bg-emerald-900 rounded-lg flex items-center justify-center flex-shrink-0">
