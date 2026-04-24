@@ -149,6 +149,17 @@
   .tone-btn { border-color: #e7e5e4; color: #78716c; }
   .tone-btn:hover { border-color: #6ee7b7; color: #256959; }
   .tone-btn.selected { border-color: #00392e; background: #00392e; color: #fff; }
+
+  /* 모바일 반응형 */
+  @media (max-width: 767px) {
+    #sidebar { display: none !important; }
+    #main-content { margin-left: 0 !important; width: 100% !important; height: auto !important; overflow-y: auto !important; }
+    #settings-header { padding-left: 1rem !important; padding-right: 1rem !important; padding-top: 1rem !important; }
+    #settings-canvas { padding: 0.75rem !important; }
+    /* 팀&권한 좌우 패널 → 세로 스택 */
+    #team-panel-wrap { flex-direction: column !important; min-height: unset !important; }
+    .settings-half { width: 100% !important; border-right: none !important; border-bottom: 1px solid #e7e5e4 !important; }
+  }
 </style>
 </head>
 <body class="bg-background text-on-surface selection:bg-secondary-container overflow-hidden">
@@ -157,7 +168,7 @@
 <aside id="sidebar" class="h-screen flex flex-col fixed left-0 top-0 py-8 px-6 gap-y-4 bg-stone-100 z-50">
   <!-- 로고 + 토글 버튼 -->
   <div class="flex items-center justify-between mb-4 px-2 min-w-0">
-    <div class="sidebar-logo-text min-w-0 flex items-center gap-3">
+    <div class="sidebar-logo-text min-w-0 flex items-center gap-3 cursor-pointer" onclick="window.location.href='/app'">
       <div class="w-10 h-10 bg-emerald-900 rounded-xl flex items-center justify-center flex-shrink-0">
         <span class="material-symbols-outlined text-white" style="font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24;">medical_services</span>
       </div>
@@ -280,7 +291,7 @@
 <main id="main-content" class="h-screen flex flex-col">
 
   <!-- 상단 헤더 -->
-  <header class="sticky top-0 z-40 bg-stone-50/80 backdrop-blur-xl px-12 pt-10 pb-4">
+  <header id="settings-header" class="sticky top-0 z-40 bg-stone-50/80 backdrop-blur-xl px-12 pt-10 pb-4">
     <div class="flex justify-between items-end mb-6">
       <div>
         <h2 class="font-headline font-bold text-3xl tracking-tight text-emerald-900">설정</h2>
@@ -304,14 +315,14 @@
   </header>
 
   <!-- 캔버스 영역 -->
-  <section class="flex-1 p-12 overflow-y-auto">
+  <section id="settings-canvas" class="flex-1 p-12 overflow-y-auto">
 
     <!-- 탭: 팀 & 권한 관리 (기본 표시) -->
     <div id="tab-team" class="tab-content active">
-      <div class="neumorphic-card bg-surface-container-lowest rounded-[2rem] overflow-hidden flex min-h-[600px]">
+      <div id="team-panel-wrap" class="neumorphic-card bg-surface-container-lowest rounded-[2rem] overflow-hidden flex min-h-[600px]">
 
         <!-- 좌측: 직원 목록 -->
-        <div class="w-1/2 flex flex-col bg-white">
+        <div class="settings-half w-1/2 flex flex-col bg-white">
           <div class="p-8 pb-4">
             <div class="flex justify-between items-center mb-6">
               <h3 class="text-xl font-bold text-emerald-900">우리 팀</h3>
@@ -328,7 +339,7 @@
         </div>
 
         <!-- 우측: 모듈 권한 설정 -->
-        <div class="w-1/2 flex flex-col bg-primary-container text-white">
+        <div class="settings-half w-1/2 flex flex-col bg-primary-container text-white">
           <div class="p-10">
             <div class="mb-8">
               <h3 class="text-xl font-bold mb-6">직원 정보</h3>

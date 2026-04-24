@@ -81,6 +81,17 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_usage_logs_clinic_month
                 ON usage_logs (clinic_id, feature, used_at);
 
+            -- 피드백 / 오류 신고
+            CREATE TABLE IF NOT EXISTS feedback (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                clinic_id   INTEGER REFERENCES clinics(id),
+                user_id     INTEGER REFERENCES users(id),
+                page        TEXT    NOT NULL DEFAULT 'unknown',
+                message     TEXT    NOT NULL,
+                created_at  TEXT    NOT NULL DEFAULT (datetime('now', 'utc'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_feedback_clinic ON feedback(clinic_id, created_at);
+
             -- 구독 이력 (Phase 1: 빈 테이블, Phase 3에서 데이터 삽입)
             -- CS 디버깅: 언제 어떤 결제로 플랜이 바뀌었는지 추적
             CREATE TABLE IF NOT EXISTS subscriptions (

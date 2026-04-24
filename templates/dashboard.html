@@ -105,7 +105,7 @@
 <aside id="sidebar" class="h-screen flex flex-col fixed left-0 top-0 py-8 px-6 gap-y-4 bg-stone-100 z-50">
   <!-- 로고 + 토글 버튼 -->
   <div class="flex items-center justify-between mb-4 px-2 min-w-0">
-    <div class="sidebar-logo-text min-w-0 flex items-center gap-3">
+    <div class="sidebar-logo-text min-w-0 flex items-center gap-3 cursor-pointer" onclick="window.location.href='/app'">
       <div class="w-10 h-10 bg-emerald-900 rounded-xl flex items-center justify-center flex-shrink-0">
         <span class="material-symbols-outlined text-white" style="font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24;">medical_services</span>
       </div>
@@ -231,14 +231,15 @@
     <div class="flex-1 max-w-xl">
       <div class="relative">
         <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
-        <input class="w-full bg-surface-container-lowest border-none rounded-full py-2 pl-10 text-[1rem] focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-slate-400" placeholder="지금 필요한 것은 무엇인가요?" type="text"/>
+        <input id="dashFeedbackInput" class="w-full bg-surface-container-lowest border-none rounded-full py-2 pl-10 pr-20 text-[1rem] focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-slate-400" placeholder="오류나 불편한 사항을 입력해주세요" type="text" maxlength="500" onkeydown="if(event.key==='Enter') submitDashFeedback()"/>
+        <button onclick="submitDashFeedback()" class="absolute right-3 top-1/2 -translate-y-1/2 bg-emerald-900 text-white text-xs font-semibold px-3 py-1.5 rounded-full hover:opacity-90 transition-all">전송</button>
       </div>
     </div>
     <div class="flex items-center gap-4">
       <button class="hover:bg-surface-container-highest p-2 rounded-full transition-all">
         <span class="material-symbols-outlined text-slate-600">notifications</span>
       </button>
-      <a href="/settings" class="hover:bg-surface-container-highest p-2 rounded-full transition-all inline-flex">
+      <a onclick="(window.parent!==window?window.parent.navigate('/settings'):window.location.href='/settings');return false;" href="/settings" class="hover:bg-surface-container-highest p-2 rounded-full transition-all inline-flex">
         <span class="material-symbols-outlined text-slate-600">settings</span>
       </a>
       <div class="flex items-center gap-2 ml-2">
@@ -544,6 +545,7 @@
       </div>
     </section>
 
+
   </div>
 </main>
 
@@ -694,6 +696,25 @@
       mc.style.width = '100%';
     }
   })();
+
+  async function submitDashFeedback() {
+    const input = document.getElementById('dashFeedbackInput')
+    const msg = (input.value || '').trim()
+    if (!msg) return
+    input.disabled = true
+    try {
+      const res = await fetch('/api/feedback', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: msg, page: 'dashboard' }),
+      })
+      if (res.ok) {
+        input.value = ''
+        input.placeholder = '접수되었습니다. 감사합니다!'
+        setTimeout(() => { input.placeholder = '오류나 불편한 사항을 입력해주세요' }, 3000)
+      }
+    } catch (_) {}
+    finally { input.disabled = false }
+  }
 
   async function doLogout() {
     await fetch('/api/auth/logout', { method: 'POST' })

@@ -120,7 +120,11 @@ from module_manager import (
 from settings_manager import get_setup_wizard_data, save_wizard_result
 from agent_router import AgentRouter
 from agent_middleware import AgentMiddleware
-from plan_guard import check_blog_limit, get_effective_plan, resolve_effective_plan
+from plan_guard import (
+    check_blog_limit, get_effective_plan, resolve_effective_plan,
+    check_prompt_copy_limit, _count_total_blogs, _count_total_prompt_copies,
+    _FREE_BLOG_LIMIT, _PROMPT_COPY_LIMIT,
+)
 from plan_notify import check_and_notify
 from usage_tracker import log_usage
 
@@ -923,6 +927,123 @@ async def get_plan_usage(user: dict = Depends(get_current_user)):
     })
 
 
+@app.get("/api/blog/beta-usage")
+async def get_beta_usage(user: dict = Depends(get_current_user)):
+    """베타 기간 사용량 조회 — 블로그 생성 / 프롬프트 복사 / API 키 여부"""
+    clinic_id = user["clinic_id"]
+    blog_count = max(0, _count_total_blogs(clinic_id))
+    copy_count = max(0, _count_total_prompt_copies(clinic_id))
+
+    api_key_configured = False
+    try:
+        from db_manager import get_db
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT api_key_configured FROM clinics WHERE id = ?", (clinic_id,)
+            ).fetchone()
+        api_key_configured = bool(row["api_key_configured"]) if row else False
+    except Exception:
+        pass
+
+    return JSONResponse({
+        "blog_count": blog_count,
+        "blog_limit": _FREE_BLOG_LIMIT,
+        "copy_count": copy_count,
+        "copy_limit": _PROMPT_COPY_LIMIT,
+        "api_key_configured": api_key_configured,
+    })
+
+
+_FEEDBACK_BATCH = 5  # 이 개수마다 리포트 갱신
+
+def _write_feedback_report() -> None:
+    """feedback.jsonl 전체를 읽어 data/feedback_report.md 생성 (개발자 전용)."""
+    import json as _json
+    log_path  = ROOT / "data" / "feedback.jsonl"
+    ack_path  = ROOT / "data" / "feedback_ack.txt"
+    rep_path  = ROOT / "data" / "feedback_report.md"
+    if not log_path.exists():
+        return
+    with open(log_path, encoding="utf-8") as f:
+        lines = [l.strip() for l in f if l.strip()]
+    total = len(lines)
+    acked = int(ack_path.read_text().strip()) if ack_path.exists() else 0
+    unread = lines[acked:]
+    if not unread:
+        return
+    items = []
+    for l in unread:
+        try:
+            items.append(_json.loads(l))
+        except Exception:
+            pass
+    page_labels = {"blog": "블로그", "dashboard": "대시보드", "help": "도움말"}
+    rows = "\n".join(
+        f"- [{page_labels.get(i.get('page',''), i.get('page','?'))}] {i.get('ts','')} — {i.get('message','')}"
+        for i in items
+    )
+    report = (
+        f"# 피드백 리포트 (미확인 {len(unread)}건 / 전체 {total}건)\n\n"
+        f"확인 후 `data/feedback_ack.txt`의 숫자를 {total}으로 변경하면 다음 리포트에서 제외됩니다.\n\n"
+        f"## 미확인 피드백\n\n{rows}\n"
+    )
+    rep_path.write_text(report, encoding="utf-8")
+
+
+@app.post("/api/feedback")
+async def submit_feedback(request: Request, user: dict = Depends(get_current_user)):
+    """피드백 / 오류 신고 저장 (개발자만 열람 — 사용자에게 미노출)"""
+    import json as _json
+    body = await request.json()
+    message = (body.get("message") or "").strip()
+    page    = (body.get("page") or "unknown").strip()[:100]
+    if not message:
+        return JSONResponse({"detail": "메시지를 입력해주세요."}, status_code=400)
+    if len(message) > 2000:
+        return JSONResponse({"detail": "2000자 이내로 입력해주세요."}, status_code=400)
+    from datetime import datetime as _dt
+    now_str = _dt.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    try:
+        from db_manager import get_db
+        with get_db() as conn:
+            conn.execute(
+                "INSERT INTO feedback (clinic_id, user_id, page, message) VALUES (?,?,?,?)",
+                (user["clinic_id"], user["id"], page, message),
+            )
+            conn.commit()
+    except Exception as e:
+        return JSONResponse({"detail": f"저장 실패: {e}"}, status_code=500)
+    # jsonl 기록 + 5개마다 리포트 갱신
+    try:
+        log_path = ROOT / "data" / "feedback.jsonl"
+        entry = _json.dumps({
+            "ts": now_str, "page": page,
+            "clinic_id": user["clinic_id"],
+            "user": user.get("email", ""),
+            "message": message,
+        }, ensure_ascii=False)
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(entry + "\n")
+        with open(log_path, encoding="utf-8") as f:
+            total = sum(1 for l in f if l.strip())
+        ack_path = ROOT / "data" / "feedback_ack.txt"
+        acked = int(ack_path.read_text().strip()) if ack_path.exists() else 0
+        if (total - acked) >= _FEEDBACK_BATCH:
+            _write_feedback_report()
+    except Exception:
+        pass
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/blog/track-prompt-copy")
+async def track_prompt_copy(user: dict = Depends(get_current_user)):
+    """프롬프트 복사 횟수 기록 — 한도 초과 시 429 반환"""
+    clinic_id = user["clinic_id"]
+    check_prompt_copy_limit(clinic_id)
+    log_usage(clinic_id, "prompt_copy", {})
+    return JSONResponse({"ok": True})
+
+
 @app.post("/api/admin/clinic")
 async def admin_create_clinic(request: Request):
     """
@@ -1164,6 +1285,7 @@ async def generate(request: Request, user: dict = Depends(get_current_user)):
         seo_keywords = normalized
     clinic_info       = body.get("clinic_info", "").strip()       # 블로그 생성기 추가 입력
     explanation_types = body.get("explanation_types", [])          # 선택된 설명 방식 목록
+    char_count        = body.get("char_count", None)               # {"min": N, "max": M} or None
 
     if not keyword:
         async def _err():
@@ -1211,6 +1333,7 @@ async def generate(request: Request, user: dict = Depends(get_current_user)):
                 keyword, answers, api_key, materials, mode, reader_level,
                 seo_keywords=seo_keywords, clinic_info=clinic_info,
                 explanation_types=explanation_types,
+                char_count=char_count,
             ),
             keyword, tone, seo_keywords,
             clinic_id=user["clinic_id"],

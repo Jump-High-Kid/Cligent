@@ -50,6 +50,15 @@
     color: #fff;
     border-radius: 12px 0 12px 12px;
   }
+
+  /* 모바일 반응형 */
+  @media (max-width: 767px) {
+    #sidebar { display: none !important; }
+    #main-content { margin-left: 0 !important; width: 100% !important; }
+    #help-panel-wrap { flex-direction: column !important; overflow: visible !important; }
+    #help-qa-panel { width: 100% !important; }
+    #help-chat-panel { width: 100% !important; position: static !important; max-height: 420px !important; }
+  }
 </style>
 </head>
 <body class="bg-stone-50 text-stone-800 flex min-h-screen">
@@ -57,7 +66,7 @@
 <!-- ── 사이드 네비게이션 ── -->
 <aside id="sidebar" class="h-screen flex flex-col fixed left-0 top-0 py-8 px-6 gap-y-4 bg-stone-100 z-50">
   <div class="flex items-center justify-between mb-4 px-2 min-w-0">
-    <div class="sidebar-logo-text min-w-0 flex items-center gap-3">
+    <div class="sidebar-logo-text min-w-0 flex items-center gap-3 cursor-pointer" onclick="window.location.href='/app'">
       <div class="w-10 h-10 bg-emerald-900 rounded-xl flex items-center justify-center flex-shrink-0">
         <span class="material-symbols-outlined text-white" style="font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24;">medical_services</span>
       </div>
@@ -155,10 +164,10 @@
   </div>
 
   <!-- 두 패널 레이아웃 -->
-  <div class="px-8 pb-8 pt-4 flex gap-6 flex-1 min-h-0 overflow-hidden">
+  <div id="help-panel-wrap" class="px-8 pb-8 pt-4 flex gap-6 flex-1 min-h-0 overflow-hidden">
 
     <!-- 왼쪽: Q&A 아코디언 (60%) -->
-    <div class="w-[60%] overflow-y-auto pr-1">
+    <div id="help-qa-panel" class="w-[60%] overflow-y-auto pr-1">
       <div id="qa-list" class="space-y-2"></div>
       <div id="no-results" class="hidden text-center py-16">
         <span class="material-symbols-outlined text-stone-300 text-5xl mb-3 block" style="font-variation-settings:'FILL' 0,'wght' 200,'GRAD' 0,'opsz' 48;">search_off</span>
@@ -171,16 +180,16 @@
       </div>
     </div>
 
-    <!-- 오른쪽: AI 도우미 (40%) -->
-    <div class="w-[40%] flex flex-col bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden flex-shrink-0">
+    <!-- 오른쪽: 오류/불편 접수 (40%) — sticky로 상단 고정 -->
+    <div id="help-chat-panel" class="w-[40%] flex flex-col bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden flex-shrink-0 sticky top-4 self-start" style="max-height: calc(100vh - 180px);">
       <!-- 채팅 헤더 -->
       <div class="px-5 py-4 border-b border-stone-100 flex items-center gap-3 flex-shrink-0">
         <div class="w-8 h-8 bg-emerald-900 rounded-lg flex items-center justify-center flex-shrink-0">
           <span class="material-symbols-outlined text-white text-[16px]" style="font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24;">smart_toy</span>
         </div>
         <div class="min-w-0 flex-1">
-          <p class="text-sm font-semibold text-stone-800">AI 도우미</p>
-          <p class="text-[11px] text-stone-400">Cligent 사용법 전용</p>
+          <p class="text-sm font-semibold text-stone-800">오류 / 불편 접수</p>
+          <p class="text-[11px] text-stone-400">개선에 활용됩니다</p>
         </div>
         <span class="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0"></span>
       </div>
@@ -189,27 +198,27 @@
       <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
         <div class="flex items-start gap-2">
           <div class="w-7 h-7 bg-emerald-900 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-            <span class="material-symbols-outlined text-white text-[13px]" style="font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24;">smart_toy</span>
+            <span class="material-symbols-outlined text-white text-[13px]" style="font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24;">edit_note</span>
           </div>
           <div class="bubble-ai px-4 py-3 text-sm text-stone-700 leading-relaxed max-w-[85%]">
-            안녕하세요. Cligent 사용법에 관해 무엇이든 질문해주세요.
-            <br/><span class="text-stone-400 text-xs mt-1 block">블로그 생성, AI 설정, 권한 관리 등 도움드릴 수 있습니다.</span>
+            오류나 불편한 점을 입력해주세요.
+            <br/><span class="text-stone-400 text-xs mt-1 block">버그, 느린 동작, 불편한 UI 등 무엇이든 남겨주시면 개선에 반영합니다.</span>
           </div>
         </div>
       </div>
 
-      <!-- 빠른 질문 칩 -->
+      <!-- 빠른 선택 칩 -->
       <div id="quick-chips" class="px-4 pb-2 flex flex-wrap gap-1.5">
-        <button onclick="sendQuick('API 키 입력 방법')" class="quick-chip px-3 py-1 bg-stone-100 text-stone-600 rounded-full text-xs font-medium hover:bg-stone-200 transition-all">API 키 입력</button>
-        <button onclick="sendQuick('팀원 초대하는 방법')" class="quick-chip px-3 py-1 bg-stone-100 text-stone-600 rounded-full text-xs font-medium hover:bg-stone-200 transition-all">팀원 초대</button>
-        <button onclick="sendQuick('블로그 생성이 안 될 때')" class="quick-chip px-3 py-1 bg-stone-100 text-stone-600 rounded-full text-xs font-medium hover:bg-stone-200 transition-all">블로그 오류</button>
+        <button onclick="sendQuick('블로그 생성 오류')" class="quick-chip px-3 py-1 bg-stone-100 text-stone-600 rounded-full text-xs font-medium hover:bg-stone-200 transition-all">블로그 생성 오류</button>
+        <button onclick="sendQuick('화면이 느려요')" class="quick-chip px-3 py-1 bg-stone-100 text-stone-600 rounded-full text-xs font-medium hover:bg-stone-200 transition-all">속도 문제</button>
+        <button onclick="sendQuick('UI가 불편해요')" class="quick-chip px-3 py-1 bg-stone-100 text-stone-600 rounded-full text-xs font-medium hover:bg-stone-200 transition-all">UI 불편</button>
       </div>
 
       <!-- 입력 영역 -->
       <div class="px-4 pt-2 pb-4 border-t border-stone-100 flex-shrink-0">
         <div class="flex gap-2">
-          <input id="chat-input" type="text"
-            placeholder="질문을 입력하세요..."
+          <input id="chat-input" type="text" maxlength="500"
+            placeholder="오류나 불편한 점을 입력해주세요"
             class="flex-1 px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-900/20 focus:border-emerald-700/40 transition-all"
             onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat();}"/>
           <button id="send-btn" onclick="sendChat()"
@@ -217,7 +226,7 @@
             <span class="material-symbols-outlined text-[18px]" style="font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24;">send</span>
           </button>
         </div>
-        <p class="text-[11px] text-stone-400 mt-2">Cligent 사용에 관한 질문만 답변드릴 수 있어요</p>
+        <p id="feedback-status" class="text-[11px] text-stone-400 mt-2">전송하면 개발팀에 바로 접수됩니다</p>
       </div>
     </div>
 
@@ -395,13 +404,12 @@ document.getElementById('category-tabs').addEventListener('click', e => {
   applyFilter()
 })
 
-// ── AI 채팅 ────────────────────────────────────────────────────
-let _chatLoading = false
+// ── 피드백 수집 ────────────────────────────────────────────────
+let _sending = false
 
 function addMessage(text, isUser) {
   const container = document.getElementById('chat-messages')
   const div = document.createElement('div')
-
   if (isUser) {
     div.className = 'flex justify-end'
     div.innerHTML = `<div class="bubble-user px-4 py-3 text-sm leading-relaxed max-w-[85%]">${escapeHtml(text)}</div>`
@@ -409,43 +417,17 @@ function addMessage(text, isUser) {
     div.className = 'flex items-start gap-2'
     div.innerHTML = `
       <div class="w-7 h-7 bg-emerald-900 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-        <span class="material-symbols-outlined text-white text-[13px]" style="font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24;">smart_toy</span>
+        <span class="material-symbols-outlined text-white text-[13px]" style="font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24;">edit_note</span>
       </div>
-      <div class="bubble-ai px-4 py-3 text-sm text-stone-700 leading-relaxed max-w-[85%]">${text.replace(/\n/g, '<br/>')}</div>
+      <div class="bubble-ai px-4 py-3 text-sm text-stone-700 leading-relaxed max-w-[85%]">${escapeHtml(text)}</div>
     `
   }
   container.appendChild(div)
   container.scrollTop = container.scrollHeight
-  return div
-}
-
-function addLoadingBubble() {
-  const container = document.getElementById('chat-messages')
-  const div = document.createElement('div')
-  div.id = 'loading-bubble'
-  div.className = 'flex items-start gap-2'
-  div.innerHTML = `
-    <div class="w-7 h-7 bg-emerald-900 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-      <span class="material-symbols-outlined text-white text-[13px]" style="font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24;">smart_toy</span>
-    </div>
-    <div class="bubble-ai px-4 py-3 text-sm text-stone-400 leading-relaxed">
-      <span class="animate-pulse">답변을 작성 중입니다...</span>
-    </div>
-  `
-  container.appendChild(div)
-  container.scrollTop = container.scrollHeight
-}
-
-function setChatLoading(on) {
-  _chatLoading = on
-  document.getElementById('send-btn').disabled = on
-  document.getElementById('chat-input').disabled = on
-  document.getElementById('send-btn').style.opacity = on ? '0.5' : ''
-  document.querySelectorAll('.quick-chip').forEach(c => { c.disabled = on })
 }
 
 async function sendChat() {
-  if (_chatLoading) return
+  if (_sending) return
   const input = document.getElementById('chat-input')
   const msg = input.value.trim()
   if (!msg) return
@@ -453,36 +435,35 @@ async function sendChat() {
   input.value = ''
   document.getElementById('quick-chips').style.display = 'none'
   addMessage(msg, true)
-  setChatLoading(true)
-  addLoadingBubble()
+
+  _sending = true
+  document.getElementById('send-btn').disabled = true
+  document.getElementById('send-btn').style.opacity = '0.5'
+  const statusEl = document.getElementById('feedback-status')
 
   try {
-    const res = await fetch('/api/agent/chat', {
+    const res = await fetch('/api/feedback', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: msg, requested_agent: 'help-agent' }),
+      body: JSON.stringify({ message: msg, page: 'help' }),
     })
-    const data = await res.json()
-    document.getElementById('loading-bubble')?.remove()
-
-    if (!res.ok) {
-      addMessage('오류가 발생했습니다. 잠시 후 다시 시도해주세요.', false)
+    if (res.ok) {
+      addMessage('접수되었습니다. 소중한 의견 감사합니다!', false)
+      statusEl.textContent = '접수 완료'
+      statusEl.className = 'text-[11px] text-emerald-600 mt-2'
+      setTimeout(() => {
+        statusEl.textContent = '전송하면 개발팀에 바로 접수됩니다'
+        statusEl.className = 'text-[11px] text-stone-400 mt-2'
+      }, 3000)
     } else {
-      addMessage(data.reply || '죄송합니다, 답변을 생성하지 못했습니다.', false)
-      if (data.warning) {
-        const container = document.getElementById('chat-messages')
-        const warnDiv = document.createElement('div')
-        warnDiv.className = 'pl-9'
-        warnDiv.innerHTML = `<p class="text-[11px] text-amber-600 mt-1">⚠️ ${escapeHtml(data.warning)}</p>`
-        container.appendChild(warnDiv)
-        container.scrollTop = container.scrollHeight
-      }
+      addMessage('전송에 실패했습니다. 다시 시도해주세요.', false)
     }
   } catch {
-    document.getElementById('loading-bubble')?.remove()
-    addMessage('네트워크 오류가 발생했습니다. 연결 상태를 확인해주세요.', false)
+    addMessage('네트워크 오류가 발생했습니다.', false)
   } finally {
-    setChatLoading(false)
+    _sending = false
+    document.getElementById('send-btn').disabled = false
+    document.getElementById('send-btn').style.opacity = ''
   }
 }
 
