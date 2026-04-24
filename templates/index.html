@@ -280,7 +280,7 @@
     .clipboard-modal-icon { font-size: 2.5rem; margin-bottom: 12px; }
     .clipboard-modal-title { font-family: 'Pretendard', sans-serif; font-size: 1.05rem; font-weight: 700; color: #1c1917; margin-bottom: 10px; line-height: 1.5; }
     .clipboard-modal-sub { font-size: 0.82rem; color: #78716c; margin-bottom: 6px; }
-    .clipboard-modal-badge { display: inline-block; background: #f0fdf4; color: #064e3b; border: 1px solid #bbf7d0; border-radius: 20px; padding: 5px 14px; font-size: 0.78rem; font-weight: 600; margin-bottom: 22px; }
+    .clipboard-modal-badge { display: inline-block; background: #f0fdf4; color: #064e3b; border: 1px solid #bbf7d0; border-radius: 20px; padding: 5px 14px; font-size: 0.78rem; font-weight: 600; margin-bottom: 22px; white-space: nowrap; }
     .clipboard-modal-actions { display: flex; gap: 10px; justify-content: center; }
     .clipboard-modal-actions .btn-go { background: #064e3b; color: #fff; border: none; border-radius: 10px; padding: 10px 24px; font-size: 0.9rem; font-weight: 600; cursor: pointer; font-family: 'Pretendard', sans-serif; }
     .clipboard-modal-actions .btn-go:hover { background: #065f46; }
@@ -677,7 +677,6 @@
         <span class="seo-kw-label">SEO 키워드 (선택) — 본문에 6~8회 자연스럽게 삽입됩니다</span>
         <div class="seo-kw-input-row">
           <input type="text" id="seoKwInput" placeholder="쉼표(,)로 키워드 구분 · 공백은 키워드의 일부 (예: 동래구 허리디스크, 침 치료)" onkeydown="if(event.key==='Enter'){event.preventDefault();addSeoKeyword();}">
-          <button class="btn btn-secondary" onclick="addSeoKeyword()" style="white-space:nowrap;">+ 추가</button>
         </div>
         <div class="seo-tag-list" id="seoTagList"></div>
       </div>
@@ -1140,7 +1139,7 @@
         </div>`;
 
       document.getElementById('chatArea').appendChild(row);
-      scrollToBottom();
+      setTimeout(() => row.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
     }
 
     // 칩 토글
@@ -1318,6 +1317,7 @@
       const AI_NAMES = { claude: 'Claude.ai', chatgpt: 'ChatGPT', gemini: 'Gemini' };
       const chips = document.querySelectorAll('.btn-ai-chip');
       chips.forEach(b => { b.disabled = true; });
+      addSeoKeyword();
       try {
         const matText = (document.getElementById('mat-text')?.value || '').trim();
         const mats = { ...collectedMaterials, text: matText };
@@ -1348,6 +1348,7 @@
       const origText = btn.innerHTML;
       btn.disabled = true;
       btn.innerHTML = '조립 중...';
+      addSeoKeyword();
 
       // 현재 자료 수집 (텍스트만 — 버튼 클릭 시점 기준)
       const matText = (document.getElementById('mat-text')?.value || '').trim();
@@ -1565,6 +1566,7 @@
       label.innerHTML = '생성 중<span class="dots"></span>';
       // #4 생성 중 이탈 경고 활성화
       isGenerating = true;
+      addSeoKeyword();
 
       try {
         const res = await fetch('/generate', {
@@ -2159,22 +2161,28 @@
       }
     })();
     // ── 의료법 안내 모달 (2단계 첫 진입 시 세션당 1회) ───────────
-    function showPrivacyModalIfNeeded() {
-      if (sessionStorage.getItem('privacyModalShown')) return;
-      document.getElementById('privacyModal').classList.remove('hidden');
+    function showPrivacyModalIfNeeded(callback) {
+      if (sessionStorage.getItem('privacyModalShown')) {
+        if (callback) callback();
+        return;
+      }
+      const el = document.getElementById('privacyModalLegal');
+      el.style.display = 'flex';
+      window._privacyCallback = callback || null;
     }
 
     function closePrivacyModal() {
       sessionStorage.setItem('privacyModalShown', '1');
-      document.getElementById('privacyModal').classList.add('hidden');
+      document.getElementById('privacyModalLegal').style.display = 'none';
+      if (window._privacyCallback) { window._privacyCallback(); window._privacyCallback = null; }
     }
   </script>
 
   <!-- 의료법 안내 모달 -->
-  <div id="privacyModal" class="hidden" style="
-    position:fixed;inset:0;z-index:9999;
+  <div id="privacyModalLegal" style="
+    display:none;position:fixed;inset:0;z-index:9999;
     background:rgba(0,0,0,0.45);
-    display:flex;align-items:center;justify-content:center;
+    align-items:center;justify-content:center;
     padding:16px;
   ">
     <div style="
@@ -2185,12 +2193,12 @@
     ">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
         <span style="font-size:1.4rem;">⚖️</span>
-        <h3 style="margin:0;font-size:1.05rem;font-weight:700;color:#1c1917;">의료법 및 개인정보 안내</h3>
+        <h3 style="margin:0;font-size:1.05rem;font-weight:700;color:#1c1917;white-space:nowrap;">의료법 및 개인정보 안내</h3>
       </div>
       <ul style="margin:0 0 12px;padding-left:18px;color:#44403c;font-size:0.88rem;line-height:1.7;display:flex;flex-direction:column;gap:6px;list-style:none;padding:0;">
-        <li style="display:flex;gap:8px;align-items:flex-start;"><span style="color:#059669;flex-shrink:0;">✓</span>환자 이름, 연락처, 주민번호 등 <strong>개인정보를 입력하지 마세요</strong> (의료법 제19조).</li>
-        <li style="display:flex;gap:8px;align-items:flex-start;"><span style="color:#059669;flex-shrink:0;">✓</span>생성된 콘텐츠에 치료 효과를 <strong>단정적으로 표현하지 마세요</strong> (의료법 제56조).</li>
-        <li style="display:flex;gap:8px;align-items:flex-start;"><span style="color:#059669;flex-shrink:0;">✓</span>질문에 대해 <strong>복수의 답변을 선택할 수 있습니다.</strong></li>
+        <li style="display:flex;gap:8px;align-items:flex-start;"><span style="color:#059669;flex-shrink:0;">✓</span><span>환자 이름, 연락처, 주민번호 등 <strong>개인정보를 입력하지 마세요</strong> (의료법 제19조).</span></li>
+        <li style="display:flex;gap:8px;align-items:flex-start;"><span style="color:#059669;flex-shrink:0;">✓</span><span>생성된 콘텐츠에 치료 효과를 <strong>단정적으로 표현하지 마세요</strong> (의료법 제56조).</span></li>
+        <li style="display:flex;gap:8px;align-items:flex-start;"><span style="color:#059669;flex-shrink:0;">✓</span><span>질문에 대해 <strong>복수의 답변을 선택할 수 있습니다.</strong></span></li>
       </ul>
       <p style="margin:0 0 20px;font-size:0.82rem;color:#78716c;line-height:1.5;">입력하신 내용은 블로그 생성 후 30일이 지나면 자동 삭제됩니다.</p>
       <button onclick="closePrivacyModal()" style="

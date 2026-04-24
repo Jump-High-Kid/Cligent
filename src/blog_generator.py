@@ -62,7 +62,7 @@ def _fix_keyword_counts(text: str, seo_keywords: List[str], target_min: int = 6)
     """스트리밍 완료 후 키워드 횟수가 부족하면 코드로 직접 보강합니다."""
     # 관련 글 / 태그 섹션 이후는 수정 대상에서 제외
     tail = ""
-    for marker in ["---\n**관련 글", "\n**관련 글", "\n관련 글", "\n태그:"]:
+    for marker in ["---\n**관련 글", "\n**관련 글", "\n관련 글", "\n태그:", "\n## 관련 시리즈 주제 제안", "\n---\n## 관련 시리즈"]:
         idx = text.find(marker)
         if idx != -1:
             tail = text[idx:]
@@ -112,7 +112,15 @@ def _fix_keyword_counts(text: str, seo_keywords: List[str], target_min: int = 6)
             chunks.append(text[pos:])
             text = "".join(chunks)
 
-        # 여전히 부족하면 소제목(##) 바로 뒤 줄에 삽입
+        # 여전히 부족하면 소제목(##) 바로 뒤 줄에 삽입 — 키워드가 문장 안에 자연스럽게 녹아드는 패턴
+        _inject_templates = [
+            "{kw}로 고생하시는 분들은 어떻게 치료하면 좋을지 고민이 있으실 겁니다.",
+            "{kw}는 올바른 치료 시기를 놓치지 않는 것이 중요합니다.",
+            "{kw}로 인한 증상, 원인부터 정확히 파악하는 것이 첫걸음입니다.",
+            "{kw} 치료, 한의학적으로 어떻게 접근할 수 있을까요?",
+            "{kw}로 고민 중이시라면 아래 내용이 도움이 될 수 있습니다.",
+            "{kw}의 증상과 치료 방법을 함께 살펴보겠습니다.",
+        ]
         still_needed = target_min - text.count(kw)
         if still_needed > 0:
             lines = text.split("\n")
@@ -120,8 +128,10 @@ def _fix_keyword_counts(text: str, seo_keywords: List[str], target_min: int = 6)
             added = 0
             for line in lines:
                 new_lines.append(line)
-                if added < still_needed and line.startswith("## ") and kw not in line:
-                    new_lines.append(f"{kw}에 대해 더 자세히 살펴보겠습니다.")
+                if added < still_needed and line.startswith("## ") and kw not in line \
+                        and not any(w in line for w in ("참고", "미주", "출처", "References")):
+                    tmpl = _inject_templates[added % len(_inject_templates)]
+                    new_lines.append(tmpl.format(kw=kw))
                     added += 1
             text = "\n".join(new_lines)
 
@@ -161,7 +171,13 @@ def _build_seo_keywords_section(seo_keywords: List[str]) -> str:
     for kw in seo_keywords:
         kw_blocks.append(
             f"  - 키워드: '{kw}'\n"
-            f"    반드시 이 문자열 그대로 6~8회. 예시: '{kw}로 고민하시는 분' / '{kw} 치료 방법' / '{kw} 증상과 원인'"
+            f"    본문에 6~8회 자연스럽게 분산 삽입. 키워드가 문장 안에 녹아들어야 하며, 매번 다른 문맥과 구조 사용.\n"
+            f"    같은 문장 패턴 반복 금지.\n"
+            f"    예시:\n"
+            f"    · '{kw}로 고생하시는 분들은 어떻게 치료하면 좋을지 고민이 있으실 겁니다.'\n"
+            f"    · '{kw}는 추나 치료로 교정을 받으면 한결 나아지실 수 있습니다.'\n"
+            f"    · '{kw}로 인한 통증은 그 원인부터 파악하는 것이 중요합니다.'\n"
+            f"    · '{kw} 치료, 한의학에서는 어떻게 접근할까요?'"
         )
     kw_lines = "\n".join(kw_blocks)
     return (
@@ -478,12 +494,10 @@ def generate_blog_stream(
                 collected_text.append(text_chunk)
                 yield f"data: {json.dumps({'text': text_chunk}, ensure_ascii=False)}\n\n"
 
-            # 1단계: 키워드 보강 (get_final_message보다 먼저 — 항상 실행 보장)
+            # 1단계: 키워드 보강 — 사용자가 입력한 SEO 키워드 태그만 대상
+            # keyword(블로그 주제)는 제외 — 주제는 AI가 자연스럽게 반영함
             original_text = "".join(collected_text)
-            # 주제 키워드도 포함 (SEO 키워드 미입력 시에도 동작)
             effective_keywords = list(seo_keywords or [])
-            if keyword and keyword not in effective_keywords:
-                effective_keywords.insert(0, keyword)
             fixed_text = _fix_keyword_counts(original_text, effective_keywords)
             if fixed_text != original_text:
                 yield f"data: {json.dumps({'replace': fixed_text}, ensure_ascii=False)}\n\n"

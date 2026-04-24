@@ -199,10 +199,21 @@ LU7, LI4, LI11, ST25, ST36, ST40, ST44, SP6, SP10, HT7, SI3, BL17, BL23, BL40, B
   - GEO 최적화: AI 검색 인용 구조화 형식
   - 고유한 임상 관점: 진료실 경험 반영
   - 이미지 배치 마커: `[📷 이미지 삽입 제안: ...]` 2~3곳
-  - AI 문체 억제: "먼저/다음으로/따라서" 반복 금지
+  - AI 문체 억제: "먼저/다음으로/따라서" 반복 금지, "~에 대해 더 자세히 살펴보겠습니다." **1회라도 완전 금지**
   - 시리즈 주제 3개 필수 (결론 7번째 항목)
-- **`templates/index.html`** — SEO 라벨 `6~8회`, 쉼표 구분 placeholder 업데이트
+- **`templates/index.html`** — SEO 라벨 `6~8회`, 쉼표 구분 placeholder 업데이트, "+" 추가 버튼 제거 (생성 시 자동 flush)
 - **`src/main.py`** — 서버사이드 keyword 정규화: 쉼표 구분, 공백은 키워드 내부 보존
+- **`src/blog_generator.py`** — inject 대상에서 `## 참고`, `## 미주`, `## 출처`, `## References` 제외
+
+#### 이미지 프롬프트 규칙 추가 (2026-04-24)
+- **`prompts/image_generation.txt`**:
+  - 침 치료 장면: 환자복 필수, 피부 노출 부위 침 삽입 (옷 위 침 금지), 네거티브에 `needle through clothing` 등 추가
+  - 해부학 도해 장면: 흰색/투명 배경, 비율 보존 (uniform scale only, 1:1 고정)
+- **`src/image_prompt_generator.py`** — `_extract_image_markers()` 신규: `[📷 이미지 삽입 제안: ...]` 마커를 Stage 1 분석에 priority 힌트로 전달
+
+#### 블로그 생성기 UX 개선 (2026-04-24)
+- SEO 키워드 입력창 "+" 버튼 제거 — 생성/복사 클릭 시 자동 flush
+- 대화 단계 스크롤 수정: `scrollIntoView({ behavior: 'smooth', block: 'start' })` + 80ms 지연 (간헐적 미작동 해결)
 
 #### 실행 방법
 ```bash

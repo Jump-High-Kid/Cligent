@@ -46,12 +46,30 @@ def _parse_json_response(text: str) -> dict:
     return json.loads(cleaned)
 
 
+def _extract_image_markers(blog_content: str) -> list[str]:
+    """블로그 본문에서 [📷 이미지 삽입 제안: ...] 마커 추출"""
+    return re.findall(r'\[📷 이미지 삽입 제안:\s*([^\]]+)\]', blog_content)
+
+
 def _analyze_blog(keyword: str, blog_content: str, api_key: str) -> tuple[dict, dict]:
     """Stage 1: 블로그 분석 → 구조화된 JSON 반환"""
     system = load_prompt("image_analysis")
+
+    markers = _extract_image_markers(blog_content)
+    priority_section = ""
+    if markers:
+        marker_list = "\n".join(f"  {i + 1}. {m.strip()}" for i, m in enumerate(markers))
+        priority_section = (
+            f"\n\n## 이미지 삽입 제안 (최우선 처리)\n"
+            f"아래 장면을 scene 객체로 우선 생성하세요. "
+            f"제안 수가 5개 미만이면 나머지는 블로그 내용에서 자유롭게 선택합니다.\n"
+            f"{marker_list}"
+        )
+
     user = (
         f"블로그 주제: {keyword}\n\n"
         f"=== 블로그 본문 ===\n{blog_content}\n=== 본문 끝 ==="
+        f"{priority_section}"
     )
     text, usage = _call_claude(system, user, api_key, max_tokens=1500)
     return _parse_json_response(text), usage
@@ -99,7 +117,12 @@ def generate_image_prompts_stream(
     safe_tone  = tone  if tone  in VALID_TONES  else "warm"
 
     try:
-        yield _event({"status": "analyzing", "message": "블로그 분석 중..."})
+        markers = _extract_image_markers(blog_content)
+        analyze_msg = (
+            f"블로그 이미지 삽입 제안 {len(markers)}개를 우선 처리 중..."
+            if markers else "블로그 분석 중..."
+        )
+        yield _event({"status": "analyzing", "message": analyze_msg})
         analysis, usage1 = _analyze_blog(keyword, blog_content, api_key)
 
         yield _event({"status": "generating", "message": "프롬프트 생성 중..."})
