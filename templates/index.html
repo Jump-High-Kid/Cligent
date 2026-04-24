@@ -744,6 +744,8 @@
         </div>
         <!-- #8 이미지 프롬프트 버튼: 생성 완료 전 비활성화 -->
         <button class="btn btn-secondary" id="imgPromptBtn" onclick="startImagePromptGenerate()" style="background:#e8f4f3; color:#1a5f5a;" disabled title="블로그 생성 완료 후 활성화됩니다">이미지 프롬프트 생성</button>
+        <!-- FAQ 스키마 복사 버튼: 자체 웹사이트 게시 기능 추가 시 활성화 예정 -->
+        <!-- <button class="btn btn-secondary hidden" id="faqSchemaBtn" onclick="copyFaqSchema(this)" title="네이버·구글 리치 결과 노출용 FAQ 스키마를 복사합니다">FAQ 스키마 복사</button> -->
         <button class="btn btn-secondary" onclick="reset()">처음부터</button>
         <span id="tokenInfo"></span>
       </div>
@@ -837,6 +839,7 @@
     let collectedMaterials   = { text: '', webLinks: [], youtubeLinks: [] };
     let rawOutputText   = ''; // 복사용 원본 블로그 텍스트
     let allPrompts      = []; // 구조화된 이미지 프롬프트 배열
+    let faqSchemaData   = null; // FAQPage JSON-LD (네이버 리치 결과용)
     let selectedStyle   = 'photorealistic';
     let selectedTone    = 'warm';
     let selectedMode         = '정보';
@@ -1644,6 +1647,10 @@
                 document.getElementById('tokenInfo').textContent =
                   `토큰: 입력 ${u.input} + 출력 ${u.output} = ${u.input + u.output}개 (≈ ${u.cost_krw}원)`;
                 document.getElementById('resultFooter').classList.remove('hidden');
+                // FAQ 스키마 저장 + 버튼 표시
+                faqSchemaData = msg.faq_schema || null;
+                const faqBtn = document.getElementById('faqSchemaBtn');
+                if (faqBtn) faqBtn.classList.toggle('hidden', !faqSchemaData);
                 // #24 글자 수 안내
                 const charLen = rawOutputText.replace(/\s/g, '').length;
                 if (charLen > 3000) {
@@ -1908,6 +1915,22 @@
     function scrollToBottom() {
       const el = document.getElementById('chatArea');
       el.scrollTop = el.scrollHeight;
+    }
+
+    // FAQ 스키마 복사: JSON-LD를 클립보드에 복사 → 블로그 HTML에 <script type="application/ld+json"> 태그로 삽입
+    async function copyFaqSchema(btn) {
+      if (!faqSchemaData) return;
+      const jsonStr = JSON.stringify(faqSchemaData, null, 2);
+      const htmlSnippet = `<script type="application/ld+json">\n${jsonStr}\n<\/script>`;
+      try {
+        await navigator.clipboard.writeText(htmlSnippet);
+        const orig = btn.textContent;
+        btn.textContent = '복사됨!';
+        showToast('FAQ 스키마가 복사되었습니다. 블로그 HTML 상단에 붙여넣으세요.');
+        setTimeout(() => { btn.textContent = orig; }, 1500);
+      } catch (e) {
+        alert('복사 실패: ' + e.message);
+      }
     }
 
     // 복사: HTML 형식으로 복사 → 네이버 블로그에 붙여넣기 시 서식(굵기·제목) 유지

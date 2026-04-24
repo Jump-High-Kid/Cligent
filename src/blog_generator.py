@@ -138,6 +138,44 @@ def _fix_keyword_counts(text: str, seo_keywords: List[str], target_min: int = 6)
     return text + tail
 
 
+def extract_faq_schema(blog_text: str, keyword: str) -> Optional[dict]:
+    """
+    블로그 본문의 Q: / A: 패턴을 파싱해 FAQPage JSON-LD 딕셔너리를 반환합니다.
+    네이버·구글 리치 결과(검색 결과 내 FAQ 펼침) 노출용.
+    Q&A가 없으면 None 반환.
+    """
+    import re
+    # "Q:" 또는 "Q. " 두 형식 모두 허용, A: 또는 A. 도 동일하게 처리
+    pairs = re.findall(
+        r'Q[:.]\s*(.+?)\s*A[:.]\s*(.+?)(?=Q[:.]\s*|$)',
+        blog_text,
+        re.DOTALL,
+    )
+    if not pairs:
+        return None
+
+    entities = []
+    for q, a in pairs[:5]:  # 최대 5개만
+        q_clean = q.strip().replace('\n', ' ')
+        a_clean = a.strip().replace('\n', ' ')[:300]
+        if len(q_clean) < 5 or len(a_clean) < 5:
+            continue
+        entities.append({
+            "@type": "Question",
+            "name": q_clean,
+            "acceptedAnswer": {"@type": "Answer", "text": a_clean},
+        })
+
+    if not entities:
+        return None
+
+    return {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": entities,
+    }
+
+
 def generate_series_suggestions(keyword: str, blog_text: str, api_key: str) -> list[str]:
     """블로그 완성 후 연관 시리즈 주제 3개 추천"""
     client = anthropic.Anthropic(api_key=api_key)
@@ -521,7 +559,13 @@ def generate_blog_stream(
         except Exception:
             series = []
 
-        yield f"data: {json.dumps({'done': True, 'usage': {'input': input_tokens, 'output': output_tokens, 'cost_krw': cost_krw}, 'series': series, 'seo_keywords': seo_keywords or []}, ensure_ascii=False)}\n\n"
+        # 4단계: FAQPage JSON-LD 추출 (실패해도 done은 전송)
+        try:
+            faq_schema = extract_faq_schema(fixed_text, keyword)
+        except Exception:
+            faq_schema = None
+
+        yield f"data: {json.dumps({'done': True, 'usage': {'input': input_tokens, 'output': output_tokens, 'cost_krw': cost_krw}, 'series': series, 'seo_keywords': seo_keywords or [], 'faq_schema': faq_schema}, ensure_ascii=False)}\n\n"
 
     except anthropic.AuthenticationError:
         yield _error_event("API 키를 확인해주세요. .env 파일의 ANTHROPIC_API_KEY를 확인하세요.")
