@@ -514,10 +514,31 @@
 
   <div class="card">
 
+    <!-- #16 이전 결과 복원 배너 -->
+    <div id="restoreBanner" class="hidden" style="background:#f0f7f6;border:1.5px solid #a8d5d1;border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+      <span style="font-size:0.88rem;color:#1a5f5a;">이전에 생성한 블로그가 있습니다. 복원할까요?</span>
+      <div style="display:flex;gap:8px;flex-shrink:0;">
+        <button class="btn btn-primary" style="padding:6px 16px;font-size:0.82rem;" onclick="restoreDraft()">복원</button>
+        <button class="btn btn-secondary" style="padding:6px 12px;font-size:0.82rem;" onclick="discardDraft()">삭제</button>
+      </div>
+    </div>
+
+    <!-- #5 API 키 미설정 배너 -->
+    <div id="apiKeyBanner" class="hidden error-msg" style="background:#fff8e1;color:#7c5c00;border-left:3px solid #f59e0b;margin-bottom:16px;">
+      AI 설정에서 <strong>API 키</strong>를 먼저 등록해주세요.
+      <a href="/settings" style="color:#1a5f5a;font-weight:700;margin-left:4px;">설정으로 이동 →</a>
+    </div>
+
     <!-- 단계 1 -->
     <div id="step1">
       <label for="keyword">블로그 주제</label>
-      <textarea id="keyword" rows="2" placeholder="예: 소화불량 한방 치료, 허리 통증 침 치료, 면역력 강화 한약"></textarea>
+      <!-- #2 글자 수 카운터 / maxlength=150 -->
+      <textarea id="keyword" rows="2" maxlength="150"
+        placeholder="예: 소화불량 한방 치료, 허리 통증 침 치료, 면역력 강화 한약"
+        oninput="updateKeywordCounter()"></textarea>
+      <div style="text-align:right;font-size:0.78rem;color:#aaa;margin-top:3px;">
+        <span id="kwCounter">0</span>/150자 — <span style="color:#888">키워드나 짧은 문구를 입력하세요</span>
+      </div>
 
       <!-- 트렌딩 키워드 추천 -->
       <div class="trending-wrap">
@@ -541,13 +562,30 @@
             <button class="step1-chip" data-group="reader_level" data-value="한의학관심" onclick="selectStep1Opt('reader_level',this)">한의학 관심층</button>
           </div>
         </div>
+        <div class="step1-option-group" style="flex-direction:column;align-items:flex-start;gap:8px;">
+          <span class="step1-option-label">어떤 설명을 상세히 하시겠습니까? <span style="font-size:0.75rem;color:#78716c;font-weight:400;">(복수 선택 가능, 미선택 시 일반 설명)</span></span>
+          <div class="step1-chips" style="flex-wrap:wrap;gap:6px;" id="explanationChips">
+            <button class="step1-chip expl-chip" data-value="변증시치" onclick="toggleExplChip(this)">변증시치</button>
+            <button class="step1-chip expl-chip" data-value="사상체질" onclick="toggleExplChip(this)">사상체질</button>
+            <button class="step1-chip expl-chip" data-value="해부학" onclick="toggleExplChip(this)">해부학</button>
+            <button class="step1-chip expl-chip" data-value="내분비" onclick="toggleExplChip(this)">내분비</button>
+            <button class="step1-chip expl-chip" data-value="신경학" onclick="toggleExplChip(this)">신경학</button>
+            <button class="step1-chip expl-chip" data-value="기타 서양의학" onclick="toggleExplChip(this)">기타 서양의학</button>
+            <button class="step1-chip expl-chip" data-value="__custom__" onclick="toggleExplChip(this)">기타 (직접 입력)</button>
+          </div>
+          <div id="explCustomWrap" style="display:none;width:100%;margin-top:4px;">
+            <input type="text" id="explCustomInput"
+              style="width:100%;border:1.5px solid #d6d3d1;border-radius:8px;padding:8px 12px;font-size:0.85rem;font-family:inherit;outline:none;"
+              placeholder="예: 면역학, 정형외과적 관점 등">
+          </div>
+        </div>
       </div>
 
       <!-- SEO 키워드 입력 -->
       <div class="seo-keyword-wrap">
-        <span class="seo-kw-label">SEO 키워드 (선택) — 본문에 5~7회 자연스럽게 삽입됩니다</span>
+        <span class="seo-kw-label">SEO 키워드 (선택) — 본문에 6~8회 자연스럽게 삽입됩니다</span>
         <div class="seo-kw-input-row">
-          <input type="text" id="seoKwInput" placeholder="띄어쓰기=하나의 키워드 / 쉼표=별개 키워드 (예: 동래구 허리디스크, 침 치료)" onkeydown="if(event.key==='Enter'){event.preventDefault();addSeoKeyword();}">
+          <input type="text" id="seoKwInput" placeholder="쉼표(,)로 키워드 구분 · 공백은 키워드의 일부 (예: 동래구 허리디스크, 침 치료)" onkeydown="if(event.key==='Enter'){event.preventDefault();addSeoKeyword();}">
           <button class="btn btn-secondary" onclick="addSeoKeyword()" style="white-space:nowrap;">+ 추가</button>
         </div>
         <div class="seo-tag-list" id="seoTagList"></div>
@@ -560,13 +598,16 @@
           <span class="toggle-arrow">▼</span>
         </button>
         <div class="clinic-info-body" id="clinicInfoBody">
-          <textarea id="clinicInfoText" placeholder="예: 원장 경력 20년, 디스크 특화 도침 치료, 산후조리 전문, 체형교정 침 개발...&#10;다른 한의원과 차별화되는 시술, 경력, 강점을 최대한 상세히 입력하세요."></textarea>
-          <p class="clinic-info-hint">입력한 내용은 브라우저에 저장되어 매번 블로그 생성에 자동 반영됩니다.</p>
-          <div class="clinic-info-save-row">
-            <button class="btn btn-primary" onclick="saveClinicInfo()" style="padding:7px 18px;font-size:0.85rem;">저장</button>
-          </div>
+          <textarea id="clinicInfoText" placeholder="입력한 내용은 블로그 생성 시 반영 됩니다."></textarea>
+          <p class="clinic-info-hint">설정 페이지의 '클리닉의 특징과 장점'과 연동됩니다. 여기서 수정하면 자동 저장됩니다.</p>
+          <p class="clinic-info-hint" style="color:#b45309;margin-top:4px;">주의: 환자 이름, 연락처, 주민번호 등 개인정보는 입력하지 마세요.</p>
         </div>
       </div>
+
+      <!-- #7 질문 건너뛰기 안내 -->
+      <p style="font-size:0.78rem;color:#aaa;margin-top:12px;">
+        다음 단계에서 원하는 선택지가 없으면 직접 입력하거나 <strong>건너뛰기</strong>해도 됩니다.
+      </p>
 
       <div id="step1Error" class="error-msg hidden"></div>
       <div style="margin-top:16px; text-align:right;">
@@ -592,6 +633,10 @@
       </div>
 
       <div class="result-footer hidden" id="resultFooter">
+        <!-- #6 복사 힌트 -->
+        <div style="width:100%;font-size:0.78rem;color:#888;margin-bottom:4px;">
+          복사 후 <strong>네이버 블로그 편집기</strong>에 붙여넣기하면 굵기·제목 서식이 유지됩니다.
+        </div>
         <button class="btn btn-primary" onclick="copyResult()">복사</button>
         <div class="site-goto-group">
           <select class="site-goto-select" id="aiSiteSelect">
@@ -603,7 +648,8 @@
           </select>
           <button class="site-goto-btn" onclick="gotoAiSite()">바로가기 ↗</button>
         </div>
-        <button class="btn btn-secondary" id="imgPromptBtn" onclick="startImagePromptGenerate()" style="background:#e8f4f3; color:#1a5f5a;">이미지 프롬프트 생성</button>
+        <!-- #8 이미지 프롬프트 버튼: 생성 완료 전 비활성화 -->
+        <button class="btn btn-secondary" id="imgPromptBtn" onclick="startImagePromptGenerate()" style="background:#e8f4f3; color:#1a5f5a;" disabled title="블로그 생성 완료 후 활성화됩니다">이미지 프롬프트 생성</button>
         <button class="btn btn-secondary" onclick="reset()">처음부터</button>
         <span id="tokenInfo"></span>
       </div>
@@ -613,14 +659,16 @@
         <h3>이미지 프롬프트</h3>
         <div id="imagePromptTip">
           <strong>사용법</strong> — 각 프롬프트 옆 버튼으로 복사 후 이미지 AI 페이지로 이동하세요.<br>
-          실제 진료실 사진을 함께 업로드하면 품질이 향상됩니다. (Midjourney <code>--iw</code>, DALL-E 이미지 편집)
+          실제 진료실 사진을 함께 업로드하면 품질이 향상됩니다. (Midjourney <code>--iw</code>, DALL-E 이미지 편집)<br>
+          <!-- #17 한국어 힌트 -->
+          <span style="color:#c0392b;font-size:0.82rem;">Midjourney · Ideogram · Leonardo AI는 <strong>영어 전용</strong>입니다. 복사 전 ChatGPT 또는 DeepL로 번역하여 사용하세요.</span>
         </div>
 
         <!-- 옵션 패널 -->
         <div id="imgOptionPanel">
           <div class="img-option-panel-title">이미지 옵션 선택</div>
           <div class="img-option-group">
-            <span class="img-option-label">이미지 형식</span>
+            <span class="img-option-label">이미지 형식 <span id="style-default-hint" style="color:#6ee7b7;font-size:0.74rem;font-weight:400;">(기본: 사실적)</span></span>
             <div class="img-option-chips">
               <button class="img-opt-chip selected" data-group="style" data-value="photorealistic" onclick="selectImgOpt('style',this)">사실적</button>
               <button class="img-opt-chip" data-group="style" data-value="anime" onclick="selectImgOpt('style',this)">애니메이션</button>
@@ -631,7 +679,7 @@
             </div>
           </div>
           <div class="img-option-group">
-            <span class="img-option-label">이미지 톤</span>
+            <span class="img-option-label">이미지 톤 <span id="tone-default-hint" style="color:#6ee7b7;font-size:0.74rem;font-weight:400;">(기본: 따뜻한)</span></span>
             <div class="img-option-chips">
               <button class="img-opt-chip selected" data-group="tone" data-value="warm" onclick="selectImgOpt('tone',this)">따뜻한</button>
               <button class="img-opt-chip" data-group="tone" data-value="cool_white" onclick="selectImgOpt('tone',this)">클린 화이트</button>
@@ -672,6 +720,10 @@
     let selectedMode         = '정보';
     let selectedReaderLevel  = '일반인';
     let seoKeywords     = [];  // SEO 키워드 배열
+    // #3 중복 생성 방지
+    let lastGeneratedKeyword = '';
+    // #4 생성 중 이탈 경고
+    let isGenerating = false;
 
     // ── 트렌딩 키워드 목록 ───────────────────────────────────
     const TRENDING_KEYWORDS = [
@@ -680,6 +732,12 @@
       '산후조리', '소아 성장', '여성 불임', '비염', '어깨 통증',
       '목 디스크', '봄철 알레르기', '냉방병', '스트레스 해소', '혈액순환'
     ];
+
+    // #2 글자 수 카운터
+    function updateKeywordCounter() {
+      const kw = document.getElementById('keyword').value;
+      document.getElementById('kwCounter').textContent = kw.length;
+    }
 
     function initTrendingChips() {
       const wrap = document.getElementById('trendingChips');
@@ -708,7 +766,11 @@
 
     function addSeoKeywordValue(kw) {
       kw = kw.trim();
-      if (!kw || seoKeywords.includes(kw)) return;
+      if (!kw || seoKeywords.some(k => k.toLowerCase() === kw.toLowerCase())) return;
+      if (seoKeywords.length >= 10) {
+        showError('step1Error', 'SEO 키워드는 최대 10개까지 입력할 수 있습니다.');
+        return;
+      }
       seoKeywords.push(kw);
       renderSeoTags();
     }
@@ -733,22 +795,23 @@
       toggle.classList.toggle('open');
     }
 
-    function saveClinicInfo() {
-      const val = document.getElementById('clinicInfoText').value;
-      localStorage.setItem('cligent_clinic_info', val);
-      const btn = event.target;
-      btn.textContent = '저장됨 ✓';
-      setTimeout(() => { btn.textContent = '저장'; }, 1500);
+    function stripHtmlTags(str) {
+      return str.replace(/<[^>]*>/g, '');
     }
 
-    function loadClinicInfo() {
-      const saved = localStorage.getItem('cligent_clinic_info') || '';
-      document.getElementById('clinicInfoText').value = saved;
-      if (saved.trim()) {
-        const toggle = document.getElementById('clinicInfoToggle');
-        const span = toggle.querySelector('span:first-child');
-        span.textContent = '우리 한의원 차별화 정보 ✓ (저장됨, 매번 반영)';
-      }
+    async function loadClinicInfo() {
+      try {
+        const res = await fetch('/api/settings/clinic/profile');
+        if (!res.ok) return;
+        const data = await res.json();
+        const val = data.blog_features || '';
+        document.getElementById('clinicInfoText').value = val;
+        if (val.trim()) {
+          const toggle = document.getElementById('clinicInfoToggle');
+          const span = toggle.querySelector('span:first-child');
+          span.textContent = '우리 한의원 차별화 정보 ✓ (저장됨, 매번 반영)';
+        }
+      } catch (e) { /* 조용히 무시 */ }
     }
 
     function selectStep1Opt(group, el) {
@@ -759,10 +822,46 @@
       else selectedReaderLevel = el.dataset.value;
     }
 
+    function toggleExplChip(el) {
+      el.classList.toggle('selected');
+      const isCustom = el.dataset.value === '__custom__';
+      if (isCustom) {
+        document.getElementById('explCustomWrap').style.display =
+          el.classList.contains('selected') ? 'block' : 'none';
+      }
+    }
+
+    function getExplanationTypes() {
+      const selected = [];
+      document.querySelectorAll('.expl-chip.selected').forEach(el => {
+        if (el.dataset.value === '__custom__') {
+          const custom = document.getElementById('explCustomInput').value.trim();
+          if (custom) selected.push(custom);
+        } else {
+          selected.push(el.dataset.value);
+        }
+      });
+      return selected;
+    }
+
     // ── 단계 1 → 2 ─────────────────────────────────────────
     async function goToConversation() {
       const keyword = document.getElementById('keyword').value.trim();
-      if (!keyword) { showError('step1Error', '주제를 입력해주세요.'); return; }
+      // #1 빈칸 검증
+      if (!keyword) {
+        showError('step1Error', '주제를 입력해주세요.');
+        document.getElementById('keyword').focus();
+        return;
+      }
+      // #2 긴 텍스트 검증
+      if (keyword.length > 100) {
+        showError('step1Error', `주제가 너무 깁니다 (${keyword.length}자). 핵심 키워드 위주로 100자 이내로 줄여주세요.`);
+        return;
+      }
+      // #3 중복 생성 확인
+      if (keyword === lastGeneratedKeyword) {
+        if (!confirm(`"${keyword}" 주제로 이미 생성한 적이 있습니다.\n동일한 주제로 다시 생성하면 무료 한도가 차감됩니다. 계속할까요?`)) return;
+      }
 
       currentKeyword = keyword;
       hideError('step1Error');
@@ -784,6 +883,8 @@
         collectedMaterials = { text: '', webLinks: [], youtubeLinks: [] };
         document.getElementById('chatArea').innerHTML = '';
         showStep(2);
+        showPrivacyModalIfNeeded();
+        pushStep2History();
         showNextQuestion();
       } catch (e) {
         showError('step1Error', '서버 연결 오류가 발생했습니다.');
@@ -858,6 +959,15 @@
       const selected  = Array.from(selectedOptions[index] || []);
       const inputEl   = document.getElementById(`custom-input-${index}`);
       const customVal = inputEl ? inputEl.value.trim() : '';
+      // #34 직접 입력 최소 5자 검증 (칩 선택만 있으면 통과)
+      if (customVal && customVal.length < 5 && selected.length === 0) {
+        if (inputEl) {
+          inputEl.style.borderColor = '#ef4444';
+          inputEl.placeholder = '좀 더 구체적으로 입력해주세요 (5자 이상)';
+          setTimeout(() => { inputEl.style.borderColor = ''; }, 2000);
+        }
+        return;
+      }
       const allValues = customVal ? [...selected, customVal] : selected;
       if (allValues.length === 0) return;
 
@@ -930,8 +1040,10 @@
       const inputId = type === 'web' ? 'web-link-input' : 'yt-link-input';
       const listId  = type === 'web' ? 'web-links-list'  : 'yt-links-list';
       const arr     = type === 'web' ? collectedMaterials.webLinks : collectedMaterials.youtubeLinks;
-      const url     = document.getElementById(inputId).value.trim();
+      let url = document.getElementById(inputId).value.trim();
       if (!url) return;
+      // #18 https:// 자동 추가
+      if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
 
       arr.push(url);
       const display = url.length > 45 ? url.slice(0,45) + '…' : url;
@@ -970,7 +1082,12 @@
       rawOutputText    = '';
       hideError('step3Error');
       document.getElementById('resultFooter').classList.add('hidden');
+      // #8 이미지 프롬프트 버튼 비활성화
+      const imgBtn = document.getElementById('imgPromptBtn');
+      if (imgBtn) { imgBtn.disabled = true; imgBtn.title = '블로그 생성 완료 후 활성화됩니다'; }
       label.innerHTML = '생성 중<span class="dots"></span>';
+      // #4 생성 중 이탈 경고 활성화
+      isGenerating = true;
 
       try {
         const res = await fetch('/generate', {
@@ -980,16 +1097,46 @@
             mode: selectedMode, reader_level: selectedReaderLevel,
             seo_keywords: seoKeywords,
             clinic_info: document.getElementById('clinicInfoText').value || '',
+            explanation_types: getExplanationTypes(),
           }),
         });
+
+        // #28 세션 만료(401) 명확한 안내
+        if (res.status === 401) {
+          label.textContent = '세션 만료';
+          showError('step3Error', '로그인 세션이 만료되었습니다. 페이지를 새로고침 후 다시 로그인해주세요.');
+          isGenerating = false;
+          return;
+        }
+        // #31 플랜 한도 초과(429)
+        if (res.status === 429) {
+          label.textContent = '한도 초과';
+          showError('step3Error', '이번 달 블로그 생성 한도를 초과했습니다. 설정 > 플랜 & 사용량에서 업그레이드하세요.');
+          isGenerating = false;
+          return;
+        }
 
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
 
+        // #32 무응답 30초 타임아웃
+        let streamTimeout;
+        const resetStreamTimeout = () => {
+          clearTimeout(streamTimeout);
+          streamTimeout = setTimeout(() => {
+            reader.cancel();
+            label.textContent = '연결 끊김';
+            showError('step3Error', '서버 응답이 없습니다. 네트워크 상태를 확인하고 다시 시도해주세요.');
+            isGenerating = false;
+          }, 30000);
+        };
+        resetStreamTimeout();
+
         while (true) {
           const { done, value } = await reader.read();
-          if (done) break;
+          if (done) { clearTimeout(streamTimeout); break; }
+          resetStreamTimeout();
           buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split('\n');
           buffer = lines.pop();
@@ -1015,6 +1162,24 @@
                 document.getElementById('tokenInfo').textContent =
                   `토큰: 입력 ${u.input} + 출력 ${u.output} = ${u.input + u.output}개 (≈ ${u.cost_krw}원)`;
                 document.getElementById('resultFooter').classList.remove('hidden');
+                // #24 글자 수 안내
+                const charLen = rawOutputText.replace(/\s/g, '').length;
+                if (charLen > 3000) {
+                  showError('step3Error', '생성된 글이 3000자를 초과합니다. 더 짧은 주제나 질문 답변을 줄여보세요.');
+                } else if (charLen > 2000) {
+                  showError('step3Error', '네이버 블로그에 최적화된 글자 수는 1500-2000자 입니다.');
+                }
+                // #3 마지막 생성 키워드 저장
+                lastGeneratedKeyword = currentKeyword;
+                // #4 이탈 경고 해제
+                isGenerating = false;
+                // #8 이미지 프롬프트 버튼 활성화
+                const imgDoneBtn = document.getElementById('imgPromptBtn');
+                if (imgDoneBtn) { imgDoneBtn.disabled = false; imgDoneBtn.title = ''; }
+                // #16 결과 localStorage 임시저장
+                try {
+                  localStorage.setItem('cligent_draft', JSON.stringify({ keyword: currentKeyword, text: rawOutputText, ts: Date.now() }));
+                } catch (_) {}
                 if (msg.series && msg.series.length) renderSeriesSuggestions(msg.series);
                 // SEO 태그 표시
                 const tags = msg.seo_keywords || [];
@@ -1031,6 +1196,9 @@
       } catch (e) {
         label.textContent = '연결 오류';
         showError('step3Error', '연결이 끊겼습니다. 다시 시도해주세요.');
+      } finally {
+        // #4 이탈 경고 항상 해제
+        isGenerating = false;
       }
     }
 
@@ -1048,8 +1216,15 @@
       document.querySelectorAll(`.img-opt-chip[data-group="${group}"]`)
         .forEach(c => c.classList.remove('selected'));
       el.classList.add('selected');
-      if (group === 'style') selectedStyle = value;
-      else selectedTone = value;
+      if (group === 'style') {
+        selectedStyle = value;
+        const hint = document.getElementById('style-default-hint');
+        if (hint) hint.style.display = 'none';
+      } else {
+        selectedTone = value;
+        const hint = document.getElementById('tone-default-hint');
+        if (hint) hint.style.display = 'none';
+      }
     }
 
     // ── 이미지 프롬프트 실제 생성 ────────────────────────
@@ -1187,9 +1362,18 @@
     function copyOnAiClick(event, promptId, url) {
       event.preventDefault();
       const text = document.getElementById(promptId).textContent;
-      navigator.clipboard.writeText(text)
-        .then(() => window.open(url, '_blank'))
-        .catch(() => window.open(url, '_blank'));
+      const openTab = () => {
+        const w = window.open(url, '_blank');
+        // #37 팝업 차단 감지
+        if (!w || w.closed || typeof w.closed === 'undefined') {
+          const errEl = document.getElementById('step3ImgError');
+          if (errEl) {
+            errEl.textContent = '팝업이 차단되었습니다. 브라우저 주소창 오른쪽의 팝업 허용 버튼을 클릭하거나, 위의 복사 버튼으로 복사 후 직접 사이트에서 붙여넣기 하세요.';
+            errEl.classList.remove('hidden');
+          }
+        }
+      };
+      navigator.clipboard.writeText(text).then(openTab).catch(openTab);
     }
 
     function copyAllPrompts(btn) {
@@ -1259,7 +1443,13 @@
         ]);
       } catch (_) {
         // 폴백: 마크다운 기호 제거한 순수 텍스트
-        await navigator.clipboard.writeText(stripMarkdown(rawOutputText));
+        try {
+          await navigator.clipboard.writeText(stripMarkdown(rawOutputText));
+        } catch (_2) {
+          // 모바일 등 clipboard API 완전 미지원 시 — 직접 선택 안내
+          showError('step3Error', '자동 복사를 지원하지 않는 환경입니다. 글을 길게 눌러 전체 선택 후 복사해 주세요.');
+          return;
+        }
       }
 
       btn.textContent = '복사됨!';
@@ -1289,7 +1479,7 @@
           ${series.map(s => `
             <div class="series-item">
               <span class="series-topic-text">${escapeHtml(s)}</span>
-              <button class="series-select-btn" onclick="saveSeriesTopic('${escapeAttr(s)}', this)">선택</button>
+              <button class="series-select-btn" onclick="saveSeriesTopic('${escapeAttr(s)}', this)" title="클릭하면 저장됩니다. 다음 생성 시 주제란에 자동으로 입력됩니다.">선택</button>
             </div>`).join('')}
         </div>
         <div class="series-saved-notice hidden" id="seriesSavedNotice"></div>`;
@@ -1297,6 +1487,13 @@
     }
 
     function saveSeriesTopic(topic, btn) {
+      // #35 기존에 입력된 키워드가 있으면 덮어쓰기 확인
+      const existingKeyword = document.getElementById('keyword').value.trim();
+      const existingNext = localStorage.getItem('cligent_next_topic');
+      if ((existingKeyword && existingKeyword !== currentKeyword) || existingNext) {
+        const prev = existingNext || existingKeyword;
+        if (!confirm(`이미 저장된 주제 "${prev}"가 있습니다.\n"${topic}"으로 교체할까요?`)) return;
+      }
       localStorage.setItem('cligent_next_topic', topic);
       document.querySelectorAll('.series-select-btn').forEach(b => {
         b.textContent = '선택'; b.classList.remove('saved');
@@ -1313,7 +1510,30 @@
     }
 
 
+    // #16 임시저장 복원/삭제
+    function restoreDraft() {
+      try {
+        const d = JSON.parse(localStorage.getItem('cligent_draft') || 'null');
+        if (!d) return;
+        rawOutputText = d.text;
+        currentKeyword = d.keyword;
+        lastGeneratedKeyword = d.keyword;
+        document.getElementById('restoreBanner').style.display = 'none';
+        showStep(3);
+        document.getElementById('output').innerHTML = renderMarkdown(rawOutputText);
+        document.getElementById('outputLabel').textContent = '복원된 결과';
+        document.getElementById('resultFooter').classList.remove('hidden');
+        const imgBtn = document.getElementById('imgPromptBtn');
+        if (imgBtn) { imgBtn.disabled = false; imgBtn.title = ''; }
+      } catch (_) {}
+    }
+    function discardDraft() {
+      localStorage.removeItem('cligent_draft');
+      document.getElementById('restoreBanner').style.display = 'none';
+    }
+
     function reset() {
+      localStorage.removeItem('cligent_draft');
       currentKeyword = ''; conversationFlow = []; currentIndex = 0;
       collectedAnswers = {}; selectedOptions = {}; rawOutputText = '';
       allPrompts = []; selectedStyle = 'photorealistic'; selectedTone = 'warm';
@@ -1383,6 +1603,54 @@
     initTrendingChips();
     loadClinicInfo();
 
+    // #16 페이지 로드 시 임시저장 체크 (24시간 이내)
+    (function checkDraft() {
+      try {
+        const d = JSON.parse(localStorage.getItem('cligent_draft') || 'null');
+        if (d && d.text && (Date.now() - d.ts) < 86400000) {
+          const banner = document.getElementById('restoreBanner');
+          banner.style.display = 'flex';
+          const span = banner.querySelector('span');
+          const ago = Math.round((Date.now() - d.ts) / 60000);
+          span.textContent = `약 ${ago < 60 ? ago + '분' : Math.round(ago/60) + '시간'} 전 생성한 "${d.keyword}" 블로그가 있습니다. 복원할까요?`;
+        }
+      } catch (_) {}
+    })();
+
+    // #4 생성 중 이탈 경고
+    window.addEventListener('beforeunload', e => {
+      if (isGenerating) {
+        e.preventDefault();
+        e.returnValue = '블로그 생성이 진행 중입니다. 페이지를 나가면 결과가 유실됩니다.';
+      }
+    });
+
+    // #33 질문 단계 진입 시 history 엔트리 추가 → 뒤로가기 감지
+    function pushStep2History() {
+      history.pushState({ step: 2 }, '');
+    }
+    window.addEventListener('popstate', e => {
+      const inStep2 = !document.getElementById('step2').classList.contains('hidden');
+      if (inStep2 && Object.keys(collectedAnswers).length > 0) {
+        if (!confirm('답변 내용이 사라집니다. 1단계(주제 입력)로 돌아가시겠습니까?')) {
+          // 취소 시 엔트리 다시 추가해서 머무름
+          history.pushState({ step: 2 }, '');
+        }
+      }
+    });
+
+    // #5 API 키 미설정 배너
+    (async function checkApiKey() {
+      try {
+        const res = await fetch('/api/settings/clinic/ai');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.api_key_masked || data.api_key_masked === '설정되지 않음') {
+          document.getElementById('apiKeyBanner').classList.remove('hidden');
+        }
+      } catch (_) {}
+    })();
+
     async function doLogout() {
       await fetch('/api/logout', { method: 'POST' });
       window.location.href = '/login';
@@ -1409,7 +1677,50 @@
         document.getElementById('role-badge').textContent = '';
       }
     })();
+    // ── 의료법 안내 모달 (2단계 첫 진입 시 세션당 1회) ───────────
+    function showPrivacyModalIfNeeded() {
+      if (sessionStorage.getItem('privacyModalShown')) return;
+      document.getElementById('privacyModal').classList.remove('hidden');
+    }
+
+    function closePrivacyModal() {
+      sessionStorage.setItem('privacyModalShown', '1');
+      document.getElementById('privacyModal').classList.add('hidden');
+    }
   </script>
+
+  <!-- 의료법 안내 모달 -->
+  <div id="privacyModal" class="hidden" style="
+    position:fixed;inset:0;z-index:9999;
+    background:rgba(0,0,0,0.45);
+    display:flex;align-items:center;justify-content:center;
+    padding:16px;
+  ">
+    <div style="
+      background:#fff;border-radius:16px;
+      max-width:440px;width:100%;
+      padding:28px 28px 24px;
+      box-shadow:0 8px 40px rgba(0,0,0,0.18);
+    ">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+        <span style="font-size:1.4rem;">⚖️</span>
+        <h3 style="margin:0;font-size:1.05rem;font-weight:700;color:#1c1917;">의료법 및 개인정보 안내</h3>
+      </div>
+      <ul style="margin:0 0 12px;padding-left:18px;color:#44403c;font-size:0.88rem;line-height:1.7;display:flex;flex-direction:column;gap:6px;list-style:none;padding:0;">
+        <li style="display:flex;gap:8px;align-items:flex-start;"><span style="color:#059669;flex-shrink:0;">✓</span>환자 이름, 연락처, 주민번호 등 <strong>개인정보를 입력하지 마세요</strong> (의료법 제19조).</li>
+        <li style="display:flex;gap:8px;align-items:flex-start;"><span style="color:#059669;flex-shrink:0;">✓</span>생성된 콘텐츠에 치료 효과를 <strong>단정적으로 표현하지 마세요</strong> (의료법 제56조).</li>
+        <li style="display:flex;gap:8px;align-items:flex-start;"><span style="color:#059669;flex-shrink:0;">✓</span>질문에 대해 <strong>복수의 답변을 선택할 수 있습니다.</strong></li>
+      </ul>
+      <p style="margin:0 0 20px;font-size:0.82rem;color:#78716c;line-height:1.5;">입력하신 내용은 블로그 생성 후 30일이 지나면 자동 삭제됩니다.</p>
+      <button onclick="closePrivacyModal()" style="
+        width:100%;padding:11px;
+        background:#064e3b;color:#fff;
+        border:none;border-radius:10px;
+        font-size:0.95rem;font-weight:600;
+        cursor:pointer;
+      ">확인했습니다</button>
+    </div>
+  </div>
 
   </div><!-- /#blog-main -->
 </body>

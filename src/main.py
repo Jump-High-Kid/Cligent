@@ -557,7 +557,7 @@ async def get_clinic_profile(user: dict = Depends(get_current_user)):
     """한의원 프로필 조회 — 인증된 사용자라면 누구나 조회 가능"""
     with __import__('db_manager').get_db() as conn:
         row = conn.execute(
-            "SELECT name, phone, address, specialty, hours, intro FROM clinics WHERE id = ?",
+            "SELECT name, phone, address, specialty, hours, intro, blog_features FROM clinics WHERE id = ?",
             (user["clinic_id"],),
         ).fetchone()
     if not row:
@@ -575,6 +575,7 @@ async def get_clinic_profile(user: dict = Depends(get_current_user)):
         "specialty": row["specialty"] or "",
         "hours": hours,
         "intro": row["intro"] or "",
+        "blog_features": row["blog_features"] or "",
     })
 
 
@@ -592,6 +593,7 @@ async def save_clinic_profile(request: Request, user: dict = Depends(get_current
     specialty = body.get("specialty", "").strip()
     hours = body.get("hours")  # dict or None
     intro = body.get("intro", "").strip()
+    blog_features = body.get("blog_features", "").strip()
 
     if not name:
         return JSONResponse({"detail": "한의원 이름은 필수입니다."}, status_code=400)
@@ -600,8 +602,8 @@ async def save_clinic_profile(request: Request, user: dict = Depends(get_current
 
     with __import__('db_manager').get_db() as conn:
         conn.execute(
-            "UPDATE clinics SET name=?, phone=?, address=?, specialty=?, hours=?, intro=? WHERE id=?",
-            (name, phone or None, address or None, specialty or None, hours_json, intro or None, user["clinic_id"]),
+            "UPDATE clinics SET name=?, phone=?, address=?, specialty=?, hours=?, intro=?, blog_features=? WHERE id=?",
+            (name, phone or None, address or None, specialty or None, hours_json, intro or None, blog_features or None, user["clinic_id"]),
         )
     return JSONResponse({"ok": True})
 
@@ -1104,7 +1106,19 @@ async def generate(request: Request, user: dict = Depends(get_current_user)):
     mode         = body.get("mode", "정보")
     reader_level = body.get("reader_level", "일반인")
     seo_keywords = body.get("seo_keywords", [])   # ["키워드1", "키워드2"]
-    clinic_info  = body.get("clinic_info", "")    # 한의원 차별화 정보 텍스트
+    # 쉼표 구분, 공백은 키워드 내부 문자로 보존 (앞뒤만 제거)
+    if isinstance(seo_keywords, str):
+        seo_keywords = [k.strip() for k in seo_keywords.split(",") if k.strip()]
+    else:
+        normalized: list[str] = []
+        for kw in seo_keywords:
+            for part in str(kw).split(","):
+                part = part.strip()
+                if part:
+                    normalized.append(part)
+        seo_keywords = normalized
+    clinic_info       = body.get("clinic_info", "").strip()       # 블로그 생성기 추가 입력
+    explanation_types = body.get("explanation_types", [])          # 선택된 설명 방식 목록
 
     if not keyword:
         async def _err():
@@ -1118,6 +1132,29 @@ async def generate(request: Request, user: dict = Depends(get_current_user)):
         return StreamingResponse(_err(), media_type="text/event-stream")
 
     tone = answers.get("tone", "전문적") if answers else "전문적"
+
+    # DB에서 원장 소개글 + 클리닉 특징/장점 자동 조회
+    with __import__('db_manager').get_db() as _conn:
+        _clinic_row = _conn.execute(
+            "SELECT intro, blog_features FROM clinics WHERE id = ?",
+            (user["clinic_id"],),
+        ).fetchone()
+    _db_intro = (_clinic_row["intro"] or "").strip() if _clinic_row else ""
+    _db_features = (_clinic_row["blog_features"] or "").strip() if _clinic_row else ""
+
+    # 블로그 생성기 입력값이 있으면 DB의 blog_features에 저장 (다음 접속 시 유지)
+    if clinic_info:
+        with __import__('db_manager').get_db() as _conn:
+            _conn.execute(
+                "UPDATE clinics SET blog_features = ? WHERE id = ?",
+                (clinic_info, user["clinic_id"]),
+            )
+        _db_features = clinic_info  # 방금 저장한 값을 이번 생성에도 즉시 반영
+
+    # intro + blog_features 합쳐서 주입 (둘 다 있을 때만)
+    _parts = [p for p in [_db_intro, _db_features] if p]
+    clinic_info = "\n\n".join(_parts)
+
     # 사용량 기록 (실패해도 서비스 계속)
     log_usage(user["clinic_id"], "blog_generation", {"keyword": keyword, "mode": mode})
     # 한도 80% 알림 — 비동기 스레드로 실행, 응답 경로에 영향 없음
@@ -1128,6 +1165,7 @@ async def generate(request: Request, user: dict = Depends(get_current_user)):
             generate_blog_stream(
                 keyword, answers, api_key, materials, mode, reader_level,
                 seo_keywords=seo_keywords, clinic_info=clinic_info,
+                explanation_types=explanation_types,
             ),
             keyword, tone, seo_keywords,
             clinic_id=user["clinic_id"],

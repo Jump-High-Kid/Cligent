@@ -102,9 +102,15 @@ medical-assistant/
 - **SECRET_KEY**: 서버 시작 시 검증, .env 필수
 
 ### 블로그 생성기 (완성)
-- **3단계 플로우**: 주제 입력 → 대화형 질문 → SSE 스트리밍 생성
+- **4단계 플로우**: 주제 입력 → 글자 수 선택 → 대화형 질문 → SSE 스트리밍 생성
+- **글자 수 선택**: 기본(2000자)/가벼운 글(1500자)/상세한 글(2500~3000자)/직접 입력(최대 9999자)
 - **이미지 프롬프트**: 블로그 완성 후 5개 자동 생성
 - **복사 기능**: 네이버 서식 유지 HTML 복사
+- **베타 제한**: 블로그 생성 10건 / 프롬프트 복사 30건 (누적, plan_guard.py)
+- **버튼 상태**: API 키 미등록+한도 소진 시 "프롬프트 복사" 활성, "블로그 생성" 비활성
+- **개인정보 1회 모달**: 2단계 첫 진입 시 세션당 1회 표시 (sessionStorage)
+- **피드백 바**: 페이지 상단 입력창 → POST /api/feedback → `data/feedback.jsonl` 저장 (개발자 전용 열람, 사용자 열람 불가)
+  - 5건 누적 시 `data/feedback_report.md` 자동 생성 → 세션 시작 시 자동 보고
 
 #### 커스터마이징 (config.yaml)
 ```yaml
@@ -157,11 +163,41 @@ LU7, LI4, LI11, ST25, ST36, ST40, ST44, SP6, SP10, HT7, SI3, BL17, BL23, BL40, B
 - 처방전·의료 기록 노출 금지
 - 특정 약재 치료 효과 암시 금지
 
+#### T1+T6 블로그 생성기 업데이트 (2026-04-23 완료)
+
+**데이터 개인정보 보호 (P0/P1)**
+- Q&A 입력 영역마다 개인정보 경고 UI (의료법 제19조) 표시
+- `prompts/blog.txt` — 환자 사례 생성 차단 강화
+- `blog_history.py` 전면 재작성: `data/blog_stats.json`(영구) / `data/blog_texts.json`(30일 TTL)
+- `purge_expired_texts()` — `lifespan()` 서버 시작 훅에서 자동 실행
+- 결과 화면 "30일 후 자동 삭제" 안내 + 데이터 보존 안내 UI
+
+**T1 프롬프트 복사 + T6 외부 AI 연동**
+- `POST /build-prompt` — Claude API 호출 없이 프롬프트 조립만 반환 (plan_guard 미적용)
+- 재료 단계 T6 AI 바: `다른 AI로 작성 | Claude.ai | ChatGPT | Gemini | 📋 복사만`
+- `openInAI(platform)`: 프롬프트 복사 + AI 새 탭 열기 + 토스트 안내
+- 온보딩 Step 2 전면 교체: API 키 안내 → T6 3단계 가이드
+- `finishT6Onboarding()`: T6 완료 시 배너 숨김 + `/blog` 이동
+- Step 1에 T4 "대표 계정 토큰" **준비 중** 옵션 추가
+
 #### 블로그 생성기 추가 개선사항 (2026-04-16)
 - **복사 기능**: ClipboardItem API — HTML 형식 복사로 네이버 붙여넣기 시 서식(굵기·제목) 유지, 폴백 시 마크다운 기호 제거
 - **이미지 프롬프트**: 한의사 흰 가운, 현대적 클리닉 인테리어(한옥 배경 제거), 상담실·진료실에 컴퓨터·모니터 배치
 - **경혈 위치**: WHO Standard Acupuncture Point Locations 기준 ST36·LI4·PC6·SP6 등 9개 주요 경혈 해부학적 위치 명시
 - **참고 자료**: 미주 URL 링크 추가 (확실한 URL만), "(정확한 권호 확인 필요)" 문구 제거 → 불확실 시 공란
+
+#### blog.txt 품질 고도화 (2026-04-24 완료 — CEO 리뷰 반영)
+- **`prompts/blog.txt`** 전면 재작성: 8개 섹션 신규/강화
+  - 5초 서론 훅 (CRITICAL): 통계형/공감형/반전 사실 형식 강제
+  - 체류시간 유도: 예고문·연결 문장
+  - SEO: 키워드 **6~8회** 삽입, 수치는 실제 기관 데이터만 (근거 없는 숫자 금지)
+  - GEO 최적화: AI 검색 인용 구조화 형식
+  - 고유한 임상 관점: 진료실 경험 반영
+  - 이미지 배치 마커: `[📷 이미지 삽입 제안: ...]` 2~3곳
+  - AI 문체 억제: "먼저/다음으로/따라서" 반복 금지
+  - 시리즈 주제 3개 필수 (결론 7번째 항목)
+- **`templates/index.html`** — SEO 라벨 `6~8회`, 쉼표 구분 placeholder 업데이트
+- **`src/main.py`** — 서버사이드 keyword 정규화: 쉼표 구분, 공백은 키워드 내부 보존
 
 #### 실행 방법
 ```bash
@@ -189,6 +225,10 @@ python3 -m pytest tests/ -v   # 테스트 실행
 - 각 페이지: `if (window.self !== window.top)` 감지 → `#sidebar` 숨김, 마진 0
 - 로그인 후 리다이렉트: iframe 안→`/`, 직접 접속→`/app`
 - localStorage `cligent_sidebar` = `'1'`(접힘) / `'0'`(펼침) — 새로고침 유지
+- **모바일 (`max-width: 767px`)**: 사이드바 숨김, 하단 고정 네비게이션 `#mobile-nav` 표시
+  - 4개 버튼: 대시보드 / 블로그 / AI도우미 / 설정
+  - iframe 높이: `calc(100dvh - 64px)` (하단 바 64px 확보)
+  - `mobileNav(path)` — iframe src + history 업데이트 + `updateActive()` 동기화
 
 **사이드바 메뉴 (정식 아이콘)**:
 

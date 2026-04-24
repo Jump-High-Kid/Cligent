@@ -173,6 +173,71 @@ def _build_seo_keywords_section(seo_keywords: List[str]) -> str:
     )
 
 
+_EXPLANATION_DESCRIPTIONS = {
+    "변증시치": (
+        "변증시치(辨證施治, pattern identification and treatment): "
+        "환자의 증상을 한의학적 변증(辨證)으로 분류하고, 그에 따른 치법(治法)과 처방을 상세히 설명하세요. "
+        "기허(氣虛), 음허(陰虛), 어혈(瘀血), 담음(痰飮) 등 변증 유형과 대응 처방을 구체적으로 기술합니다."
+    ),
+    "사상체질": (
+        "사상체질(四象體質, Sasang constitutional medicine): "
+        "태양인·태음인·소양인·소음인 체질 분류에 따른 원인과 치료 접근을 설명하세요. "
+        "체질별 특성, 적합한 치료법, 주의사항을 구체적으로 기술합니다."
+    ),
+    "해부학": (
+        "해부학적 관점(Anatomy): "
+        "관련 근육·인대·신경·뼈 구조 등 해부학적 구조물을 중심으로 원인과 기전을 설명하세요. "
+        "구체적인 해부학 명칭과 위치를 포함하여 독자가 이해하기 쉽게 풀어 기술합니다."
+    ),
+    "내분비": (
+        "내분비학적 관점(Endocrinology): "
+        "호르몬 불균형, 대사 이상 등 내분비계 기전을 중심으로 원인을 설명하세요. "
+        "관련 호르몬(코르티솔, 인슐린, 갑상선 호르몬 등)과 그 영향을 구체적으로 기술합니다."
+    ),
+    "신경학": (
+        "신경학적 관점(Neurology): "
+        "중추신경·말초신경·자율신경계 등 신경계 기전을 중심으로 원인과 증상 발생 과정을 설명하세요. "
+        "신경전달물질, 신경 경로, 관련 신경 이름을 포함하여 구체적으로 기술합니다."
+    ),
+    "기타 서양의학": (
+        "서양의학적 관점(Western Medicine): "
+        "현대 의학의 병태생리(pathophysiology) 중심으로 원인과 기전을 설명하세요. "
+        "관련 연구 근거, 진단 기준, 치료 원칙을 포함하여 기술합니다."
+    ),
+}
+
+
+def _build_explanation_section(explanation_types: Optional[List[str]]) -> str:
+    """선택된 설명 방식으로 프롬프트 블록 생성. 미선택 항목은 글에 포함하지 않음."""
+    if not explanation_types:
+        # 아무것도 선택하지 않으면 일반 설명(제약 없음)
+        return ""
+
+    lines = ["## 설명 방식 지침 (CRITICAL — 반드시 준수)"]
+    lines.append("원인 설명 섹션은 아래에 지정된 관점으로만 작성하세요.")
+    lines.append("지정되지 않은 관점(예: 선택하지 않은 변증시치, 사상체질 등)은 절대 포함하지 마세요.\n")
+    lines.append("**선택된 설명 방식:**")
+
+    custom_items = []
+    for item in explanation_types:
+        if item in _EXPLANATION_DESCRIPTIONS:
+            lines.append(f"- {_EXPLANATION_DESCRIPTIONS[item]}")
+        else:
+            # 기타 직접 입력
+            custom_items.append(item)
+
+    if custom_items:
+        lines.append(f"- 기타 관점: {', '.join(custom_items)} — 이 관점을 중심으로 원인을 설명하세요.")
+
+    lines.append("\n**미선택 관점 생략 규칙 (절대 준수):**")
+    all_keys = list(_EXPLANATION_DESCRIPTIONS.keys())
+    omitted = [k for k in all_keys if k not in explanation_types]
+    if omitted:
+        lines.append(f"다음 관점은 선택되지 않았으므로 원인 설명 섹션에 포함하지 마세요: {', '.join(omitted)}")
+
+    return "\n".join(lines)
+
+
 def _build_clinic_info_section(clinic_info: str) -> str:
     """한의원 차별화 정보 프롬프트 블록 생성"""
     if not clinic_info or not clinic_info.strip():
@@ -222,6 +287,7 @@ def generate_blog_stream(
     reader_level: str = "일반인",
     seo_keywords: Optional[List[str]] = None,
     clinic_info: str = "",
+    explanation_types: Optional[List[str]] = None,
 ) -> Generator[str, None, None]:
     """
     블로그 생성 스트리밍 제너레이터
@@ -256,6 +322,7 @@ def generate_blog_stream(
             reader_level, _READER_LEVEL_INSTRUCTIONS["일반인"]
         ),
         seo_keywords_section=_build_seo_keywords_section(seo_keywords or []),
+        explanation_section=_build_explanation_section(explanation_types),
         clinic_info_section=_build_clinic_info_section(clinic_info),
         related_posts_section=_build_related_posts_section(recent_posts, keyword),
     )

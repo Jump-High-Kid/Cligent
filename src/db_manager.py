@@ -115,6 +115,7 @@ def init_db() -> None:
             ("api_key_configured",   "INTEGER DEFAULT 0"),  # 1 = API 키 등록 완료
             ("onboarding_started_at","TEXT"),               # 온보딩 위자드 첫 표시 시각 (ISO8601)
             ("first_blog_at",        "TEXT"),               # 첫 블로그 생성 완료 시각 (ISO8601)
+            ("blog_features",        "TEXT"),               # 클리닉 특징·장점 (블로그 생성 시 자동 반영)
         ]:
             if col not in existing:
                 conn.execute(f"ALTER TABLE clinics ADD COLUMN {col} {definition}")

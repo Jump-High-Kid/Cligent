@@ -239,6 +239,11 @@
         <input id="invite-email" type="email" placeholder="staff@clinic.com"
           class="w-full border border-stone-200 rounded-xl px-4 py-3 text-[0.9375rem] focus:outline-none focus:ring-2 focus:ring-emerald-900/30"/>
       </div>
+      <div class="mb-4">
+        <label class="block text-[0.8125rem] font-medium text-stone-700 mb-2">이메일 확인</label>
+        <input id="invite-email-confirm" type="email" placeholder="이메일 재입력"
+          class="w-full border border-stone-200 rounded-xl px-4 py-3 text-[0.9375rem] focus:outline-none focus:ring-2 focus:ring-emerald-900/30"/>
+      </div>
       <div class="mb-6">
         <label class="block text-[0.8125rem] font-medium text-stone-700 mb-2">역할</label>
         <select id="invite-role"
@@ -353,6 +358,13 @@
                     이 직원 비활성화
                   </button>
                 </div>
+                <div id="reactivateArea" class="pt-2 hidden">
+                  <button onclick="activateStaff()"
+                    class="text-emerald-300 hover:text-emerald-100 text-xs font-semibold flex items-center gap-1 transition-all">
+                    <span class="material-symbols-outlined text-sm">person_check</span>
+                    이 직원 재활성화
+                  </button>
+                </div>
                 <!-- 재초대 (비밀번호 재설정) -->
                 <div id="reinviteArea" class="pt-1">
                   <button onclick="createReinvite()"
@@ -368,6 +380,8 @@
                         <span id="reinvite-copy-icon" class="material-symbols-outlined text-sm">content_copy</span>
                       </button>
                     </div>
+                    <!-- #11 재초대 링크 전달 경고 -->
+                    <p class="text-[10px] text-amber-300 mt-1.5">이 링크를 직원에게 전달하세요. 관리자 본인이 클릭하면 토큰이 소진됩니다.</p>
                   </div>
                 </div>
               </div>
@@ -449,8 +463,9 @@
               <!-- 시스템 & 보안 (대표 원장 전용) -->
               <div>
                 <h4 class="text-[11px] font-bold text-white/40 uppercase tracking-widest mb-1">시스템 &amp; 보안</h4>
-                <p class="text-[10px] text-white/30 mb-4">대표 원장 전용 항목</p>
-                <div class="space-y-1 opacity-50 pointer-events-none">
+                <!-- #12 chief_director 토글 안내 -->
+                <p class="text-[10px] text-white/30 mb-4">대표 원장 전용 항목 — 역할에 관계없이 항상 접근 가능합니다</p>
+                <div class="space-y-1 opacity-50 pointer-events-none" onclick="alert('시스템 & 보안 항목은 대표 원장 계정에 항상 고정되어 있으며, 개별 조정이 불가능합니다.')" style="cursor:not-allowed">
                   <div class="flex items-center justify-between py-3">
                     <div class="flex items-center gap-3">
                       <span class="material-symbols-outlined text-white/70">apartment</span>
@@ -585,13 +600,18 @@
           <textarea id="blog-prompt-text" rows="14"
             class="w-full border border-stone-200 rounded-xl px-4 py-3 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-emerald-700 resize-y"
             placeholder="로드 중..."></textarea>
-          <div class="flex justify-end mt-2">
+          <div class="flex justify-between items-center mt-2">
+            <!-- #15 기본값 초기화 버튼 -->
+            <button onclick="resetBlogPrompt()" class="text-xs text-stone-400 hover:text-red-500 flex items-center gap-1 transition-colors">
+              <span class="material-symbols-outlined text-sm">restart_alt</span>
+              기본값으로 초기화
+            </button>
             <button onclick="saveBlogPrompt()" class="bg-stone-700 hover:bg-stone-600 text-white px-6 py-2 rounded-xl text-sm font-medium transition-colors">프롬프트 저장</button>
           </div>
         </div>
 
         <div class="flex justify-end mt-6">
-          <button onclick="saveBlogSettings()" class="bg-emerald-900 hover:bg-emerald-800 text-white px-8 py-2.5 rounded-xl text-sm font-medium transition-colors">저장</button>
+          <button id="saveBlogBtn" onclick="saveBlogSettings()" disabled class="bg-emerald-900 hover:bg-emerald-800 text-white px-8 py-2.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed">저장</button>
         </div>
       </div>
     </div>
@@ -678,7 +698,12 @@
             </div>
             <div class="md:col-span-2">
               <label class="block text-sm font-medium text-stone-600 mb-1">원장 소개글 <span class="text-xs text-stone-400">(블로그 생성 시 자동 반영)</span></label>
-              <textarea id="pf-intro" rows="5" class="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700 resize-none" placeholder="원장님의 진료 철학, 전공, 경력 등을 입력하세요. 블로그 글 마무리에 자연스럽게 반영됩니다."></textarea>
+              <textarea id="pf-intro" rows="4" class="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700 resize-none" placeholder="입력한 내용은 블로그 생성 시 반영 됩니다."></textarea>
+            </div>
+            <div class="md:col-span-2">
+              <label class="block text-sm font-medium text-stone-600 mb-1">클리닉의 특징과 장점 <span class="text-xs text-stone-400">(블로그 생성 시 자동 반영)</span></label>
+              <textarea id="pf-blog-features" rows="5" class="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700 resize-none" placeholder="입력한 내용은 블로그 생성 시 반영 됩니다."></textarea>
+              <p class="text-xs text-stone-400 mt-1">예: 원장 경력 20년, 디스크 특화 도침 치료, 산후조리 전문 등 다른 한의원과 차별화되는 시술·경력·강점을 입력하세요.</p>
             </div>
           </div>
           <div class="mt-6 flex justify-end">
@@ -704,9 +729,12 @@
               <button onclick="toggleApiKeyInput()" class="text-xs text-emerald-700 font-medium hover:underline ml-4 flex-shrink-0">변경</button>
             </div>
             <div id="ai-key-input-area" class="hidden">
-              <input id="ai-key-input" type="password" autocomplete="new-password"
+              <input id="ai-key-input" type="password" autocomplete="new-password" readonly
+                onfocus="this.removeAttribute('readonly')"
                 class="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-emerald-700 mb-2"
                 placeholder="sk-ant-api03-..."/>
+              <!-- #10 공백 경고 -->
+              <div id="apikey-space-warning" class="hidden text-xs text-amber-600 mb-1">앞뒤 공백이 포함되어 있습니다. 저장 시 자동으로 제거됩니다.</div>
               <p class="text-xs text-stone-400">새 키 입력 후 저장하면 교체됩니다. 빈 칸으로 두면 기존 키 유지.</p>
             </div>
             <p class="text-xs text-stone-400 mt-1">
@@ -737,6 +765,7 @@
                 <div class="text-xs text-stone-400 mt-1">글 1편 ≈ ₩40~80</div>
               </label>
             </div>
+            <p id="opus-cost-warning" class="hidden mt-2 text-xs text-amber-600">opus 모델 이용 시 비용이 크게 상승합니다.</p>
           </div>
 
           <!-- 월 예산 -->
@@ -745,14 +774,15 @@
             <div class="flex items-center gap-3">
               <input id="ai-budget" type="number" min="0" step="1000"
                 class="w-48 border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700"
-                placeholder="10000"/>
-              <span class="text-sm text-stone-500">원</span>
+                placeholder="10000" oninput="checkBudgetInput(this.value)"/>
+              <span class="text-sm text-stone-500">원 (KRW)</span>
             </div>
-            <p class="text-xs text-stone-400 mt-2">월 누적 비용이 한도를 초과하면 경고 알림이 표시됩니다.</p>
+            <p id="budget-unit-warn" class="text-xs text-amber-600 mt-1 hidden">금액 단위는 원(KRW)입니다. 예: 10,000원 = 약 ₩10,000</p>
+            <p class="text-xs text-stone-400 mt-1">월 누적 비용이 한도를 초과하면 경고 알림이 표시됩니다.</p>
           </div>
 
           <div class="flex justify-end">
-            <button onclick="saveAiSettings()" class="bg-emerald-900 hover:bg-emerald-800 text-white px-8 py-2.5 rounded-xl text-sm font-medium transition-colors">저장</button>
+            <button id="saveAiBtn" onclick="saveAiSettings()" disabled class="bg-emerald-900 hover:bg-emerald-800 text-white px-8 py-2.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed">저장</button>
           </div>
         </div>
       </div>
@@ -1026,10 +1056,14 @@
         document.getElementById('pf-hours').value = data.hours.text || '';
       }
       document.getElementById('pf-intro').value = data.intro || '';
+      document.getElementById('pf-blog-features').value = data.blog_features || '';
 
       _profileLoaded = true;
     } catch (e) { /* 조용히 무시 */ }
   }
+
+  // #38 HTML 태그 제거 유틸
+  function stripHtml(str) { return str.replace(/<[^>]*>/g, ''); }
 
   // ── 한의원 프로필 저장 ────────────────────────────────────────────
   async function saveClinicProfile() {
@@ -1048,7 +1082,8 @@
         address: document.getElementById('pf-address').value.trim(),
         specialty: document.getElementById('pf-specialty').value.trim(),
         hours,
-        intro: document.getElementById('pf-intro').value.trim(),
+        intro: stripHtml(document.getElementById('pf-intro').value.trim()),
+        blog_features: stripHtml(document.getElementById('pf-blog-features').value.trim()),
       }),
     });
     if (res.ok) {
@@ -1080,16 +1115,25 @@
         card.classList.toggle('selected', isSelected);
         if (isSelected) radio.checked = true;
       });
+      const opusWarn = document.getElementById('opus-cost-warning');
+      if (opusWarn) opusWarn.classList.toggle('hidden', !model.includes('opus'));
 
       _aiLoaded = true;
+      const saveAiBtn = document.getElementById('saveAiBtn');
+      if (saveAiBtn) saveAiBtn.disabled = false;
     } catch (e) { /* 조용히 무시 */ }
   }
 
-  // 모델 카드 클릭 시 시각적 선택 토글
+  // 모델 카드 클릭 시 시각적 선택 토글 + Opus 비용 경고
   document.querySelectorAll('.model-card').forEach(card => {
     card.addEventListener('click', () => {
       document.querySelectorAll('.model-card').forEach(c => c.classList.remove('selected'));
       card.classList.add('selected');
+      const radio = card.querySelector('input[type=radio]');
+      const opusWarn = document.getElementById('opus-cost-warning');
+      if (opusWarn) {
+        opusWarn.classList.toggle('hidden', !(radio && radio.value && radio.value.includes('opus')));
+      }
     });
   });
 
@@ -1140,6 +1184,8 @@
       }
 
       _blogLoaded = true;
+      const saveBlogBtn = document.getElementById('saveBlogBtn');
+      if (saveBlogBtn) saveBlogBtn.disabled = false;
     } catch (e) { /* 조용히 무시 */ }
   }
 
@@ -1167,6 +1213,12 @@
   });
 
   async function saveBlogSettings() {
+    const minChars = parseInt(document.getElementById('blog-min-chars').value);
+    const maxChars = parseInt(document.getElementById('blog-max-chars').value);
+    if (minChars >= maxChars) {
+      alert('최소 글자 수는 최대 글자 수보다 작아야 합니다.');
+      return;
+    }
     const res = await fetch('/api/settings/blog', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1176,8 +1228,8 @@
           questions_count: parseInt(document.getElementById('blog-questions-count').value),
         },
         blog: {
-          min_chars: parseInt(document.getElementById('blog-min-chars').value),
-          max_chars: parseInt(document.getElementById('blog-max-chars').value),
+          min_chars: minChars,
+          max_chars: maxChars,
           tone: _selectedTone,
         },
       }),
@@ -1193,6 +1245,19 @@
     }
   }
 
+  // #15 블로그 프롬프트 기본값 초기화
+  async function resetBlogPrompt() {
+    if (!confirm('프롬프트를 공장 초기값으로 되돌립니다. 현재 내용이 삭제됩니다. 계속할까요?')) return;
+    try {
+      const res = await fetch('/api/settings/blog/prompt/reset', { method: 'POST' });
+      if (!res.ok) { const d = await res.json(); alert(d.detail || '초기화 실패'); return; }
+      const d = await res.json();
+      document.getElementById('blog-prompt-text').value = d.content || '';
+      _blogPromptDirty = false;
+      showSaved();
+    } catch (e) { alert('오류가 발생했습니다.'); }
+  }
+
   async function saveBlogPrompt() {
     const content = document.getElementById('blog-prompt-text').value;
     if (!confirm('프롬프트를 저장하면 이후 생성되는 모든 블로그에 즉시 반영됩니다. 계속하시겠습니까?')) return;
@@ -1202,7 +1267,7 @@
       body: JSON.stringify({ content }),
     });
     const data = await res.json();
-    if (res.ok) showSaved();
+    if (res.ok) { showSaved(); _blogPromptDirty = false; }
     else alert(data.detail || '저장 실패');
   }
 
@@ -1214,10 +1279,39 @@
     }
   }
 
+  // #10 API 키 입력 시 공백 감지
+  document.getElementById('ai-key-input').addEventListener('input', function() {
+    const raw = this.value;
+    const trimmed = raw.trim();
+    const warn = document.getElementById('apikey-space-warning');
+    if (raw !== trimmed && raw.length > 0) {
+      warn.classList.remove('hidden');
+    } else {
+      warn.classList.add('hidden');
+    }
+  });
+
+  function checkBudgetInput(val) {
+    const warn = document.getElementById('budget-unit-warn');
+    if (!warn) return;
+    const n = parseInt(val) || 0;
+    warn.classList.toggle('hidden', !(n > 0 && n < 1000));
+  }
+
   async function saveAiSettings() {
     const model = document.querySelector('.model-card.selected input[type=radio]')?.value || '';
-    const budget = parseInt(document.getElementById('ai-budget').value) || 0;
+    const budgetRaw = parseInt(document.getElementById('ai-budget').value) || 0;
     const apiKey = document.getElementById('ai-key-input')?.value.trim() || '';
+
+    // #45 소액 입력 — 달러로 착각 가능성 경고
+    if (budgetRaw > 0 && budgetRaw < 1000) {
+      if (!confirm(`입력한 금액이 ${budgetRaw}원입니다. 단위는 원(KRW)입니다. 계속 저장할까요?`)) return;
+    }
+    // #14 예산 0 경고
+    if (budgetRaw === 0) {
+      if (!confirm('월 예산을 0원으로 설정하면 80% 알림이 첫 생성 직후 즉시 발생합니다. 계속할까요?')) return;
+    }
+    const budget = budgetRaw;
 
     const res = await fetch('/api/settings/clinic/ai', {
       method: 'POST',
@@ -1242,8 +1336,35 @@
   // ── 저장 버튼 숨김 (자동저장으로 대체) ───────────────────────────
   document.getElementById('saveBtn').style.display = 'none';
 
+  // #13 미저장 이탈 경고
+  let _profileDirty = false;
+  let _blogPromptDirty = false;
+
+  ['pf-name','pf-phone','pf-address','pf-specialty','pf-hours','pf-intro','pf-blog-features'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', () => { _profileDirty = true; });
+  });
+  document.addEventListener('input', e => {
+    if (e.target && e.target.id === 'blog-prompt-text') _blogPromptDirty = true;
+  });
+
+  window.addEventListener('beforeunload', e => {
+    if (_profileDirty || _blogPromptDirty) {
+      e.preventDefault();
+      e.returnValue = '저장하지 않은 변경사항이 있습니다. 나가면 변경사항이 사라집니다.';
+    }
+  });
+
+  // 저장 성공 시 dirty 플래그 해제
+  const _origSaveClinicProfile = saveClinicProfile;
+  async function saveClinicProfile() {
+    await _origSaveClinicProfile();
+    _profileDirty = false;
+  }
+
   // ── 현재 선택된 직원 ─────────────────────────────────────────────
   let selectedStaff = null;
+  let _staffEditDirty = false;
 
   const ROLE_LABELS = {
     chief_director: '대표원장',
@@ -1302,12 +1423,17 @@
     if (res.ok) {
       selectedStaff.name = name || selectedStaff.name;
       selectedStaff.role = role;
+      _staffEditDirty = false;
       // 목록 행 이름 갱신
       const row = document.querySelector(`.staff-row[data-id="${selectedStaff.id}"] p`);
       if (row) row.textContent = selectedStaff.name;
       showSaved();
     }
   }
+
+  // dirty 감지
+  document.getElementById('editName').addEventListener('input', () => { _staffEditDirty = true; });
+  document.getElementById('editRole').addEventListener('change', () => { _staffEditDirty = true; });
 
   async function deactivateStaff() {
     if (!selectedStaff) return;
@@ -1319,6 +1445,25 @@
       document.getElementById('staffEditPanel').style.opacity = '0.4';
       document.getElementById('staffEditPanel').style.pointerEvents = 'none';
       document.getElementById('permDesc').textContent = '비활성화되었습니다.';
+    }
+  }
+
+  async function activateStaff() {
+    if (!selectedStaff) return;
+    if (!confirm(`${selectedStaff.name} 직원을 재활성화하시겠습니까?`)) return;
+    const res = await fetch(`/api/settings/staff/${selectedStaff.id}/activate`, { method: 'POST' });
+    if (res.ok) {
+      selectedStaff.is_active = 1;
+      const row = document.querySelector(`.staff-row[data-id="${selectedStaff.id}"]`);
+      if (row) {
+        row.classList.remove('opacity-50');
+        const nameEl = row.querySelector('p');
+        if (nameEl) nameEl.innerHTML = nameEl.innerHTML.replace(/ <span.*?<\/span>/, '');
+      }
+      document.getElementById('deactivateArea').style.display = '';
+      document.getElementById('reinviteArea').style.display = '';
+      document.getElementById('reactivateArea').style.display = 'none';
+      showSaved();
     }
   }
 
@@ -1343,6 +1488,11 @@
   }
 
   function selectStaff(member) {
+    // #39 미저장 변경 경고
+    if (_staffEditDirty && selectedStaff && selectedStaff.id !== member.id) {
+      if (!confirm(`${selectedStaff.name}의 변경사항이 저장되지 않았습니다. 저장하지 않고 이동하시겠습니까?`)) return;
+    }
+    _staffEditDirty = false;
     selectedStaff = member;
 
     const isChief = CHIEF_ROLES.includes(member.role);
@@ -1358,10 +1508,14 @@
       document.getElementById('reinviteArea').style.display = 'none';
     } else {
       document.getElementById('roleEditArea').style.display = '';
-      document.getElementById('deactivateArea').style.display = '';
-      document.getElementById('reinviteArea').style.display = '';
       document.getElementById('reinvite-result').classList.add('hidden');
       roleSelect.value = member.role;
+      // 비활성 직원: 재활성화 버튼 표시, 비활성화/재초대 버튼 숨김
+      const isInactive = !member.is_active;
+      document.getElementById('deactivateArea').style.display = isInactive ? 'none' : '';
+      document.getElementById('reinviteArea').style.display = isInactive ? 'none' : '';
+      const reactivateArea = document.getElementById('reactivateArea');
+      if (reactivateArea) reactivateArea.style.display = isInactive ? '' : 'none';
     }
 
     // 설명 업데이트
@@ -1418,8 +1572,9 @@
       }
 
       data.staff.forEach((member, idx) => {
+        const isInactive = !member.is_active;
         const row = document.createElement('div');
-        row.className = 'staff-row px-8 py-5 flex justify-between items-center border-b border-stone-50 hover:bg-stone-50 transition-all cursor-pointer group';
+        row.className = `staff-row px-8 py-5 flex justify-between items-center border-b border-stone-50 hover:bg-stone-50 transition-all cursor-pointer group${isInactive ? ' opacity-50' : ''}`;
         row.dataset.id = member.id;
         row.innerHTML = `
           <div class="flex items-center gap-4">
@@ -1427,7 +1582,7 @@
               <span class="material-symbols-outlined text-stone-400" style="font-variation-settings:'FILL' 1;">person</span>
             </div>
             <div>
-              <p class="font-bold text-emerald-900 group-hover:text-emerald-700">${member.name}</p>
+              <p class="font-bold text-emerald-900 group-hover:text-emerald-700">${member.name}${isInactive ? ' <span class="text-xs text-red-400 font-normal">(비활성)</span>' : ''}</p>
               <p class="text-xs text-stone-400">${ROLE_LABELS[member.role] || member.role} • ${member.email}</p>
             </div>
           </div>
@@ -1458,7 +1613,15 @@
     document.getElementById('invite-email').focus();
   }
 
+  let _inviteLinkCopied = false;
+
   function closeInviteModal() {
+    // #40 링크 생성 후 복사 안 했으면 경고
+    const resultVisible = !document.getElementById('invite-result').classList.contains('hidden');
+    if (resultVisible && !_inviteLinkCopied) {
+      if (!confirm('초대 링크를 복사하지 않았습니다. 닫으면 링크를 다시 볼 수 없습니다. 그래도 닫으시겠습니까?')) return;
+    }
+    _inviteLinkCopied = false;
     document.getElementById('invite-modal').classList.add('hidden');
     document.getElementById('invite-modal').classList.remove('flex');
     resetInviteModal();
@@ -1468,6 +1631,7 @@
     document.getElementById('invite-form').classList.remove('hidden');
     document.getElementById('invite-result').classList.add('hidden');
     document.getElementById('invite-email').value = '';
+    document.getElementById('invite-email-confirm').value = '';
     document.getElementById('invite-role').value = 'team_member';
     document.getElementById('invite-error').classList.add('hidden');
   }
@@ -1478,7 +1642,20 @@
     const errEl = document.getElementById('invite-error');
     errEl.classList.add('hidden');
 
+    const emailConfirm = document.getElementById('invite-email-confirm').value.trim();
     if (!email) { errEl.textContent = '이메일을 입력해주세요.'; errEl.classList.remove('hidden'); return; }
+    if (email !== emailConfirm) { errEl.textContent = '이메일이 일치하지 않습니다. 다시 확인해주세요.'; errEl.classList.remove('hidden'); return; }
+
+    // #26 기존 직원 이메일 중복 체크
+    const existingStaff = document.querySelectorAll('.staff-row');
+    for (const row of existingStaff) {
+      const emailText = row.querySelector('p:last-child')?.textContent || '';
+      if (emailText.includes(email)) {
+        errEl.textContent = `${email}은(는) 이미 등록된 이메일입니다.`;
+        errEl.classList.remove('hidden');
+        return;
+      }
+    }
 
     const res  = await fetch('/api/auth/invite', {
       method: 'POST',
@@ -1497,10 +1674,46 @@
   async function copyInviteUrl() {
     const url  = document.getElementById('invite-url').textContent;
     await navigator.clipboard.writeText(url);
+    _inviteLinkCopied = true;
     const icon = document.getElementById('copy-icon');
     icon.textContent = 'check';
     setTimeout(() => { icon.textContent = 'content_copy'; }, 2000);
   }
+
+  // ── #44 두 탭 동시 수정 충돌 감지 ────────────────────────────────
+  const _TAB_KEY = 'cligent_settings_tab_ts';
+  const _TAB_ID  = Date.now() + '-' + Math.random().toString(36).slice(2);
+  let _tabConflictWarned = false;
+
+  function _claimSettingsTab() {
+    localStorage.setItem(_TAB_KEY, JSON.stringify({ ts: Date.now(), id: _TAB_ID }));
+  }
+
+  function _checkTabConflict() {
+    const raw = localStorage.getItem(_TAB_KEY);
+    if (!raw) { _claimSettingsTab(); return; }
+    try {
+      const { ts, id } = JSON.parse(raw);
+      const stale = Date.now() - ts > 10000;
+      if (!stale && id !== _TAB_ID && !_tabConflictWarned) {
+        _tabConflictWarned = true;
+        const banner = document.createElement('div');
+        banner.id = 'tab-conflict-banner';
+        banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#fef3c7;border-bottom:1px solid #fbbf24;padding:10px 20px;font-size:13px;color:#92400e;text-align:center;';
+        banner.innerHTML = '⚠️ 다른 탭에서도 설정 페이지가 열려 있습니다. 동시에 저장하면 변경사항이 덮어쓰일 수 있습니다.';
+        document.body.prepend(banner);
+      }
+    } catch (_) { /* 무시 */ }
+    _claimSettingsTab();
+  }
+
+  _claimSettingsTab();
+  setInterval(_checkTabConflict, 5000);
+  window.addEventListener('focus', _checkTabConflict);
+  window.addEventListener('beforeunload', () => {
+    const raw = localStorage.getItem(_TAB_KEY);
+    if (raw) { try { if (JSON.parse(raw).id === _TAB_ID) localStorage.removeItem(_TAB_KEY); } catch(_){} }
+  });
 </script>
 </body>
 </html>
