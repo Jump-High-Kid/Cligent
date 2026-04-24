@@ -32,6 +32,7 @@ main.py — FastAPI 앱 진입점
 
 블로그 API:
   GET  /api/blog/stats          → 블로그 생성 통계
+  POST /build-prompt            → 프롬프트 조립 (API 호출 없음, T1 복사용)
   POST /conversation-flow       → 대화 흐름 생성
   POST /generate                → 블로그 SSE 스트리밍
   POST /generate-image-prompts  → 이미지 프롬프트 SSE 스트리밍
@@ -103,7 +104,9 @@ from auth_manager import (
     verify_invite,
 )
 from blog_generator import generate_blog_stream
-from blog_history import get_blog_stats, save_blog_entry
+from youtube_generator import generate_youtube_stream
+from blog_history import get_blog_stats, purge_expired_texts, save_blog_entry
+from blog_generator import build_prompt_text
 from config_loader import load_config, save_blog_config, save_prompt
 from conversation_flow import generate_conversation_flow
 from db_manager import create_clinic, init_db, seed_demo_clinic, seed_demo_owner
@@ -153,6 +156,11 @@ async def lifespan(application: FastAPI):
     if os.getenv("ENV", "dev") == "dev":
         clinic_id = seed_demo_clinic()
         seed_demo_owner(clinic_id)
+    # 만료된 블로그 전문(全文) 자동 삭제 (30일 경과 항목)
+    removed = purge_expired_texts()
+    if removed:
+        import logging
+        logging.getLogger(__name__).info("blog_texts: 만료 항목 %d건 삭제", removed)
     yield
 
 
@@ -1094,6 +1102,43 @@ async def get_conversation_flow(request: Request, user: dict = Depends(get_curre
         return {"error": str(e)}
 
 
+@app.post("/build-prompt")
+async def build_prompt_endpoint(request: Request, user: dict = Depends(get_current_user)):
+    """
+    Claude API 호출 없이 프롬프트 텍스트만 조립해서 반환한다.
+    T1(프롬프트 복사) 기능 — plan_guard 한도 차감 없음.
+    """
+    body = await request.json()
+    keyword      = body.get("keyword", "").strip()
+    answers      = body.get("answers", {})
+    materials    = body.get("materials", {})
+    mode         = body.get("mode", "정보")
+    reader_level = body.get("reader_level", "일반인")
+    seo_keywords = body.get("seo_keywords", [])
+    clinic_info  = body.get("clinic_info", "")
+
+    if not keyword:
+        return {"error": "주제를 입력해주세요."}
+
+    try:
+        result = build_prompt_text(
+            keyword=keyword,
+            answers=answers,
+            materials=materials,
+            mode=mode,
+            reader_level=reader_level,
+            seo_keywords=seo_keywords,
+            clinic_info=clinic_info,
+        )
+        # 사용자가 AI에 붙여넣기 쉽도록 system + user를 구분해서 반환
+        return {
+            "system_prompt": result["system_prompt"],
+            "user_message": result["user_message"],
+        }
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
 @app.post("/generate")
 async def generate(request: Request, user: dict = Depends(get_current_user)):
     # 플랜 한도 체크 (무료 월 3편, 초과 시 429 반환)
@@ -1173,6 +1218,46 @@ async def generate(request: Request, user: dict = Depends(get_current_user)):
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@app.post("/generate-youtube")
+async def generate_youtube(request: Request, user: dict = Depends(get_current_user)):
+    """
+    YouTube 6단계 파이프라인 실행 — SSE 스트리밍.
+
+    Request body:
+        topic:   str (필수) — 영상 주제
+        length:  "short" | "long"          (기본: "long")
+        style:   "educational" | "marketing" (기본: "educational")
+    """
+    body = await request.json()
+    topic = body.get("topic", "").strip()
+    if not topic:
+        async def _err():
+            import json as _j
+            yield f"data: {_j.dumps({'type': 'error', 'step': 'init', 'msg': '영상 주제를 입력해주세요.'}, ensure_ascii=False)}\n\n"
+        return StreamingResponse(_err(), media_type="text/event-stream")
+
+    options = {
+        "length": body.get("length", "long"),
+        "style": body.get("style", "educational"),
+    }
+
+    return StreamingResponse(
+        generate_youtube_stream(
+            topic=topic,
+            clinic_id=user["clinic_id"],
+            options=options,
+        ),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.get("/youtube")
+async def youtube_page(request: Request, current_user: dict = Depends(get_current_user)):
+    """YouTube 생성기 페이지"""
+    return FileResponse(ROOT / "templates" / "youtube.html")
 
 
 @app.post("/generate-image-prompts")

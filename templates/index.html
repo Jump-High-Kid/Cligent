@@ -143,6 +143,7 @@
     .btn:disabled { opacity: 0.4; cursor: not-allowed; }
     .btn-primary   { background: #1a5f5a; color: #fff; }
     .btn-secondary { background: #eee; color: #555; }
+    .btn-outline   { background: #fff; color: #1a5f5a; border: 1.5px solid #1a5f5a; }
 
     .error-msg {
       color: #c0392b; font-size: 0.88rem; margin-top: 10px;
@@ -200,6 +201,11 @@
 
     /* 통합 입력 영역 */
     .question-input-area { margin-top: 10px; }
+    .privacy-warning {
+      font-size: 0.75rem; color: #92400e; background: #fef3c7;
+      border: 1px solid #fcd34d; border-radius: 6px;
+      padding: 6px 10px; margin-bottom: 8px; line-height: 1.5;
+    }
     .question-input-area input {
       width: 100%; padding: 9px 12px; border: 1.5px solid #ddd;
       border-radius: 8px; font-size: 0.9rem; font-family: inherit; outline: none;
@@ -235,7 +241,24 @@
       color: #999; font-size: 1rem; padding: 0; line-height: 1;
     }
     .link-tag button:hover { color: #c0392b; }
-    .materials-footer { display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end; }
+    .t6-ai-bar {
+      display: flex; align-items: center; gap: 6px;
+      margin-top: 12px; padding: 9px 12px;
+      background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px;
+      flex-wrap: wrap;
+    }
+    .t6-ai-label {
+      font-size: 11px; font-weight: 600; color: #94a3b8;
+      white-space: nowrap; margin-right: 2px;
+    }
+    .btn-ai-chip {
+      padding: 4px 10px; border: 1px solid #d1d5db; border-radius: 8px;
+      background: white; font-size: 12px; font-weight: 500; color: #374151;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .btn-ai-chip:hover:not(:disabled) { border-color: #064e3b; color: #064e3b; background: #f0fdf4; }
+    .btn-ai-chip:disabled { opacity: 0.5; cursor: not-allowed; }
+    .materials-footer { display: flex; gap: 8px; margin-top: 10px; justify-content: flex-end; }
 
     /* 이미지 프롬프트 섹션 */
     #imagePromptSection {
@@ -421,6 +444,12 @@
     #output li { margin-bottom: 0.3em; }
 
     .result-footer { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .data-retention-notice {
+      width: 100%; font-size: 0.78rem; color: #6b7280;
+      background: #f3f4f6; border: 1px solid #e5e7eb;
+      border-radius: 6px; padding: 7px 12px;
+    }
+    .data-retention-notice strong { color: #374151; }
     #tokenInfo { font-size: 0.8rem; color: #999; }
 
     .dots::after { content: ''; animation: dots 1.2s steps(4,end) infinite; }
@@ -633,6 +662,10 @@
       </div>
 
       <div class="result-footer hidden" id="resultFooter">
+        <!-- #6 데이터 보존 안내 -->
+        <div class="data-retention-notice">
+          생성된 글은 <strong>30일 후 자동 삭제</strong>됩니다. 네이버 블로그에 게시하거나 복사해두세요.
+        </div>
         <!-- #6 복사 힌트 -->
         <div style="width:100%;font-size:0.78rem;color:#888;margin-bottom:4px;">
           복사 후 <strong>네이버 블로그 편집기</strong>에 붙여넣기하면 굵기·제목 서식이 유지됩니다.
@@ -913,6 +946,10 @@
           <div>${escapeHtml(q.message)}</div>
           <div class="options-wrap" id="options-${idx}">${chipsHtml}</div>
           <div class="question-input-area">
+            <div class="privacy-warning">
+              ⚠️ 특정 환자의 이름·나이·증상 등 개인정보는 입력하지 마세요.
+              일반적인 증상 경향이나 치료 경험으로 표현해주세요. (의료법 제19조)
+            </div>
             <input type="text" id="custom-input-${idx}"
               placeholder="직접 입력 (선택사항)"
               oninput="updateConfirmBtn(${idx})"
@@ -1027,6 +1064,13 @@
               <div class="link-tags" id="yt-links-list"></div>
             </div>
           </div>
+          <div class="t6-ai-bar">
+            <span class="t6-ai-label">다른 AI로 작성</span>
+            <button class="btn-ai-chip" onclick="openInAI('claude')">Claude.ai</button>
+            <button class="btn-ai-chip" onclick="openInAI('chatgpt')">ChatGPT</button>
+            <button class="btn-ai-chip" onclick="openInAI('gemini')">Gemini</button>
+            <button class="btn-ai-chip" id="copyPromptBtn" onclick="copyPromptToClipboard()">📋 복사만</button>
+          </div>
           <div class="materials-footer">
             <button class="btn btn-secondary" onclick="skipMaterials()">건너뛰기</button>
             <button class="btn btn-primary" onclick="confirmMaterials()">완료 — 블로그 생성</button>
@@ -1059,6 +1103,97 @@
       const i   = arr.indexOf(url);
       if (i > -1) arr.splice(i, 1);
       btn.parentElement.remove();
+    }
+
+    function showToast(msg) {
+      let toast = document.getElementById('t6-toast');
+      if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 't6-toast';
+        toast.style.cssText = 'position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:#064e3b;color:white;padding:12px 22px;border-radius:12px;font-size:13px;font-weight:500;z-index:9999;max-width:440px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,0.2);transition:opacity .3s;';
+        document.body.appendChild(toast);
+      }
+      toast.textContent = msg;
+      toast.style.opacity = '1';
+      toast.style.display = 'block';
+      clearTimeout(toast._timer);
+      toast._timer = setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => { toast.style.display = 'none'; }, 300);
+      }, 4500);
+    }
+
+    async function openInAI(platform) {
+      const AI_URLS = {
+        claude: 'https://claude.ai/new',
+        chatgpt: 'https://chatgpt.com/',
+        gemini: 'https://gemini.google.com/'
+      };
+      const AI_NAMES = { claude: 'Claude.ai', chatgpt: 'ChatGPT', gemini: 'Gemini' };
+      const chips = document.querySelectorAll('.btn-ai-chip');
+      chips.forEach(b => { b.disabled = true; });
+      try {
+        const matText = (document.getElementById('mat-text')?.value || '').trim();
+        const mats = { ...collectedMaterials, text: matText };
+        const res = await fetch('/build-prompt', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            keyword: currentKeyword, answers: collectedAnswers, materials: mats,
+            mode: selectedMode, reader_level: selectedReaderLevel,
+            seo_keywords: seoKeywords,
+            clinic_info: document.getElementById('clinicInfoText')?.value || '',
+          }),
+        });
+        const data = await res.json();
+        if (data.error) { alert('오류: ' + data.error); return; }
+        const fullPrompt = `[시스템 지시]\n${data.system_prompt}\n\n[사용자 요청]\n${data.user_message}`;
+        await navigator.clipboard.writeText(fullPrompt);
+        window.open(AI_URLS[platform], '_blank');
+        showToast(`✓ 복사 완료! ${AI_NAMES[platform]}에서 Ctrl+V (Mac: ⌘V) 로 붙여넣기 하세요.`);
+      } catch (e) {
+        alert('오류: ' + e.message);
+      } finally {
+        chips.forEach(b => { b.disabled = false; });
+      }
+    }
+
+    async function copyPromptToClipboard() {
+      const btn = document.getElementById('copyPromptBtn');
+      const origText = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '조립 중...';
+
+      // 현재 자료 수집 (텍스트만 — 버튼 클릭 시점 기준)
+      const matText = (document.getElementById('mat-text')?.value || '').trim();
+      const mats = { ...collectedMaterials, text: matText };
+
+      try {
+        const res = await fetch('/build-prompt', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            keyword: currentKeyword, answers: collectedAnswers, materials: mats,
+            mode: selectedMode, reader_level: selectedReaderLevel,
+            seo_keywords: seoKeywords,
+            clinic_info: document.getElementById('clinicInfoText')?.value || '',
+          }),
+        });
+        const data = await res.json();
+        if (data.error) { alert('오류: ' + data.error); return; }
+
+        // system + user 합쳐서 복사 (ChatGPT·Claude.ai 어디든 붙여넣기 가능하도록)
+        const fullPrompt =
+          `[시스템 지시]\n${data.system_prompt}\n\n` +
+          `[사용자 요청]\n${data.user_message}`;
+
+        await navigator.clipboard.writeText(fullPrompt);
+        showToast('✓ 프롬프트가 클립보드에 복사되었습니다. 원하는 AI에 붙여넣기 하세요.');
+        btn.innerHTML = '✓ 복사됨';
+        setTimeout(() => { btn.innerHTML = origText; btn.disabled = false; }, 2000);
+      } catch (e) {
+        alert('복사 실패: ' + e.message);
+        btn.innerHTML = origText;
+        btn.disabled = false;
+      }
     }
 
     function skipMaterials() { addUserBubble('건너뛰기'); startGenerate(); }
