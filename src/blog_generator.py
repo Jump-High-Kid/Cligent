@@ -365,6 +365,7 @@ def build_prompt_text(
             reader_level, _READER_LEVEL_INSTRUCTIONS["일반인"]
         ),
         seo_keywords_section=_build_seo_keywords_section(seo_keywords or []),
+        explanation_section="",
         clinic_info_section=_build_clinic_info_section(clinic_info),
         related_posts_section=_build_related_posts_section(recent_posts, keyword),
     )

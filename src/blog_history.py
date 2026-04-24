@@ -127,6 +127,57 @@ def purge_expired_texts() -> int:
     return removed
 
 
+def get_history_list(page: int = 1, per_page: int = 20) -> dict:
+    """
+    설정 페이지용 블로그 생성 이력 반환 (최신순, 페이지네이션)
+
+    반환 형식:
+    {
+        "total": 전체 수,
+        "items": [{"id", "keyword", "title", "tone", "char_count",
+                   "seo_keywords", "created_at", "has_text", "expires_at"}]
+    }
+    """
+    stats = _load_json(STATS_PATH, default=[])
+    texts = _load_json(TEXTS_PATH, default=[])
+    text_map = {t["id"]: t for t in texts}
+
+    now = datetime.now()
+    sorted_stats = list(reversed(stats))
+    total = len(sorted_stats)
+    start = (page - 1) * per_page
+    items = []
+    for e in sorted_stats[start: start + per_page]:
+        entry_id = e["id"]
+        text_entry = text_map.get(entry_id)
+        has_text = bool(
+            text_entry
+            and _parse_dt(text_entry["expires_at"]) > now
+        )
+        items.append({
+            "id": entry_id,
+            "keyword": e["keyword"],
+            "title": e.get("title", e["keyword"]),
+            "tone": e.get("tone", ""),
+            "char_count": e.get("char_count", 0),
+            "seo_keywords": e.get("seo_keywords", []),
+            "created_at": e["created_at"],
+            "has_text": has_text,
+            "expires_at": text_entry["expires_at"] if has_text else None,
+        })
+    return {"total": total, "items": items}
+
+
+def get_blog_text(entry_id: int) -> Optional[str]:
+    """특정 항목의 전문 반환 (만료됐거나 없으면 None)"""
+    texts = _load_json(TEXTS_PATH, default=[])
+    now = datetime.now()
+    for t in texts:
+        if t.get("id") == entry_id and _parse_dt(t["expires_at"]) > now:
+            return t.get("blog_text")
+    return None
+
+
 def get_text_expiry_info(entry_id: int) -> Optional[str]:
     """특정 항목의 전문 만료 일시 반환 (없으면 None)"""
     texts = _load_json(TEXTS_PATH, default=[])

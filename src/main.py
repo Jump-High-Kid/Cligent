@@ -105,7 +105,7 @@ from auth_manager import (
 )
 from blog_generator import generate_blog_stream
 from youtube_generator import generate_youtube_stream
-from blog_history import get_blog_stats, purge_expired_texts, save_blog_entry
+from blog_history import get_blog_stats, purge_expired_texts, save_blog_entry, get_history_list, get_blog_text
 from blog_generator import build_prompt_text
 from config_loader import load_config, save_blog_config, save_prompt
 from conversation_flow import generate_conversation_flow
@@ -1162,6 +1162,23 @@ async def blog_stats(user: dict = Depends(get_current_user)):
     except Exception:
         stats["onboarding_seconds"] = None
     return JSONResponse(stats)
+
+
+@app.get("/api/blog/history")
+async def blog_history(
+    page: int = 1,
+    per_page: int = 20,
+    user: dict = Depends(get_current_user),
+):
+    return JSONResponse(get_history_list(page=page, per_page=per_page))
+
+
+@app.get("/api/blog/history/{entry_id}/text")
+async def blog_history_text(entry_id: int, user: dict = Depends(get_current_user)):
+    text = get_blog_text(entry_id)
+    if text is None:
+        raise HTTPException(status_code=404, detail="전문을 찾을 수 없거나 만료되었습니다.")
+    return JSONResponse({"text": text})
 
 
 def _stream_and_save(

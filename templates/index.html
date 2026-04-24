@@ -385,7 +385,7 @@
     /* 트렌딩 키워드 추천 */
     .trending-wrap { margin-top: 14px; }
     .trending-label { font-size: 0.78rem; font-weight: 600; color: #78716c; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 7px; display: flex; align-items: center; gap: 5px; }
-    .trending-label::before { content: '🔥'; font-size: 0.9rem; }
+    .trending-label::before { content: '📚'; font-size: 0.9rem; }
     .trending-chips { display: flex; flex-wrap: wrap; gap: 6px; }
     .trending-chip {
       padding: 5px 12px; border-radius: 20px; border: 1.5px solid #e5e7eb;
@@ -441,22 +441,15 @@
     #imgGenerateBtn { padding: 10px 26px; font-size: 0.9rem; }
 
     /* 결과 하단 — 사이트 바로가기 */
-    .site-goto-group { display: flex; align-items: center; gap: 0; }
     .site-goto-select {
-      padding: 7px 10px; border: 1.5px solid #cce0de; border-right: none;
-      border-radius: 8px 0 0 8px; font-size: 0.82rem; font-family: inherit;
-      color: #1a5f5a; background: #f0f7f6; cursor: pointer; outline: none;
+      height: 36px; padding: 0 26px 0 10px; border: 1.5px solid #d1d5db; border-right: none;
+      border-radius: 8px 0 0 8px; font-size: 0.84rem; font-family: inherit;
+      color: #374151; background: #fff; cursor: pointer; outline: none;
       -webkit-appearance: none; appearance: none;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%231a5f5a' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236b7280' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
       background-repeat: no-repeat; background-position: right 8px center;
-      padding-right: 26px;
     }
-    .site-goto-btn {
-      padding: 7px 14px; border: 1.5px solid #1a5f5a; border-radius: 0 8px 8px 0;
-      background: #1a5f5a; color: #fff; font-size: 0.82rem; font-weight: 700;
-      cursor: pointer; font-family: inherit; transition: opacity 0.15s; white-space: nowrap;
-    }
-    .site-goto-btn:hover { opacity: 0.85; }
+    .site-goto-btn { border-radius: 0 8px 8px 0; border-left: none; }
 
     /* 결과 — 마크다운 렌더링 */
     #output {
@@ -477,14 +470,23 @@
     #output ul, #output ol { padding-left: 1.4em; margin-bottom: 0.8em; }
     #output li { margin-bottom: 0.3em; }
 
-    .result-footer { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-    .data-retention-notice {
-      width: 100%; font-size: 0.78rem; color: #6b7280;
-      background: #f3f4f6; border: 1px solid #e5e7eb;
-      border-radius: 6px; padding: 7px 12px;
+    .result-footer { display: flex; flex-direction: column; gap: 12px; }
+    .result-info-block {
+      width: 100%; font-size: 0.8rem; color: #9ca3af; line-height: 1.8;
     }
-    .data-retention-notice strong { color: #374151; }
-    #tokenInfo { font-size: 0.8rem; color: #999; }
+    #charCountInfo { display: block; margin-bottom: 2px; }
+    #tokenInfo { display: block; margin-top: 2px; }
+    .result-btn-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .result-btn {
+      height: 36px; padding: 0 18px; border-radius: 8px; font-size: 0.84rem;
+      font-weight: 600; font-family: inherit; cursor: pointer; white-space: nowrap;
+      display: inline-flex; align-items: center; transition: opacity 0.15s;
+    }
+    .result-btn:hover { opacity: 0.85; }
+    .result-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .result-btn-primary { background: #064e3b; color: #fff; border: 1.5px solid #064e3b; }
+    .result-btn-outline { background: #fff; color: #374151; border: 1.5px solid #d1d5db; }
+    .site-goto-group { display: flex; align-items: center; gap: 0; }
 
     .dots::after { content: ''; animation: dots 1.2s steps(4,end) infinite; }
     @keyframes dots {
@@ -605,14 +607,6 @@
 
   <div class="card">
 
-    <!-- #16 이전 결과 복원 배너 -->
-    <div id="restoreBanner" class="hidden" style="background:#f0f7f6;border:1.5px solid #a8d5d1;border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
-      <span style="font-size:0.88rem;color:#1a5f5a;">이전에 생성한 블로그가 있습니다. 복원할까요?</span>
-      <div style="display:flex;gap:8px;flex-shrink:0;">
-        <button class="btn btn-primary" style="padding:6px 16px;font-size:0.82rem;" onclick="restoreDraft()">복원</button>
-        <button class="btn btn-secondary" style="padding:6px 12px;font-size:0.82rem;" onclick="discardDraft()">삭제</button>
-      </div>
-    </div>
 
     <!-- #5 API 키 미설정 배너 -->
     <div id="apiKeyBanner" class="hidden error-msg" style="background:#fff8e1;color:#7c5c00;border-left:3px solid #f59e0b;margin-bottom:16px;">
@@ -633,7 +627,7 @@
 
       <!-- 트렌딩 키워드 추천 -->
       <div class="trending-wrap">
-        <div class="trending-label">요즘 잘 되는 키워드</div>
+        <div class="trending-label">이어서 쓰면 좋을 시리즈 주제</div>
         <div class="trending-chips" id="trendingChips"></div>
       </div>
 
@@ -723,31 +717,29 @@
       </div>
 
       <div class="result-footer hidden" id="resultFooter">
-        <!-- #6 데이터 보존 안내 -->
-        <div class="data-retention-notice">
-          생성된 글은 <strong>30일 후 자동 삭제</strong>됩니다. 네이버 블로그에 게시하거나 복사해두세요.
+        <!-- 안내 텍스트 -->
+        <div class="result-info-block">
+          <span id="charCountInfo"></span>
+          생성된 글은 30일 후 자동 삭제됩니다. 네이버 블로그에 게시하거나 복사해두세요.<br>
+          복사 후 네이버 블로그 편집기에 붙여넣기하면 굵기·제목 서식이 유지됩니다.<br>
+          <span id="tokenInfo"></span>
         </div>
-        <!-- #6 복사 힌트 -->
-        <div style="width:100%;font-size:0.78rem;color:#888;margin-bottom:4px;">
-          복사 후 <strong>네이버 블로그 편집기</strong>에 붙여넣기하면 굵기·제목 서식이 유지됩니다.
+        <!-- 버튼 그룹 -->
+        <div class="result-btn-row">
+          <button class="result-btn result-btn-primary" onclick="copyResult()">복사</button>
+          <div class="site-goto-group">
+            <select class="site-goto-select" id="aiSiteSelect">
+              <option value="https://www.midjourney.com/imagine">Midjourney</option>
+              <option value="https://chatgpt.com">ChatGPT</option>
+              <option value="https://gemini.google.com">Gemini</option>
+              <option value="https://ideogram.ai">Ideogram</option>
+              <option value="https://leonardo.ai">Leonardo AI</option>
+            </select>
+            <button class="result-btn result-btn-outline site-goto-btn" onclick="gotoAiSite()">바로가기 ↗</button>
+          </div>
+          <button class="result-btn result-btn-outline" id="imgPromptBtn" onclick="startImagePromptGenerate()" disabled title="블로그 생성 완료 후 활성화됩니다">이미지 프롬프트 생성</button>
+          <button class="result-btn result-btn-outline" onclick="reset()">처음부터</button>
         </div>
-        <button class="btn btn-primary" onclick="copyResult()">복사</button>
-        <div class="site-goto-group">
-          <select class="site-goto-select" id="aiSiteSelect">
-            <option value="https://www.midjourney.com/imagine">Midjourney</option>
-            <option value="https://chatgpt.com">ChatGPT</option>
-            <option value="https://gemini.google.com">Gemini</option>
-            <option value="https://ideogram.ai">Ideogram</option>
-            <option value="https://leonardo.ai">Leonardo AI</option>
-          </select>
-          <button class="site-goto-btn" onclick="gotoAiSite()">바로가기 ↗</button>
-        </div>
-        <!-- #8 이미지 프롬프트 버튼: 생성 완료 전 비활성화 -->
-        <button class="btn btn-secondary" id="imgPromptBtn" onclick="startImagePromptGenerate()" style="background:#e8f4f3; color:#1a5f5a;" disabled title="블로그 생성 완료 후 활성화됩니다">이미지 프롬프트 생성</button>
-        <!-- FAQ 스키마 복사 버튼: 자체 웹사이트 게시 기능 추가 시 활성화 예정 -->
-        <!-- <button class="btn btn-secondary hidden" id="faqSchemaBtn" onclick="copyFaqSchema(this)" title="네이버·구글 리치 결과 노출용 FAQ 스키마를 복사합니다">FAQ 스키마 복사</button> -->
-        <button class="btn btn-secondary" onclick="reset()">처음부터</button>
-        <span id="tokenInfo"></span>
       </div>
 
       <!-- 이미지 프롬프트 섹션 (숨김 → 버튼 클릭 시 표시) -->
@@ -853,13 +845,11 @@
     let pendingAiUrl    = '';
     let betaUsage       = { blog_count: 0, blog_limit: 10, copy_count: 0, copy_limit: 30, api_key_configured: false };
 
-    // ── 트렌딩 키워드 목록 ───────────────────────────────────
-    const TRENDING_KEYWORDS = [
-      '소화불량', '허리통증', '무릎 관절염', '면역력 강화', '수면장애',
-      '갱년기 증상', '체중관리', '두통·편두통', '만성피로', '피부트러블',
-      '산후조리', '소아 성장', '여성 불임', '비염', '어깨 통증',
-      '목 디스크', '봄철 알레르기', '냉방병', '스트레스 해소', '혈액순환'
-    ];
+    // ── 시리즈 주제 (이전 생성에서 저장된 목록) ───────────────
+    function loadSeriesTopics() {
+      try { return JSON.parse(localStorage.getItem('cligent_series_topics') || '[]'); }
+      catch (_) { return []; }
+    }
 
     // #2 글자 수 카운터
     function updateKeywordCounter() {
@@ -868,19 +858,21 @@
     }
 
     function initTrendingChips() {
+      const topics = loadSeriesTopics();
       const wrap = document.getElementById('trendingChips');
-      wrap.innerHTML = TRENDING_KEYWORDS.map(kw =>
-        `<button class="trending-chip" onclick="applyTrendingKeyword('${kw}')">${kw}</button>`
+      const section = wrap.closest('.trending-wrap');
+      if (!topics.length) { section.style.display = 'none'; return; }
+      section.style.display = '';
+      wrap.innerHTML = topics.map(kw =>
+        `<button class="trending-chip" onclick="applyTrendingKeyword('${escapeAttr(kw)}')">${escapeHtml(kw)}</button>`
       ).join('');
     }
 
     function applyTrendingKeyword(kw) {
       const kwInput = document.getElementById('keyword');
-      if (!kwInput.value.trim()) {
-        kwInput.value = kw;
-      } else {
-        addSeoKeywordValue(kw);
-      }
+      kwInput.value = kw;
+      updateKeywordCounter();
+      kwInput.focus();
     }
 
     // ── SEO 키워드 관리 ──────────────────────────────────────
@@ -1244,22 +1236,13 @@
             </div>
           </div>
           <div class="t6-ai-bar">
-            <span class="t6-ai-label">다른 AI로 작성</span>
+            <span class="t6-ai-label">다른 AI로 프롬프트 복사</span>
             <button class="btn-ai-chip" onclick="openInAI('claude')">Claude.ai</button>
             <button class="btn-ai-chip" onclick="openInAI('chatgpt')">ChatGPT</button>
             <button class="btn-ai-chip" onclick="openInAI('gemini')">Gemini</button>
-            <button class="btn-ai-chip" id="copyPromptBtn" onclick="copyPromptToClipboard()">📋 복사만</button>
           </div>
           <div class="materials-footer" id="materialsFooter">
             <button class="btn btn-secondary" onclick="reset()">← 처음으로</button>
-            <div class="ai-select-group">
-              <select id="externalAiSelect">
-                <option value="https://claude.ai/new">Claude.ai</option>
-                <option value="https://chatgpt.com">ChatGPT</option>
-                <option value="https://gemini.google.com">Gemini</option>
-              </select>
-              <button class="btn btn-secondary" onclick="copyAndGoExternal()">프롬프트 복사</button>
-            </div>
             <button id="generateBtn" class="btn btn-primary" onclick="confirmMaterials()">완료 — 블로그 생성</button>
           </div>
         </div>`;
@@ -1651,13 +1634,10 @@
                 faqSchemaData = msg.faq_schema || null;
                 const faqBtn = document.getElementById('faqSchemaBtn');
                 if (faqBtn) faqBtn.classList.toggle('hidden', !faqSchemaData);
-                // #24 글자 수 안내
+                // 글자 수 안내
                 const charLen = rawOutputText.replace(/\s/g, '').length;
-                if (charLen > 3000) {
-                  showError('step3Error', '생성된 글이 3000자를 초과합니다. 더 짧은 주제나 질문 답변을 줄여보세요.');
-                } else if (charLen > 2000) {
-                  showError('step3Error', '네이버 블로그에 최적화된 글자 수는 1500-2000자 입니다.');
-                }
+                document.getElementById('charCountInfo').textContent =
+                  `생성된 글은 총 ${charLen.toLocaleString()}자 입니다.`;
                 // #3 마지막 생성 키워드 저장
                 lastGeneratedKeyword = currentKeyword;
                 // #4 이탈 경고 해제
@@ -1665,10 +1645,6 @@
                 // #8 이미지 프롬프트 버튼 활성화
                 const imgDoneBtn = document.getElementById('imgPromptBtn');
                 if (imgDoneBtn) { imgDoneBtn.disabled = false; imgDoneBtn.title = ''; }
-                // #16 결과 localStorage 임시저장
-                try {
-                  localStorage.setItem('cligent_draft', JSON.stringify({ keyword: currentKeyword, text: rawOutputText, ts: Date.now() }));
-                } catch (_) {}
                 if (msg.series && msg.series.length) renderSeriesSuggestions(msg.series);
                 // SEO 태그 표시
                 const tags = msg.seo_keywords || [];
@@ -1973,6 +1949,7 @@
     }
 
     function renderSeriesSuggestions(series) {
+      try { localStorage.setItem('cligent_series_topics', JSON.stringify(series)); } catch (_) {}
       const existing = document.getElementById('seriesSection');
       if (existing) existing.remove();
       const el = document.createElement('div');
@@ -2015,30 +1992,7 @@
     }
 
 
-    // #16 임시저장 복원/삭제
-    function restoreDraft() {
-      try {
-        const d = JSON.parse(localStorage.getItem('cligent_draft') || 'null');
-        if (!d) return;
-        rawOutputText = d.text;
-        currentKeyword = d.keyword;
-        lastGeneratedKeyword = d.keyword;
-        document.getElementById('restoreBanner').style.display = 'none';
-        showStep(3);
-        document.getElementById('output').innerHTML = renderMarkdown(rawOutputText);
-        document.getElementById('outputLabel').textContent = '복원된 결과';
-        document.getElementById('resultFooter').classList.remove('hidden');
-        const imgBtn = document.getElementById('imgPromptBtn');
-        if (imgBtn) { imgBtn.disabled = false; imgBtn.title = ''; }
-      } catch (_) {}
-    }
-    function discardDraft() {
-      localStorage.removeItem('cligent_draft');
-      document.getElementById('restoreBanner').style.display = 'none';
-    }
-
     function reset() {
-      localStorage.removeItem('cligent_draft');
       currentKeyword = ''; conversationFlow = []; currentIndex = 0;
       collectedAnswers = {}; selectedOptions = {}; rawOutputText = '';
       allPrompts = []; selectedStyle = 'photorealistic'; selectedTone = 'warm';
@@ -2109,19 +2063,6 @@
     loadClinicInfo();
     loadBetaUsage();
 
-    // #16 페이지 로드 시 임시저장 체크 (24시간 이내)
-    (function checkDraft() {
-      try {
-        const d = JSON.parse(localStorage.getItem('cligent_draft') || 'null');
-        if (d && d.text && (Date.now() - d.ts) < 86400000) {
-          const banner = document.getElementById('restoreBanner');
-          banner.style.display = 'flex';
-          const span = banner.querySelector('span');
-          const ago = Math.round((Date.now() - d.ts) / 60000);
-          span.textContent = `약 ${ago < 60 ? ago + '분' : Math.round(ago/60) + '시간'} 전 생성한 "${d.keyword}" 블로그가 있습니다. 복원할까요?`;
-        }
-      } catch (_) {}
-    })();
 
     // #4 생성 중 이탈 경고
     window.addEventListener('beforeunload', e => {
