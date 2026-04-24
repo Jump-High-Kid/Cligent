@@ -11,10 +11,20 @@
       "placement": "배치 위치 (한글, 분석 JSON의 placement_ko 사용)",
       "prompt": "영어 이미지 프롬프트 전문",
       "negative_prompt": "네거티브 프롬프트 (영어 쉼표 구분)",
-      "aspect_ratio": "16:9|4:3|1:1"
+      "aspect_ratio": "1:1",
+      "resolution": "900x900",
+      "format": "jpg"
     }
   ]
 }
+
+## 이미지 출력 규격 (모든 프롬프트 공통 적용)
+- 해상도: 900×900 픽셀
+- 비율: 1:1 (정사각형) — 예외 없음
+- 파일 형식: JPG
+- Midjourney 파라미터: --ar 1:1 --w 900 --h 900
+- DALL-E 파라미터: size=1024x1024 (900x900 미지원, 최근접 정사각형 사용)
+- 모든 구도·크롭은 1:1 정사각형 기준으로 설계
 
 ## 이미지 스타일별 프롬프트 접두어
 입력된 IMAGE_STYLE 값에 따라 프롬프트 앞에 아래 표현을 추가합니다.
@@ -56,39 +66,42 @@ anime/cartoon/illustration/watercolor 스타일에서는 위 공간 특성을 �
 - 전통 의복(한복, 도포) 절대 금지
 - 청진기 등 서양 의료 기구 포함 금지
 
-## 경혈 위치 — WHO 기준 해부학적 표현 (침 치료 장면에 정확히 사용)
-| 코드  | 해부학적 위치 (프롬프트 그대로 사용)                                     |
-|-------|--------------------------------------------------------------------------|
-| LU7   | volar forearm, 1.5 cun above the wrist, proximal to the radial styloid  |
-| LI4   | dorsum of hand, webspace between thumb and index finger                  |
-| LI11  | lateral elbow, at the lateral end of the cubital crease                  |
-| ST25  | abdomen, 2 finger-widths lateral to the navel                           |
-| ST36  | leg, 3 finger-widths below the kneecap, lateral to the tibial crest     |
-| ST40  | lateral leg, midpoint between knee and ankle, 2 cun lateral to tibia    |
-| ST44  | dorsum of foot, between 2nd and 3rd toes, at the web margin             |
-| SP6   | inner leg, 3 finger-widths above the medial malleolus                   |
-| SP10  | medial thigh, 2 cun above the superior medial border of the patella     |
-| HT7   | medial wrist crease, ulnar side, between the tendons                    |
-| SI3   | dorsum of hand, ulnar side, proximal to the 5th metacarpophalangeal joint|
-| BL17  | upper back, 1.5 cun lateral to the lower border of T7 spinous process   |
-| BL23  | lower back, bilateral paravertebral, lateral to L2 spinous process      |
-| BL40  | posterior knee, midpoint of the popliteal crease                        |
-| BL60  | lateral ankle, between the lateral malleolus and Achilles tendon        |
-| KD3   | medial ankle, between the medial malleolus and Achilles tendon          |
-| KD6   | medial ankle, 1 cun below the medial malleolus                         |
-| PC6   | volar forearm, 2 finger-widths above the wrist crease, between tendons  |
-| TE5   | dorsal forearm, 2 cun above the dorsal wrist crease, between radius and ulna |
-| GB20  | posterior head, depression between sternocleidomastoid and trapezius    |
-| GB21  | shoulder, midpoint between the base of the neck and the acromion        |
-| GB34  | lateral leg, depression anterior and inferior to the fibular head       |
-| LV3   | dorsum of foot, between 1st and 2nd metatarsal bones                   |
-| GV4   | lower back midline, between L2 and L3 spinous processes                 |
-| GV14  | posterior neck midline, between C7 and T1 spinous processes             |
-| GV20  | crown of the head, midline vertex                                       |
-| CV4   | lower abdomen, 3 finger-widths below the navel, on the midline         |
-| CV6   | lower abdomen, 1.5 cun below the navel, on the midline                 |
-| CV12  | upper abdomen, 4 cun above the navel, on the midline                   |
-| CV17  | anterior chest, midpoint of the sternum, at the 4th intercostal level  |
+## 경혈 위치 — WHO/KMCRIC 기준 정밀 해부학적 표현 (침 치료 장면에 정확히 사용)
+아래 표의 해부학적 표현을 프롬프트에 그대로 삽입하여 침 위치를 정확히 묘사합니다.
+침은 반드시 지정된 해부학적 landmark에 근접하게 묘사하고, 잘못된 위치 금지.
+
+| 코드  | 경혈명 (한글) | 해부학적 위치 — 이미지 AI용 정밀 표현                                                                                     |
+|-------|-------------|--------------------------------------------------------------------------------------------------------------------------|
+| LU7   | 열결(列缺)   | acupuncture needle inserted at the radial side of the volar forearm, exactly 1.5 cun proximal to the wrist crease, just superior to the styloid process of the radius, visible radial pulse groove nearby |
+| LI4   | 합곡(合谷)   | acupuncture needle inserted at the highest point of the first dorsal interosseous muscle on the dorsum of the hand, in the fleshy webspace between the 1st and 2nd metacarpal bones, thumb and index finger slightly spread |
+| LI11  | 곡지(曲池)   | acupuncture needle inserted at the lateral end of the cubital crease, at the midpoint between the lateral epicondyle of the humerus and the biceps tendon, elbow flexed at 90 degrees |
+| ST25  | 천추(天樞)   | acupuncture needle inserted into the abdomen, 2 cun (approximately two finger-widths) lateral to the center of the navel, on the rectus abdominis muscle |
+| ST36  | 족삼리(足三里) | acupuncture needle inserted 3 cun below the lower border of the patella, 1 finger-width lateral to the anterior crest of the tibia, between tibialis anterior and extensor digitorum longus muscles |
+| ST40  | 풍륭(豊隆)   | acupuncture needle inserted on the anterolateral leg, 8 cun above the tip of the lateral malleolus, 2 cun lateral to the anterior crest of the tibia, midpoint between the lateral knee and lateral ankle |
+| ST44  | 내정(內庭)   | acupuncture needle inserted on the dorsum of the foot, in the web margin between the 2nd and 3rd toes, 0.5 cun proximal to the free margin of the web |
+| SP6   | 삼음교(三陰交) | acupuncture needle inserted on the medial leg, 3 cun directly above the tip of the medial malleolus, posterior to the medial border of the tibia |
+| SP10  | 혈해(血海)   | acupuncture needle inserted on the medial thigh, 2 cun above the superomedial corner of the patella, on the bulge of vastus medialis muscle |
+| HT7   | 신문(神門)   | acupuncture needle inserted at the wrist, on the ulnar side of the palmar crease, in the depression between the flexor carpi ulnaris tendon and the pisiform bone |
+| SI3   | 후계(後谿)   | acupuncture needle inserted on the ulnar border of the hand, in the depression proximal to the 5th metacarpophalangeal joint, at the junction of the red and white skin |
+| BL17  | 격수(膈兪)   | acupuncture needle inserted on the upper back, 1.5 cun lateral to the lower border of the spinous process of the 7th thoracic vertebra (T7), bilateral paravertebral muscle |
+| BL23  | 신수(腎兪)   | acupuncture needle inserted on the lower back, 1.5 cun lateral to the lower border of the spinous process of the 2nd lumbar vertebra (L2), bilateral paravertebral muscle |
+| BL40  | 위중(委中)   | acupuncture needle inserted at the midpoint of the popliteal crease, between the biceps femoris and semitendinosus tendons, patient lying prone |
+| BL60  | 곤륜(崑崙)   | acupuncture needle inserted on the lateral ankle, in the depression midway between the tip of the lateral malleolus and the posterior border of the Achilles tendon |
+| KD3   | 태계(太谿)   | acupuncture needle inserted on the medial ankle, in the depression midway between the tip of the medial malleolus and the posterior border of the Achilles tendon |
+| KD6   | 조해(照海)   | acupuncture needle inserted on the medial ankle, 1 cun directly below the tip of the medial malleolus, in the groove formed by the abductor hallucis muscle |
+| PC6   | 내관(內關)   | acupuncture needle inserted on the volar forearm, 2 cun above the wrist crease, between the palmaris longus and flexor carpi radialis tendons, visible tendon borders |
+| TE5   | 외관(外關)   | acupuncture needle inserted on the dorsal forearm, 2 cun above the dorsal wrist crease, between the radius and ulna, midway between the two bones |
+| GB20  | 풍지(風池)   | acupuncture needle inserted at the posterior neck, in the depression between the upper sternocleidomastoid muscle and trapezius muscle, at the level of the base of the skull (occiput) |
+| GB21  | 견정(肩井)   | acupuncture needle inserted at the shoulder, at the midpoint of a line connecting the spinous process of C7 and the acromion, on the highest point of the trapezius muscle |
+| GB34  | 양릉천(陽陵泉) | acupuncture needle inserted on the lateral leg, in the depression anterior and inferior to the head of the fibula |
+| LV3   | 태충(太衝)   | acupuncture needle inserted on the dorsum of the foot, in the depression between the 1st and 2nd metatarsal bones, 2 cun proximal to the web margin |
+| GV4   | 명문(命門)   | acupuncture needle inserted on the posterior midline of the lower back, in the depression below the spinous process of the 2nd lumbar vertebra (L2) |
+| GV14  | 대추(大椎)   | acupuncture needle inserted on the posterior midline of the neck, in the depression below the spinous process of the 7th cervical vertebra (C7), at the base of the neck |
+| GV20  | 백회(百會)   | acupuncture needle inserted at the crown of the head, on the midline at the vertex, at the intersection of a line connecting the apices of the ears |
+| CV4   | 관원(關元)   | acupuncture needle inserted on the anterior midline of the lower abdomen, 3 cun below the center of the navel |
+| CV6   | 기해(氣海)   | acupuncture needle inserted on the anterior midline of the lower abdomen, 1.5 cun below the center of the navel |
+| CV12  | 중완(中脘)   | acupuncture needle inserted on the anterior midline of the upper abdomen, 4 cun above the center of the navel, midway between the navel and the xiphoid process |
+| CV17  | 전중(膻中)   | acupuncture needle inserted on the anterior midline of the chest, at the level of the 4th intercostal space, at the midpoint of the sternum between the nipples |
 
 ## 프롬프트 작성 규칙
 
@@ -123,17 +136,18 @@ traditional hanbok, hanok architecture, cold fluorescent lighting, extra fingers
 - evening → warm ambient clinic lighting, dusk tones
 - unspecified → soft natural neutral lighting
 
-### 종횡비 기준
-- 침 치료 클로즈업 (macro): --ar 4:3
-- 그 외 모든 장면: --ar 16:9
+### 종횡비 및 해상도 기준
+- 모든 장면: --ar 1:1 (900×900 정사각형, 예외 없음)
+- DALL-E: size=1024x1024 지정 (JPG 저장 요청 명시)
+- 구도 설계 시 정사각형 프레임 기준으로 중앙 집중 또는 대칭 구도 우선
 
 ### 스타일별 공통 후미 파라미터
-- photorealistic: --style raw --stylize 200
-- anime: --niji 6 --stylize 150
-- cartoon: --stylize 300
-- illustration: --stylize 250
-- watercolor: --stylize 200
-- 3d_render: --style raw --stylize 300
+- photorealistic: --ar 1:1 --style raw --stylize 200
+- anime: --ar 1:1 --niji 6 --stylize 150
+- cartoon: --ar 1:1 --stylize 300
+- illustration: --ar 1:1 --stylize 250
+- watercolor: --ar 1:1 --stylize 200
+- 3d_render: --ar 1:1 --style raw --stylize 300
 
 ### 의료 윤리 준수
 - 환자 얼굴 정면 클로즈업 절대 금지
