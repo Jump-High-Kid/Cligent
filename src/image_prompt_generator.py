@@ -47,8 +47,9 @@ def _parse_json_response(text: str) -> dict:
 
 
 def _extract_image_markers(blog_content: str) -> list[str]:
-    """블로그 본문에서 [📷 이미지 삽입 제안: ...] 마커 추출"""
-    return re.findall(r'\[📷 이미지 삽입 제안:\s*([^\]]+)\]', blog_content)
+    """블로그 본문에서 [📷 이미지 삽입 제안: ...] 마커 추출 — '| alt:' 이후는 제외"""
+    raw = re.findall(r'\[📷 이미지 삽입 제안:\s*([^\]]+)\]', blog_content)
+    return [m.split('|')[0].strip() for m in raw]
 
 
 def _analyze_blog(keyword: str, blog_content: str, api_key: str) -> tuple[dict, dict]:

@@ -159,9 +159,54 @@
 
     /* 빈 상태 */
     .empty { text-align: center; padding: 48px 0; color: #a8a29e; font-size: 14px; }
+
+    /* 시크릿 모달 */
+    #secret-modal {
+      display: flex;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.5);
+      align-items: center; justify-content: center;
+      z-index: 10000;
+    }
+    #secret-modal.hidden { display: none; }
+    .secret-box {
+      background: #fff;
+      border-radius: 16px;
+      padding: 32px 28px;
+      width: 380px;
+      max-width: 90vw;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+    }
+    .secret-box h2 { font-size: 17px; font-weight: 700; margin-bottom: 8px; color: #1c1917; }
+    .secret-box p  { font-size: 13px; color: #78716c; margin-bottom: 20px; }
+    .secret-box input {
+      width: 100%; padding: 10px 14px;
+      border: 1.5px solid #d4d0cb; border-radius: 10px;
+      font-size: 14px; font-family: monospace;
+      margin-bottom: 16px; outline: none;
+    }
+    .secret-box input:focus { border-color: #064e3b; }
+    .secret-box button {
+      width: 100%; padding: 11px;
+      background: #064e3b; color: #fff;
+      border: none; border-radius: 10px;
+      font-size: 14px; font-weight: 600; cursor: pointer;
+    }
+    .secret-box button:hover { background: #065f46; }
   </style>
 </head>
 <body>
+
+  <!-- 어드민 시크릿 입력 모달 -->
+  <div id="secret-modal">
+    <div class="secret-box">
+      <h2>어드민 인증</h2>
+      <p>관리자 시크릿을 입력하세요.</p>
+      <input type="password" id="secret-input" placeholder="Admin secret" autocomplete="off">
+      <button onclick="submitSecret()">확인</button>
+    </div>
+  </div>
+
   <header>
     <h1>Cligent 어드민</h1>
     <span>베타 신청자 관리</span>
@@ -257,14 +302,20 @@
     }
 
     function getSecret() {
-      // 세션 스토리지에 캐시; 최초 로드 시 prompt
-      let sec = sessionStorage.getItem('admin_secret');
-      if (!sec) {
-        sec = prompt('관리자 시크릿을 입력하세요:') || '';
-        if (sec) sessionStorage.setItem('admin_secret', sec);
-      }
-      return sec;
+      return sessionStorage.getItem('admin_secret') || '';
     }
+
+    function submitSecret() {
+      const val = document.getElementById('secret-input').value.trim();
+      if (!val) return;
+      sessionStorage.setItem('admin_secret', val);
+      document.getElementById('secret-modal').classList.add('hidden');
+      loadData();
+    }
+
+    document.getElementById('secret-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') submitSecret();
+    });
 
     function renderTable() {
       const filtered = curFilter === 'all'
@@ -375,7 +426,13 @@
         .replace(/"/g,'&quot;');
     }
 
-    loadData();
+    // 시크릿이 이미 저장돼 있으면 모달 건너뛰고 바로 로드
+    if (sessionStorage.getItem('admin_secret')) {
+      document.getElementById('secret-modal').classList.add('hidden');
+      loadData();
+    } else {
+      document.getElementById('secret-input').focus();
+    }
   </script>
 </body>
 </html>

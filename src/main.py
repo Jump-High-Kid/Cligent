@@ -1767,9 +1767,8 @@ async def beta_apply(request: Request):
 # ── 베타 모집 — 어드민 API ─────────────────────────────────────────
 
 @app.get("/admin/applicants")
-async def admin_applicants_page(request: Request):
-    """어드민 신청자 관리 페이지 — Bearer 인증 없이 브라우저로 접근 (페이지만 반환)"""
-    _require_admin(request)
+async def admin_applicants_page():
+    """어드민 신청자 관리 페이지 — 인증은 JS에서 API 호출 시 처리"""
     return FileResponse(ROOT / "templates" / "admin_applicants.html")
 
 
