@@ -265,6 +265,15 @@ def verify_invite(token: str) -> Optional[dict]:
     if datetime.now(timezone.utc) > expires:
         return None  # 만료됨
 
+    # E5: 초대 링크 첫 클릭 시각 기록 (beta_applicants.clicked_at)
+    now_iso = datetime.now(timezone.utc).isoformat()
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE beta_applicants SET clicked_at = ? "
+            "WHERE invite_token = ? AND clicked_at IS NULL",
+            (now_iso, token),
+        )
+
     return dict(invite)
 
 
@@ -307,6 +316,13 @@ def complete_onboarding(token: str, password: str) -> dict:
         conn.execute(
             "UPDATE invites SET used_at = ? WHERE id = ?",
             (now, invite["id"]),
+        )
+
+        # D3: 베타 신청자 status → 'registered' (초대 토큰으로 연결)
+        conn.execute(
+            "UPDATE beta_applicants SET status = 'registered' "
+            "WHERE email = ? AND status != 'registered'",
+            (invite["email"],),
         )
 
         user = conn.execute(

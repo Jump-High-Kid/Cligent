@@ -104,6 +104,23 @@ def init_db() -> None:
                 payment_id  TEXT,                      -- 포트원 payment_id (idempotency 키)
                 created_at  TEXT    NOT NULL DEFAULT (datetime('now', 'utc'))
             );
+
+            -- 베타 신청자 (베타 모집 시스템)
+            CREATE TABLE IF NOT EXISTS beta_applicants (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                name         TEXT    NOT NULL,
+                clinic_name  TEXT    NOT NULL,
+                phone        TEXT,
+                email        TEXT    NOT NULL,
+                note         TEXT,
+                applied_at   TEXT    NOT NULL DEFAULT (datetime('now', 'utc')),
+                invited_at   TEXT,
+                clicked_at   TEXT,
+                invite_token TEXT    UNIQUE,           -- invites.token 연결 (E5 clicked_at 추적용)
+                status       TEXT    NOT NULL DEFAULT 'pending'  -- pending / invited / registered
+            );
+            CREATE INDEX IF NOT EXISTS idx_beta_applicants_status ON beta_applicants(status);
+            CREATE INDEX IF NOT EXISTS idx_beta_applicants_email  ON beta_applicants(email);
         """)
         # clinics 컬럼 마이그레이션 (기존 DB 대응)
         existing = {row[1] for row in conn.execute("PRAGMA table_info(clinics)")}
@@ -127,6 +144,8 @@ def init_db() -> None:
             ("onboarding_started_at","TEXT"),               # 온보딩 위자드 첫 표시 시각 (ISO8601)
             ("first_blog_at",        "TEXT"),               # 첫 블로그 생성 완료 시각 (ISO8601)
             ("blog_features",        "TEXT"),               # 클리닉 특징·장점 (블로그 생성 시 자동 반영)
+            # 어드민 클리닉 플래그 — 일반 직원이 합류하지 못하도록 차단
+            ("is_admin_clinic",      "INTEGER DEFAULT 0"),
         ]:
             if col not in existing:
                 conn.execute(f"ALTER TABLE clinics ADD COLUMN {col} {definition}")

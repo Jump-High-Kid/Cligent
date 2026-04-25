@@ -38,17 +38,22 @@ main.py — FastAPI 앱 진입점
   POST /generate-image-prompts  → 이미지 프롬프트 SSE 스트리밍
 """
 
+import asyncio
 import base64
 import json as _json
+import logging as _logging
 import os
 import sys
+import traceback
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Generator, Optional
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.exception_handlers import http_exception_handler, request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import (
     FileResponse, HTMLResponse, JSONResponse,
     RedirectResponse, StreamingResponse,
@@ -131,9 +136,39 @@ from usage_tracker import log_usage
 agent_router = AgentRouter()
 agent_middleware = AgentMiddleware()
 
+_error_logger = _logging.getLogger("cligent.errors")
+
+
+def _log_error_to_file(request: Request, exc: Exception, user_id: str = "anonymous") -> None:
+    """서버 에러를 data/error_logs/YYYY-MM-DD.jsonl에 기록"""
+    try:
+        error_dir = ROOT / "data" / "error_logs"
+        error_dir.mkdir(parents=True, exist_ok=True)
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        entry = _json.dumps({
+            "ts": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+            "path": str(request.url.path),
+            "method": request.method,
+            "user": user_id,
+            "error_type": type(exc).__name__,
+            "error_msg": str(exc)[:500],
+            "traceback": traceback.format_exc()[-2000:],
+        }, ensure_ascii=False)
+        with open(error_dir / f"{today}.jsonl", "a", encoding="utf-8") as f:
+            f.write(entry + "\n")
+    except Exception:
+        pass
+
+
 # 분당 요청 수 추적 (clinic_id → [timestamp, ...])
 _rate_buckets: dict = defaultdict(list)
 _RATE_LIMIT = 60  # 분당 최대 요청 수
+
+# IP 기반 레이트 리밋 (베타 신청 공개 엔드포인트 전용)
+# 5분 창 안에 최대 3회 허용
+_ip_apply_buckets: dict = defaultdict(list)
+_IP_APPLY_WINDOW = 300   # 5분 (초)
+_IP_APPLY_LIMIT  = 3
 
 
 def _create_anthropic_client() -> anthropic.Anthropic:
@@ -152,10 +187,79 @@ def _check_rate_limit(clinic_id: str) -> bool:
     return True
 
 
+def _check_ip_apply_limit(ip: str) -> bool:
+    """True = 허용, False = 초과 (5분 창 3회 per IP, 베타 신청 전용)"""
+    now = _time_now()
+    _ip_apply_buckets[ip] = [t for t in _ip_apply_buckets[ip] if now - t < _IP_APPLY_WINDOW]
+    if len(_ip_apply_buckets[ip]) >= _IP_APPLY_LIMIT:
+        return False
+    _ip_apply_buckets[ip].append(now)
+    return True
+
+
+def _require_admin(request: Request) -> None:
+    """Bearer <ADMIN_SECRET> 검증. 실패 시 HTTPException 발생."""
+    admin_secret = os.getenv("ADMIN_SECRET", "")
+    if not admin_secret:
+        raise HTTPException(status_code=403, detail="관리자 기능이 비활성화되어 있습니다.")
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer ") or auth[7:] != admin_secret:
+        raise HTTPException(status_code=401, detail="인증 실패")
+
+
+async def _midnight_scheduler() -> None:
+    """매일 자정 5분 후 전날 데일리 리포트 자동 생성"""
+    while True:
+        now = datetime.now(timezone.utc)
+        next_run = (now + timedelta(days=1)).replace(hour=0, minute=5, second=0, microsecond=0)
+        await asyncio.sleep((next_run - now).total_seconds())
+        try:
+            from daily_report import generate_daily_report
+            yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
+            await asyncio.to_thread(generate_daily_report, yesterday)
+            _error_logger.info("데일리 리포트 생성 완료: %s", yesterday)
+        except Exception as e:
+            _error_logger.error("데일리 리포트 생성 실패: %s", e)
+
+
+async def _beta_reminder_scheduler() -> None:
+    """E4: 6시간마다 72h 이상 미클릭 초대 신청자에게 리마인더 이메일 발송"""
+    while True:
+        await asyncio.sleep(6 * 3600)
+        try:
+            cutoff = (datetime.now(timezone.utc) - timedelta(hours=72)).isoformat()
+            from db_manager import get_db as _get_db
+            from plan_notify import send_beta_reminder
+            base_url = os.getenv("BASE_URL", "https://cligent.kr")
+
+            with _get_db() as conn:
+                rows = conn.execute(
+                    """
+                    SELECT id, name, email, invite_token FROM beta_applicants
+                    WHERE status = 'invited'
+                      AND invited_at < ?
+                      AND clicked_at IS NULL
+                    """,
+                    (cutoff,),
+                ).fetchall()
+
+            for row in rows:
+                invite_url = f"{base_url}/onboard?token={row['invite_token']}"
+                try:
+                    await asyncio.to_thread(send_beta_reminder, row["email"], row["name"], invite_url)
+                    _error_logger.info("beta E4 리마인더 발송: %s", row["email"])
+                except Exception as exc:
+                    _error_logger.warning("beta E4 리마인더 실패 (id=%s): %s", row["id"], exc)
+        except Exception as e:
+            _error_logger.error("beta_reminder_scheduler 오류: %s", e)
+
+
 @asynccontextmanager
 async def lifespan(application: FastAPI):
     """서버 시작/종료 시 리소스 초기화 및 정리."""
     init_db()
+    # error_logs 폴더 보장
+    (ROOT / "data" / "error_logs").mkdir(parents=True, exist_ok=True)
     # 개발 환경: 클리닉이 없으면 데모 클리닉 자동 생성
     if os.getenv("ENV", "dev") == "dev":
         clinic_id = seed_demo_clinic()
@@ -163,12 +267,51 @@ async def lifespan(application: FastAPI):
     # 만료된 블로그 전문(全文) 자동 삭제 (30일 경과 항목)
     removed = purge_expired_texts()
     if removed:
-        import logging
-        logging.getLogger(__name__).info("blog_texts: 만료 항목 %d건 삭제", removed)
+        _logging.getLogger(__name__).info("blog_texts: 만료 항목 %d건 삭제", removed)
+    # 데일리 리포트 자동 스케줄러
+    _sched = asyncio.create_task(_midnight_scheduler())
+    # E4 베타 리마인더 스케줄러 (6h 주기)
+    _reminder_sched = asyncio.create_task(_beta_reminder_scheduler())
     yield
+    _sched.cancel()
+    _reminder_sched.cancel()
+    for task in (_sched, _reminder_sched):
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
 
 
 app = FastAPI(title="Cligent", lifespan=lifespan)
+
+
+# ── 예외 핸들러 ──────────────────────────────────────────────────
+
+@app.exception_handler(HTTPException)
+async def _http_exc_handler(request: Request, exc: HTTPException):
+    return await http_exception_handler(request, exc)
+
+
+@app.exception_handler(RequestValidationError)
+async def _validation_exc_handler(request: Request, exc: RequestValidationError):
+    return await request_validation_exception_handler(request, exc)
+
+
+@app.exception_handler(Exception)
+async def _global_exc_handler(request: Request, exc: Exception):
+    """캐치되지 않은 서버 에러: 로그 기록 후 500 반환"""
+    user_id = "anonymous"
+    try:
+        from auth_manager import COOKIE_NAME, decode_token
+        token = request.cookies.get(COOKIE_NAME)
+        if token:
+            payload = decode_token(token)
+            user_id = str(payload.get("sub", "unknown"))
+    except Exception:
+        pass
+    _log_error_to_file(request, exc, user_id)
+    _error_logger.exception("Unhandled exception [%s %s] user=%s", request.method, request.url.path, user_id)
+    return JSONResponse({"detail": "서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."}, status_code=500)
 
 
 # ── 페이지 라우트 ─────────────────────────────────────────────────
@@ -1044,6 +1187,39 @@ async def track_prompt_copy(user: dict = Depends(get_current_user)):
     return JSONResponse({"ok": True})
 
 
+@app.post("/api/admin/daily-report")
+async def admin_daily_report(request: Request):
+    """
+    관리자 전용 — 데일리 리포트 수동 생성.
+
+    인증: Authorization: Bearer <ADMIN_SECRET> 헤더.
+    body(선택): { "date": "YYYY-MM-DD" }  — 생략 시 오늘 날짜
+    """
+    admin_secret = os.getenv("ADMIN_SECRET", "")
+    if not admin_secret:
+        return JSONResponse({"detail": "관리자 기능이 비활성화되어 있습니다."}, status_code=403)
+
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer ") or auth_header[7:] != admin_secret:
+        return JSONResponse({"detail": "인증 실패"}, status_code=401)
+
+    try:
+        body = await request.json()
+        date_str = (body.get("date") or "").strip()
+    except Exception:
+        date_str = ""
+
+    if not date_str:
+        date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    try:
+        from daily_report import generate_daily_report
+        out_path = await asyncio.to_thread(generate_daily_report, date_str)
+        return JSONResponse({"ok": True, "date": date_str, "path": out_path})
+    except Exception as e:
+        return JSONResponse({"detail": f"리포트 생성 실패: {e}"}, status_code=500)
+
+
 @app.post("/api/admin/clinic")
 async def admin_create_clinic(request: Request):
     """
@@ -1510,3 +1686,201 @@ async def agent_chat(request: Request, current_user: dict = Depends(get_current_
         "response": response_text,
         "hallucination_warning": hallucination_risk,
     }
+
+
+# ── 베타 모집 — 공개 페이지 & API ─────────────────────────────────
+
+@app.get("/join")
+async def join_page():
+    """베타 신청 페이지 — 공개 접근 허용"""
+    return FileResponse(ROOT / "templates" / "join.html")
+
+
+@app.post("/api/beta/apply")
+async def beta_apply(request: Request):
+    """
+    베타 신청 접수 (공개 엔드포인트).
+
+    요청: { "name", "clinic_name", "email", "phone"(선택), "note"(선택) }
+    응답: { "ok": true }
+    IP당 5분 창 3회 제한.
+    """
+    import re as _re
+    _EMAIL_RE = _re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+
+    ip = request.client.host if request.client else "unknown"
+    if not _check_ip_apply_limit(ip):
+        return JSONResponse({"detail": "잠시 후 다시 시도해 주세요."}, status_code=429)
+
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"detail": "JSON 파싱 오류"}, status_code=400)
+
+    name = (body.get("name") or "").strip()
+    clinic_name = (body.get("clinic_name") or "").strip()
+    email = (body.get("email") or "").strip().lower()
+    phone = (body.get("phone") or "").strip()
+    note = (body.get("note") or "").strip()
+
+    if not name or not clinic_name:
+        return JSONResponse({"detail": "이름과 한의원명을 입력해 주세요."}, status_code=400)
+    if not _EMAIL_RE.match(email):
+        return JSONResponse({"detail": "유효한 이메일 주소를 입력해 주세요."}, status_code=400)
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    from db_manager import get_db as _get_db
+    with _get_db() as conn:
+        # 중복 신청 방지 (pending/invited 상태에서 같은 이메일)
+        existing = conn.execute(
+            "SELECT id, status FROM beta_applicants WHERE email = ?", (email,)
+        ).fetchone()
+        if existing and existing["status"] in ("pending", "invited"):
+            return JSONResponse({"ok": True, "duplicate": True})
+        if existing and existing["status"] == "registered":
+            return JSONResponse({"detail": "이미 가입된 이메일입니다."}, status_code=409)
+
+        conn.execute(
+            "INSERT INTO beta_applicants (name, clinic_name, phone, email, note, applied_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (name, clinic_name, phone, email, note, now_iso),
+        )
+
+    # E1: 신청자 확인 이메일 (fail-soft)
+    try:
+        from plan_notify import send_beta_apply_confirm
+        await asyncio.to_thread(send_beta_apply_confirm, email, name)
+    except Exception as exc:
+        _logging.getLogger(__name__).warning("beta E1 이메일 실패: %s", exc)
+
+    # E2: 관리자 알림 (fail-soft)
+    try:
+        from plan_notify import send_beta_admin_notify
+        await asyncio.to_thread(send_beta_admin_notify, name, clinic_name, email, note)
+    except Exception as exc:
+        _logging.getLogger(__name__).warning("beta E2 관리자 알림 실패: %s", exc)
+
+    return JSONResponse({"ok": True})
+
+
+# ── 베타 모집 — 어드민 API ─────────────────────────────────────────
+
+@app.get("/admin/applicants")
+async def admin_applicants_page(request: Request):
+    """어드민 신청자 관리 페이지 — Bearer 인증 없이 브라우저로 접근 (페이지만 반환)"""
+    _require_admin(request)
+    return FileResponse(ROOT / "templates" / "admin_applicants.html")
+
+
+@app.get("/api/admin/applicants")
+async def api_admin_applicants(request: Request):
+    """
+    신청자 목록 + 통계 반환.
+    인증: Authorization: Bearer <ADMIN_SECRET>
+    """
+    _require_admin(request)
+
+    from db_manager import get_db as _get_db
+    with _get_db() as conn:
+        rows = conn.execute(
+            "SELECT id, name, clinic_name, phone, email, note, "
+            "applied_at, invited_at, clicked_at, invite_token, status "
+            "FROM beta_applicants ORDER BY applied_at DESC"
+        ).fetchall()
+
+        stats = conn.execute(
+            """
+            SELECT
+              COUNT(*) AS total,
+              SUM(CASE WHEN status = 'pending'    THEN 1 ELSE 0 END) AS pending,
+              SUM(CASE WHEN status = 'invited'    THEN 1 ELSE 0 END) AS invited,
+              SUM(CASE WHEN status = 'registered' THEN 1 ELSE 0 END) AS registered,
+              SUM(CASE WHEN clicked_at IS NOT NULL THEN 1 ELSE 0 END) AS clicked
+            FROM beta_applicants
+            """
+        ).fetchone()
+
+    return JSONResponse({
+        "applicants": [dict(r) for r in rows],
+        "stats": dict(stats) if stats else {},
+    })
+
+
+@app.post("/api/admin/invite-batch")
+async def api_admin_invite_batch(request: Request):
+    """
+    선택한 신청자에게 초대 링크 일괄 발송.
+    인증: Authorization: Bearer <ADMIN_SECRET>
+
+    요청: { "ids": [1, 2, 3] }
+    응답: { "invited": [...], "failed": [...] }
+
+    - ADMIN_CLINIC_ID / ADMIN_USER_ID 환경 변수로 어드민 클리닉/사용자 지정
+    - create_invite() ValueError(슬롯 부족, 이미 등록)는 per-row failed[] 처리
+    """
+    _require_admin(request)
+
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"detail": "JSON 파싱 오류"}, status_code=400)
+
+    ids = body.get("ids", [])
+    if not ids or not isinstance(ids, list):
+        return JSONResponse({"detail": "ids 배열이 필요합니다."}, status_code=400)
+
+    admin_clinic_id = int(os.getenv("ADMIN_CLINIC_ID", "1"))
+    admin_user_id   = int(os.getenv("ADMIN_USER_ID", "1"))
+    base_url = os.getenv("BASE_URL", "https://cligent.kr")
+
+    from db_manager import get_db as _get_db
+    from plan_notify import send_beta_invite_email
+
+    invited = []
+    failed  = []
+
+    # asyncio.Semaphore는 코루틴 내부에서 생성해야 함
+    sem = asyncio.Semaphore(5)
+
+    async def _send_one(row: dict) -> None:
+        async with sem:
+            try:
+                token = create_invite(
+                    clinic_id=admin_clinic_id,
+                    email=row["email"],
+                    role="chief_director",
+                    created_by=admin_user_id,
+                )
+                invite_url = f"{base_url}/onboard?token={token}"
+                now_iso = datetime.now(timezone.utc).isoformat()
+
+                with _get_db() as conn:
+                    conn.execute(
+                        "UPDATE beta_applicants "
+                        "SET status = 'invited', invited_at = ?, invite_token = ? "
+                        "WHERE id = ?",
+                        (now_iso, token, row["id"]),
+                    )
+
+                await asyncio.to_thread(send_beta_invite_email, row["email"], row["name"], invite_url)
+                invited.append(row["id"])
+
+            except ValueError as exc:
+                failed.append({"id": row["id"], "reason": str(exc)})
+            except Exception as exc:
+                _logging.getLogger(__name__).warning(
+                    "invite-batch 실패 (id=%s): %s", row["id"], exc
+                )
+                failed.append({"id": row["id"], "reason": "초대 생성 오류"})
+
+    with _get_db() as conn:
+        rows = conn.execute(
+            f"SELECT id, name, email FROM beta_applicants "
+            f"WHERE id IN ({','.join('?' * len(ids))}) AND status = 'pending'",
+            ids,
+        ).fetchall()
+
+    await asyncio.gather(*[_send_one(dict(r)) for r in rows])
+
+    return JSONResponse({"invited": invited, "failed": failed})

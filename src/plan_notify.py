@@ -127,30 +127,48 @@ def _get_usage_info(clinic_id: int) -> Optional[dict]:
         return None
 
 
-def _send_email(to_email: str, clinic_id: int, used: int, limit: int) -> None:
+def _send_smtp(to: str, subject: str, html_body: str) -> bool:
     """
-    SMTP로 이메일 발송.
-    SMTP 설정 없거나 발송 실패 시 로그만 남기고 조용히 종료.
+    공통 SMTP 발송 헬퍼. 성공 True, 실패/미설정 False.
+    SMTP 미설정 시 로그만 남기고 False 반환 (fail-soft).
     """
-    if not _EMAIL_RE.match(to_email):
-        logger.warning("plan_notify: 유효하지 않은 수신자 이메일 (clinic_id=%s)", clinic_id)
-        return
+    if not _EMAIL_RE.match(to):
+        logger.warning("plan_notify: 유효하지 않은 수신자 이메일: %s", to)
+        return False
 
     smtp_host = os.getenv("SMTP_HOST", "")
     if not smtp_host:
-        # SMTP 미설정 → 로그만 남김
-        logger.info(
-            "plan_notify: SMTP 미설정, 이메일 미발송 (clinic_id=%s, to=%s, used=%s/%s)",
-            clinic_id, to_email, used, limit,
-        )
-        return
+        logger.info("plan_notify: SMTP 미설정, 이메일 미발송 (to=%s, subject=%s)", to, subject)
+        return False
 
     smtp_port = int(os.getenv("SMTP_PORT", "587"))
     smtp_user = os.getenv("SMTP_USER", "")
     smtp_password = os.getenv("SMTP_PASSWORD", "")
     from_addr = os.getenv("NOTIFY_FROM", "noreply@cligent.app")
 
-    # 이메일 본문 구성
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = from_addr
+        msg["To"] = to
+        msg.attach(MIMEText(html_body, "html", "utf-8"))
+
+        with smtplib.SMTP(smtp_host, smtp_port) as server:
+            server.ehlo()
+            server.starttls()
+            if smtp_user and smtp_password:
+                server.login(smtp_user, smtp_password)
+            server.sendmail(from_addr, [to], msg.as_string())
+
+        logger.info("plan_notify: 이메일 발송 완료 (to=%s)", to)
+        return True
+    except Exception as exc:
+        logger.warning("plan_notify: 이메일 발송 실패 (to=%s): %s", to, exc)
+        return False
+
+
+def _send_email(to_email: str, clinic_id: int, used: int, limit: int) -> None:
+    """한도 80% 알림 이메일 발송. SMTP 실패 시 서비스에 영향 없음."""
     subject = f"[Cligent] 블로그 생성 한도 {int(_NOTIFY_THRESHOLD * 100)}% 도달 안내"
     body_html = f"""
 <html>
@@ -174,30 +192,122 @@ def _send_email(to_email: str, clinic_id: int, used: int, limit: int) -> None:
 </body>
 </html>
 """
+    _send_smtp(to_email, subject, body_html)
 
-    try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = subject
-        msg["From"] = from_addr
-        msg["To"] = to_email
-        msg.attach(MIMEText(body_html, "html", "utf-8"))
 
-        with smtplib.SMTP(smtp_host, smtp_port) as server:
-            server.ehlo()
-            server.starttls()
-            if smtp_user and smtp_password:
-                server.login(smtp_user, smtp_password)
-            server.sendmail(from_addr, [to_email], msg.as_string())
+# ── 베타 모집 이메일 (E1 / E2 / E4) ──────────────────────────────────
 
-        logger.info(
-            "plan_notify: 이메일 발송 완료 (clinic_id=%s, to=%s, used=%s/%s)",
-            clinic_id, to_email, used, limit,
-        )
-    except Exception as exc:
-        # 발송 실패는 서비스에 영향 없음
-        logger.warning(
-            "plan_notify: 이메일 발송 실패 (clinic_id=%s): %s", clinic_id, exc,
-        )
+def send_beta_apply_confirm(to_email: str, name: str) -> None:
+    """E1: 신청자에게 접수 확인 이메일 발송."""
+    subject = "[Cligent] 베타 신청이 접수되었습니다"
+    body_html = f"""
+<html>
+<body style="font-family: 'Pretendard', sans-serif; color: #1c1917; max-width: 600px;">
+  <div style="background:#064e3b; padding:24px 32px; border-radius:16px 16px 0 0;">
+    <h1 style="color:#fff; margin:0; font-size:20px;">Cligent</h1>
+  </div>
+  <div style="padding:32px; background:#fafaf9; border:1px solid #e7e5e4; border-top:none; border-radius:0 0 16px 16px;">
+    <h2 style="font-size:18px; color:#064e3b; margin-top:0;">베타 신청 접수 완료</h2>
+    <p>안녕하세요, <strong>{name}</strong> 선생님.</p>
+    <p>Cligent 베타 신청이 정상적으로 접수되었습니다.<br>
+       검토 후 초대 링크를 별도 이메일로 발송해 드리겠습니다.</p>
+    <p>감사합니다.</p>
+    <p style="margin-top:32px; color:#78716c; font-size:12px;">
+      이 메일은 Cligent 서비스에서 자동 발송되었습니다.
+    </p>
+  </div>
+</body>
+</html>
+"""
+    _send_smtp(to_email, subject, body_html)
+
+
+def send_beta_admin_notify(name: str, clinic_name: str, email: str, note: str) -> None:
+    """E2: 관리자(ADMIN_NOTIFY_EMAIL)에게 신규 베타 신청 알림 발송."""
+    admin_email = os.getenv("ADMIN_NOTIFY_EMAIL", "")
+    if not admin_email:
+        logger.info("plan_notify: ADMIN_NOTIFY_EMAIL 미설정, 관리자 알림 생략")
+        return
+
+    subject = f"[Cligent] 베타 신청 접수 — {name} ({clinic_name})"
+    body_html = f"""
+<html>
+<body style="font-family: 'Pretendard', sans-serif; color: #1c1917; max-width: 600px;">
+  <div style="background:#064e3b; padding:24px 32px; border-radius:16px 16px 0 0;">
+    <h1 style="color:#fff; margin:0; font-size:20px;">Cligent 어드민</h1>
+  </div>
+  <div style="padding:32px; background:#fafaf9; border:1px solid #e7e5e4; border-top:none; border-radius:0 0 16px 16px;">
+    <h2 style="font-size:18px; color:#064e3b; margin-top:0;">신규 베타 신청 접수</h2>
+    <table style="border-collapse:collapse; width:100%;">
+      <tr><td style="padding:8px; color:#78716c; width:100px;">이름</td><td style="padding:8px; font-weight:600;">{name}</td></tr>
+      <tr><td style="padding:8px; color:#78716c;">한의원</td><td style="padding:8px; font-weight:600;">{clinic_name}</td></tr>
+      <tr><td style="padding:8px; color:#78716c;">이메일</td><td style="padding:8px;">{email}</td></tr>
+      <tr><td style="padding:8px; color:#78716c;">메모</td><td style="padding:8px;">{note or "(없음)"}</td></tr>
+    </table>
+    <p style="margin-top:24px;">
+      <a href="https://cligent.kr/admin/applicants" style="background:#064e3b; color:#fff; padding:10px 20px; border-radius:8px; text-decoration:none;">어드민 패널에서 확인</a>
+    </p>
+  </div>
+</body>
+</html>
+"""
+    _send_smtp(admin_email, subject, body_html)
+
+
+def send_beta_invite_email(to_email: str, name: str, invite_url: str) -> None:
+    """E3: 신청자에게 초대 링크 발송 (invite-batch 시 호출)."""
+    subject = "[Cligent] Cligent 베타 초대장이 도착했습니다"
+    body_html = f"""
+<html>
+<body style="font-family: 'Pretendard', sans-serif; color: #1c1917; max-width: 600px;">
+  <div style="background:#064e3b; padding:24px 32px; border-radius:16px 16px 0 0;">
+    <h1 style="color:#fff; margin:0; font-size:20px;">Cligent</h1>
+  </div>
+  <div style="padding:32px; background:#fafaf9; border:1px solid #e7e5e4; border-top:none; border-radius:0 0 16px 16px;">
+    <h2 style="font-size:18px; color:#064e3b; margin-top:0;">베타 초대장</h2>
+    <p>안녕하세요, <strong>{name}</strong> 선생님.</p>
+    <p>Cligent 베타 서비스에 초대되셨습니다.<br>
+       아래 버튼을 클릭하여 계정을 설정해 주세요.</p>
+    <p style="margin:24px 0;">
+      <a href="{invite_url}" style="background:#064e3b; color:#fff; padding:14px 28px; border-radius:10px; text-decoration:none; font-size:16px;">초대 수락하기</a>
+    </p>
+    <p style="color:#78716c; font-size:13px;">이 링크는 72시간 후 만료됩니다.</p>
+    <p style="margin-top:32px; color:#78716c; font-size:12px;">
+      이 메일은 Cligent 서비스에서 자동 발송되었습니다.
+    </p>
+  </div>
+</body>
+</html>
+"""
+    _send_smtp(to_email, subject, body_html)
+
+
+def send_beta_reminder(to_email: str, name: str, invite_url: str) -> None:
+    """E4: 72h 미클릭 리마인더 이메일."""
+    subject = "[Cligent] 초대 링크가 곧 만료됩니다"
+    body_html = f"""
+<html>
+<body style="font-family: 'Pretendard', sans-serif; color: #1c1917; max-width: 600px;">
+  <div style="background:#064e3b; padding:24px 32px; border-radius:16px 16px 0 0;">
+    <h1 style="color:#fff; margin:0; font-size:20px;">Cligent</h1>
+  </div>
+  <div style="padding:32px; background:#fafaf9; border:1px solid #e7e5e4; border-top:none; border-radius:0 0 16px 16px;">
+    <h2 style="font-size:18px; color:#064e3b; margin-top:0;">초대 링크 만료 임박</h2>
+    <p>안녕하세요, <strong>{name}</strong> 선생님.</p>
+    <p>발송된 초대 링크를 아직 사용하지 않으셨습니다.<br>
+       링크는 <strong>24시간 후 만료</strong>됩니다.</p>
+    <p style="margin:24px 0;">
+      <a href="{invite_url}" style="background:#064e3b; color:#fff; padding:14px 28px; border-radius:10px; text-decoration:none; font-size:16px;">지금 수락하기</a>
+    </p>
+    <p style="color:#78716c; font-size:13px;">링크가 만료된 경우 관리자에게 재발송을 요청하세요.</p>
+    <p style="margin-top:32px; color:#78716c; font-size:12px;">
+      이 메일은 Cligent 서비스에서 자동 발송되었습니다.
+    </p>
+  </div>
+</body>
+</html>
+"""
+    _send_smtp(to_email, subject, body_html)
 
 
 def _notify_worker(clinic_id: int) -> None:

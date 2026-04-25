@@ -142,3 +142,22 @@
 ### 19. 10개 AI 모델 어댑터 (GPT, Gemini 등)
 **What**: Claude 외 다른 AI 모델도 선택 가능하게.
 **Depends on**: 실제 고객 요청 발생 시.
+
+---
+
+## 미래 보안 강화
+
+### 20. 이메일 인증 (Email Verification)
+**What**: 회원 가입/온보딩 완료 시 이메일 인증 링크 발송 → 클릭 후 계정 활성화.
+**Why**: 대부분의 서비스에서 이메일 인증을 통해 실제 이메일 소유자 확인 및 스팸 계정 방지.
+**현재 상태**: 베타 초대 링크 자체가 이메일 수신 + 접속 확인 역할을 겸하므로 베타 기간에는 불필요.
+**구현 시점 권장**:
+  1. 30인 wave 이후 공개 셀프 가입(self-signup) 기능 추가 시
+  2. 초대 없이 이메일/비밀번호로 직접 가입 가능한 흐름 추가 시
+**구현 방안**:
+  - `users.email_verified INTEGER DEFAULT 0` 컬럼 추가
+  - 가입 시 `email_verify_token TEXT UNIQUE` 생성 → `/verify-email?token=` 링크 발송
+  - 링크 클릭 시 `email_verified = 1` 업데이트
+  - `plan_notify._send_smtp()` 헬퍼 이미 구현되어 있으므로 이메일 발송 로직 재사용 가능
+  - 미인증 계정은 일부 기능 제한 (블로그 생성 등) 또는 72시간 내 인증 요구
+**Depends on**: 공개 셀프 가입 기능 구현 시

@@ -22,7 +22,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **의학 정보**: 검증되지 않은 치료 효과는 사실로 제시 금지 — 항상 불확실성 명시
 - **처방 데이터**: 약재명은 KCD 또는 표준 한의학 용어 사용
 
-## 현재 구현 상태 (2026-04-20 기준)
+## 현재 구현 상태 (2026-04-25 기준)
 
 ### 폴더 구조
 ```
@@ -96,7 +96,9 @@ medical-assistant/
     ├── test_auth.py        # 20개 유닛 테스트
     ├── test_agent_router.py    # ★ 12개 (라우팅, Path Traversal)
     ├── test_agent_middleware.py # ★ 4개 (SHA-256, 할루시네이션)
-    └── test_agent_api.py       # ★ 5개 (API 엔드포인트)
+    ├── test_agent_api.py       # ★ 5개 (API 엔드포인트)
+    ├── test_beta_apply.py      # ★ 5개 (베타 신청 + IP 레이트 리밋)
+    └── test_invite_batch.py    # ★ 6개 (배치 초대 + 어드민 인증)
 ```
 
 ### 인증 시스템 (2026-04-18 완성)
@@ -179,7 +181,7 @@ LU7, LI4, LI11, ST25, ST36, ST40, ST44, SP6, SP10, HT7, SI3, BL17, BL23, BL40, B
 
 **T1 프롬프트 복사 + T6 외부 AI 연동**
 - `POST /build-prompt` — Claude API 호출 없이 프롬프트 조립만 반환 (plan_guard 미적용)
-- 재료 단계 T6 AI 바: `다른 AI로 작성 | Claude.ai | ChatGPT | Gemini | 📋 복사만`
+- 재료 단계 T6 AI 바: `다른 AI로 프롬프트 복사 | Claude.ai | ChatGPT | Gemini` (복사만 버튼·드롭다운 제거)
 - `openInAI(platform)`: 프롬프트 복사 + AI 새 탭 열기 + 토스트 안내
 - 온보딩 Step 2 전면 교체: API 키 안내 → T6 3단계 가이드
 - `finishT6Onboarding()`: T6 완료 시 배너 숨김 + `/blog` 이동
@@ -224,6 +226,17 @@ LU7, LI4, LI11, ST25, ST36, ST40, ST44, SP6, SP10, HT7, SI3, BL17, BL23, BL40, B
 #### 블로그 생성기 UX 개선 (2026-04-24)
 - SEO 키워드 입력창 "+" 버튼 제거 — 생성/복사 클릭 시 자동 flush
 - 대화 단계 스크롤 수정: `scrollIntoView({ behavior: 'smooth', block: 'start' })` + 80ms 지연 (간헐적 미작동 해결)
+
+#### 블로그 생성기 UX 개선 (2026-04-25)
+- **버그 수정**: `build_prompt_text()` `explanation_section=""` 누락 → `KeyError: 'explanation_section'` 수정
+- **1단계 시리즈 칩**: "요즘 잘되는 키워드"(하드코딩) → "이어서 쓰면 좋을 시리즈 주제" (localStorage `cligent_series_topics` 기반, 없으면 섹션 숨김)
+- **복원 배너 제거**: `cligent_draft` localStorage 저장·복원 로직 전체 제거
+- **3단계 결과 UI 통일**: 글자 수(중립 표시) + 안내문구 + 토큰정보 동일 스타일, 버튼 4개 `result-btn` 클래스로 높이·스타일 통일
+- **설정 > 콘텐츠 에이전트**: 블로그 프롬프트 편집·글자 수 설정 제거, 생성 이력 섹션 추가 (`GET /api/blog/history`, `GET /api/blog/history/{id}/text`)
+
+#### 개발 환경 참고
+- `~/Library/LaunchAgents/kr.cligent.app.plist` — launchd KeepAlive 서비스, 재부팅 후 uvicorn 자동 재시작
+- 개발 중 포트 충돌 시: `launchctl unload ~/Library/LaunchAgents/kr.cligent.app.plist`
 
 #### 실행 방법
 ```bash
@@ -357,6 +370,36 @@ python3 -m pytest tests/ -v   # 테스트 실행
 - **Phase 1** ✅ — Claude API 키 저장(Fernet 암호화), 온보딩 위자드, 기본 모델 선택, 월 예산 설정
 - **Phase 2** — 블로그 생성기에서 DB 저장 키 사용 (현재 .env 키 우선): 선택 모델 API 분기
 - **Phase 3** — 멀티모델 비교 패널 / Gemini·ChatGPT 멀티 제공자 지원
+
+### 베타 모집 + 초대 발송 시스템 (2026-04-25 완성)
+
+**신규 DB 테이블:**
+- `beta_applicants`: id, name, clinic_name, phone, email, note, applied_at, invited_at, clicked_at, invite_token UNIQUE, status(pending/invited/registered)
+- 인덱스: `idx_beta_applicants_status`, `idx_beta_applicants_email`
+
+**신규 API:**
+- `POST /api/beta/apply` — 공개 베타 신청 (IP 레이트 리밋: 5분/3회)
+- `GET /join` → `templates/join.html` (모바일 신청 폼)
+- `GET /admin/applicants` → `templates/admin_applicants.html` (Bearer auth)
+- `GET /api/admin/applicants` — 목록 + 통계 JSON (Bearer auth)
+- `POST /api/admin/invite-batch` — 일괄 초대 발송 (Semaphore 5 병렬)
+
+**이메일 플로우 (`src/plan_notify.py`):**
+- E1 `send_beta_apply_confirm()` — 신청 확인 메일
+- E2 `send_beta_admin_notify()` — 어드민 알림 (ADMIN_NOTIFY_EMAIL)
+- E3 `send_beta_invite_email()` — 초대 링크 발송
+- E4 `send_beta_reminder()` — 72시간 리마인더 (lifespan 스케줄러)
+- E5 `verify_invite()` → `clicked_at` 자동 기록
+- D3 `complete_onboarding()` → `status='registered'` 전환
+
+**공통 헬퍼:** `_send_smtp(to, subject, html_body) → bool` (fail-soft, 미설정 시 로그만)
+
+**신규 환경 변수:**
+- `ADMIN_SECRET` — Bearer 토큰 (어드민 엔드포인트)
+- `ADMIN_CLINIC_ID`, `ADMIN_USER_ID` — 시드 어드민 계정
+- `ADMIN_NOTIFY_EMAIL` — 신청 알림 수신 이메일
+- `BASE_URL` — 초대 링크 도메인 (https://cligent.kr)
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `NOTIFY_FROM` — Gmail SMTP
 
 ### 결제 시스템 Phase 1 (2026-04-22 완료 — 커밋 aaf534a)
 
