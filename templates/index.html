@@ -1770,8 +1770,8 @@
       };
       const aiPlatforms = [
         { name: 'Midjourney', url: 'https://www.midjourney.com/imagine' },
-        { name: 'DALL-E',     url: 'https://chatgpt.com' },
-        { name: 'Gemini', url: 'https://gemini.google.com' },
+        { name: 'ChatGPT',    url: 'https://chatgpt.com' },
+        { name: 'Gemini',     url: 'https://gemini.google.com' },
       ];
 
       const card     = document.createElement('div');
@@ -1823,10 +1823,27 @@
       window.open(url, '_blank');
     }
 
+    // Midjourney 전용 파라미터 제거 (Gemini/DALL-E 사용 시)
+    function stripMjParams(text) {
+      return text
+        .replace(/--ar\s+[\d:]+/g, '')
+        .replace(/--style\s+\w+/g, '')
+        .replace(/--stylize\s+\d+/g, '')
+        .replace(/--niji\s+\d+/g, '')
+        .replace(/--w\s+\d+/g, '')
+        .replace(/--h\s+\d+/g, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+    }
+
     // 프롬프트 복사 후 AI 플랫폼 새 탭으로 이동
     function copyOnAiClick(event, promptId, url) {
       event.preventDefault();
-      const text = document.getElementById(promptId).textContent;
+      const raw = document.getElementById(promptId).textContent;
+      const needsTransform = url.includes('gemini.google.com') || url.includes('chatgpt.com');
+      const text = needsTransform
+        ? 'Generate a single standalone image. Do not create a collage, grid, or tiled image. 1:1 square crop. ' + stripMjParams(raw)
+        : raw;
       const openTab = () => {
         const w = window.open(url, '_blank');
         // #37 팝업 차단 감지

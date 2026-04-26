@@ -22,7 +22,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **의학 정보**: 검증되지 않은 치료 효과는 사실로 제시 금지 — 항상 불확실성 명시
 - **처방 데이터**: 약재명은 KCD 또는 표준 한의학 용어 사용
 
-## 현재 구현 상태 (2026-04-25 기준)
+## 현재 구현 상태 (2026-04-26 기준)
 
 ### 폴더 구조
 ```
@@ -33,6 +33,9 @@ medical-assistant/
 ├── requirements.txt
 ├── .env                    # API 키 + SECRET_KEY (gitignore)
 ├── .env.example
+├── scripts/
+│   ├── create_clinic.py        # 운영 클리닉 생성 CLI
+│   └── create_demo_account.py  # ★ 영상 촬영용 데모 계정 생성 (매 촬영 전 실행)
 ├── agents/
 │   ├── dev/                # Claude Code 에이전트 정의 (.md)
 │   └── runtime/            # ★ 배포용 에이전트 YAML 설정
