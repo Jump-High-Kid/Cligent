@@ -58,6 +58,13 @@ def create_demo_account():
         datetime.now(timezone.utc).isoformat(),
     ))
 
+    # 5. invites 테이블에도 등록 (onboard 엔드포인트가 여기서 검증)
+    expires = (datetime.now(timezone.utc) + timedelta(hours=72)).isoformat()
+    cur.execute("""
+        INSERT INTO invites (clinic_id, email, role, token, expires_at, created_by, created_at)
+        VALUES (?, ?, 'chief_director', ?, ?, 1, ?)
+    """, (clinic_id, email, token, expires, datetime.now(timezone.utc).isoformat()))
+
     conn.commit()
     conn.close()
 

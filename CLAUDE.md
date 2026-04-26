@@ -83,6 +83,8 @@ medical-assistant/
 │   ├── agent_router.py     # ★ 키워드 기반 의도 분류 + Path Traversal 방어
 │   ├── agent_middleware.py # ★ SHA-256 로깅, 비용 계산, 할루시네이션 감지
 │   └── config_loader.py
+├── static/
+│   └── favicon.svg         # ★ Cligent 브랜드 파비콘 (C 글리프 + AI 스파클)
 ├── templates/
 │   ├── app.html            # ★ 앱 쉘 — 사이드바 고정 + iframe 내비게이션
 │   ├── chat.html           # ★ AI 도우미 채팅 (에이전트 칩바 + 채팅 UI)
