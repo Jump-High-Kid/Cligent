@@ -58,6 +58,7 @@ from fastapi.responses import (
     FileResponse, HTMLResponse, JSONResponse,
     RedirectResponse, StreamingResponse,
 )
+from fastapi.staticfiles import StaticFiles
 
 # src/ 폴더를 파이썬 경로에 추가 (상대 임포트 없이 사용)
 ROOT = Path(__file__).parent.parent
@@ -283,6 +284,10 @@ async def lifespan(application: FastAPI):
 
 
 app = FastAPI(title="Cligent", lifespan=lifespan)
+
+static_dir = ROOT / "static"
+static_dir.mkdir(exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 
 # ── 예외 핸들러 ──────────────────────────────────────────────────

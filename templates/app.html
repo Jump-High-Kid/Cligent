@@ -6,6 +6,9 @@
 <title>Cligent</title>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
 <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" rel="stylesheet"/>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
+<link rel="apple-touch-icon" href="/static/favicon.svg"/>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <script>
   tailwind.config = {
@@ -39,6 +42,35 @@
   .mobile-nav-btn.active .material-symbols-outlined {
     font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
   }
+
+  /* ── Cligent 로고 ── */
+  .cligent-logo {
+    --size: 40px;
+    display: flex;
+    align-items: center;
+    gap: calc(var(--size) * 0.28);
+    text-decoration: none;
+    flex-shrink: 0;
+  }
+  .cligent-mark {
+    position: relative;
+    width: var(--size);
+    height: var(--size);
+    flex-shrink: 0;
+  }
+  .cligent-mark svg { width: 100%; height: 100%; }
+  .cligent-word {
+    font-family: 'Pretendard Variable', 'Pretendard', sans-serif;
+    font-weight: 900;
+    font-size: calc(var(--size) * 0.62);
+    letter-spacing: -0.045em;
+    color: #064e3b;
+    line-height: 1;
+    white-space: nowrap;
+  }
+  /* 접힌 상태: 마크만 표시 */
+  #sidebar.collapsed .cligent-logo { --size: 32px; }
+  #sidebar.collapsed .cligent-word { display: none; }
 </style>
 </head>
 <body class="flex flex-row h-screen bg-stone-100 overflow-hidden">
@@ -47,15 +79,27 @@
 
   <!-- 로고 + 토글 -->
   <div class="flex items-center justify-between mb-6 min-w-0">
-    <div class="sidebar-logo-text flex items-center gap-3 min-w-0">
-      <div class="w-10 h-10 bg-emerald-900 rounded-xl flex items-center justify-center flex-shrink-0">
-        <span class="material-symbols-outlined text-white" style="font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24;">medical_services</span>
+    <a class="cligent-logo" href="/app">
+      <div class="cligent-mark">
+        <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <defs>
+            <symbol id="sparkle" viewBox="-72 -72 144 144">
+              <path d="M0,-72 C 12,-22 26,-12 72,0 C 26,12 12,22 0,72 C -12,22 -26,12 -72,0 C -26,-12 -12,-22 0,-72 Z"/>
+            </symbol>
+          </defs>
+          <rect width="32" height="32" rx="7" fill="#064e3b"/>
+          <text x="4" y="25"
+            font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif"
+            font-weight="900" font-size="26" fill="#f5f5f4">C</text>
+          <g transform="translate(22 7) scale(0.055)" fill="#f5f5f4">
+            <use href="#sparkle"/>
+            <g transform="translate(78 -60) scale(.55)"><use href="#sparkle"/></g>
+            <g transform="translate(86 60) scale(.4)"><use href="#sparkle"/></g>
+          </g>
+        </svg>
       </div>
-      <div class="min-w-0">
-        <h1 class="text-lg font-extrabold text-emerald-900 leading-none whitespace-nowrap">Cligent</h1>
-        <p class="text-[11px] font-medium text-stone-500 uppercase tracking-wider mt-1 whitespace-nowrap">한의원 관리 플랫폼</p>
-      </div>
-    </div>
+      <span class="cligent-word sidebar-logo-text">Cligent</span>
+    </a>
     <button id="toggle-btn" onclick="toggleSidebar()"
       class="flex-shrink-0 ml-1 p-1.5 rounded-lg hover:bg-stone-200 transition-all text-stone-500">
       <span class="material-symbols-outlined toggle-open text-[22px]">menu_open</span>
