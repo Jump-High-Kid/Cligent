@@ -26,6 +26,120 @@
 
 ---
 
+## P1 — 베타 런치 트랙 (2026-04-27 결정)
+
+> CEO plan: `~/.gstack/projects/Jump-High-Kid-Cligent/ceo-plans/2026-04-27-beta-launch-track.md`
+> 권장 순서: 백업 → 모니터링 → 약관 → 랜딩+도메인 → 피드백 강화
+
+### B1. 일일 rsync 백업 ✅ (2026-04-27 완료)
+**완료**: `scripts/backup.sh` + `~/Library/LaunchAgents/kr.cligent.backup.plist` 가동. 복원 검증 OK. 복원 명령은 메모리 `project_backup_system.md` 참조.
+**What**: launchd 일일 job으로 SQLite + .env + prompts/ + data/blog_texts.json → iCloud Drive(또는 외장 SSD).
+**Why**: Fernet 키 1번 잃으면 베타 사용자 전원 API 키 재입력 필요 — 신뢰 손상. 맥북 SSD 단일 장애점.
+**Files**: `scripts/backup.sh` 신규, `~/Library/LaunchAgents/kr.cligent.backup.plist` 신규.
+**Critical edges**:
+- SQLite WAL 모드 → `sqlite3 cligent.db ".backup"` 명령 필수 (단순 cp 금지)
+- Fernet 키 평문 백업 금지 → gpg 또는 비번 zip
+- iCloud sync 락 충돌 → 비동기화 폴더 권장
+**Test**: 백업 → 빈 폴더에서 복원 → DB 열림 + 로그인 검증.
+**Effort**: CC ~30분.
+
+---
+
+### B2. 모니터링 + 로깅 (Sentry + structlog + 일일 메트릭) ✅ (2026-04-27 완료)
+**완료**: `src/observability.py` + `src/main.py` 미들웨어 + `src/daily_report.py` 메트릭 섹션. PII 마스킹(user_id 해시 / api_key·password REDACTED / env vars REDACTED) 검증 완료. Sentry 프로젝트: `python-fastapi`. 운영 명령은 메모리 `project_observability_system.md` 참조.
+**What**: structlog 미들웨어(json line, request_id) + Sentry SDK(free tier) + `daily_report.py` 확장.
+**Why**: 5인 동시 사용 시 print 로그로는 디버그 불가. 외부 베타 안정성 핵심.
+**Files**: `src/main.py`(미들웨어), `requirements.txt`(structlog/sentry-sdk), `src/daily_report.py` 확장, `.env`(SENTRY_DSN).
+**Critical edges**:
+- PII 누출 방지 → Sentry `before_send` hook으로 한의원명/이메일/API 키 자동 마스킹 (PIPA 위반 방지)
+- launchd가 stdout 안 모음 → structlog가 `/var/log/cligent/app.log`로 직접 기록
+**Test**: 의도적 ZeroDivisionError → Sentry 대시보드 확인 + PII 마스킹 검증.
+**Effort**: CC ~30분 + Sentry 계정 생성.
+**Depends on**: B1 완료 후.
+
+---
+
+### B3. 약관 / 개인정보처리방침 / 사업자정보 ✅ (2026-04-27 완료)
+**완료**: `templates/legal/{terms,privacy,business}.html` + `static/legal.css` + `src/main.py` 라우트 3개. 사용자 보강 반영(베타 단계 대표원장 1인 한정, 양도·판매·대여·공유 금지). 백엔드 차단(`_is_admin_clinic`) + UI 차단(4개 템플릿 `can_invite` 조건) 일관성 확보. 자가 비밀번호 재설정(`/forgot-password`) 추가 — enumeration 방지·rate limit·HTML 메일·기존 invite 토큰 재사용. 대표원장 분실은 `scripts/reset_password.py` 운영 도구. 변호사 검토는 정식 출시 전 별도.
+**What**: 정적 HTML 3장 + 라우트 3개. 추후 회원가입 시 동의 체크박스로 연결.
+**Why**: 가입 폼 만드는 순간 PIPA 22조(수집·이용 동의), 26조(위탁업체 고지), 의료법 19조 적용.
+**Files**: `templates/legal/{terms,privacy,business}.html` 신규, `src/main.py` 라우트 3개.
+**Critical edges**:
+- 위탁업체 명시 필수 → Anthropic/OpenAI/Google에 데이터 전달 사실 명시
+- 30일 TTL 보관 기간 → 코드와 약관 일치 (변경 시 동기화)
+- 사업자등록 미완료라면 → "준비 중" 표시 후 정식 오픈 전 갱신
+- 변호사 검토 미완료 → "최종 검토 진행 중" 표시 (정식 오픈 시 제거)
+**Test**: 브라우저 직접 열기 + 모바일 폭 확인.
+**Effort**: CC ~20분 초안 + 사용자 검토 시간.
+**Depends on**: B2 완료 후. 사용자 검토 후 배포.
+
+---
+
+### B4. 랜딩 페이지 + 도메인 분할
+**What**: cligent.kr → 마케팅 랜딩, app.cligent.kr → 실제 SaaS 앱, cligent.co.kr → 301 redirect.
+**Why**: 외부 5인 모집 전 마케팅 entry point 필수. SEO/광고/회원가입 입구 확보.
+**Files**:
+- 신규: `templates/landing.html` (히어로/문제/솔루션 데모/가격/베타폼/FAQ/footer)
+- 수정: `src/main.py` (호스트 헤더 분기 또는 Caddy reverse_proxy 분리)
+- 수정: `/opt/homebrew/etc/Caddyfile`
+- 가비아 DNS 패널: `app.cligent.kr` A 레코드 추가
+**Critical edges (가장 위험)**:
+- 🚨 JWT 쿠키 `Domain=.cligent.kr` (서브도메인 공유) — 빼먹으면 로그인 전부 깨짐
+- 🚨 CORS — 랜딩 베타폼이 `/api/beta/apply` 호출 시 cross-origin 처리
+- 🚨 기존 사용자 북마크 (`cligent.kr/app`) → `app.cligent.kr` 자연스럽게 안내
+- ⚠️ SSL 갱신 — Caddy 자동, 첫 발급 시 1~2분 다운 가능
+- ⚠️ DNS 전파 5~30분 → 새벽 시간 작업 + 사전 공지
+- ⚠️ SEO — 랜딩에 sitemap.xml/robots.txt 신규, 앱은 noindex
+**Rollback**: Caddyfile + DNS A 레코드 백업 → 5분 안에 원복 가능하게 미리 백업.
+**Test**: DNS 전파 후 4가지 시나리오 (랜딩→가입, app→로그인, co.kr→301, 기존 쿠키 인식).
+**Effort**: CC ~1시간 + DNS 전파 대기.
+**Depends on**: B3 완료 후 (footer에 약관 링크 박혀야).
+
+---
+
+### B5. 베타 피드백 시스템 강화
+**What**: 구조화 설문 모달(NPS/만족도/우선순위, 블로그 5회 사용 후 1회) + 행동 추적(SHA-256 익명) + 인터뷰 트리거(10건+ 사용자 자동 픽업).
+**Why**: 30인 wave 단계 Phase 2 우선순위 결정 데이터. 사용자 명시 — 추측 빌드 금지, 데이터 기반.
+**Files**:
+- 수정: `templates/index.html` (NPS 모달), `src/main.py` (`POST /api/feedback/survey`), `src/usage_tracker.py` 확장, `src/daily_report.py` (인터뷰 트리거)
+- 신규: `data/survey.jsonl`
+**Critical edges**:
+- 사용자 ID 해시 → SHA-256(user_id + salt), salt는 .env (rainbow 공격 방어)
+- 설문 노출 빈도 → 한 번 닫으면 localStorage 30일 캐시
+- 5인 단계 샘플 사이즈 → 통계보다 인터뷰가 진짜 시그널
+- 인터뷰 트리거 카톡 → 본인한테만 (사용자 자동 발송 X, 동의 받지 않은 상태)
+**Test**: 데모 계정 5회 사용 → 모달 노출 → 응답 → `data/survey.jsonl` 확인.
+**Effort**: CC ~1시간.
+**Depends on**: B4 완료 후. 5인 베타 모집 직전.
+
+---
+
+## Deferred (베타 런치 트랙 외, 2026-04-27 결정)
+
+### D1. 결제 webhook (portone)
+**Trigger**: 5인 베타 종료 후, 정식 오픈 직전.
+**Why defer**: 베타는 무료가 정석. 사업자등록 / KCP 가맹점 / portone 계약 외부 의존성 많음. 시그널 약하면 매몰.
+**Context**: `plan_guard.py` 한도 체크는 이미 작동. webhook 서명 검증 + 환불 처리 미구현.
+
+---
+
+### D2. PostgreSQL 마이그레이션
+**Trigger**: 30인 wave 직전.
+**Why defer**: 5인 베타엔 SQLite + 일일 백업으로 충분. 마이그 버그가 외부 베타 중 터지면 치명타. managed Postgres latency +30ms.
+**Context**: Supabase 또는 Neon 무료 티어 후보. 자동 백업 포함.
+
+---
+
+### D3. Phase 2 기능 (CRM / 음성 차트 / 재고 / 스케줄 등)
+**Trigger**: 30인 베타 설문·인터뷰 결과 분석 후.
+**Why defer**: 추측 기반 빌드 금지 (사용자 명시). 30인 wave 데이터로 우선순위 결정.
+**필수 수집 항목**:
+1. 사용 경험 (어디서 막히는지)
+2. 차후 필요 기능 선호도
+**Context**: B5(피드백 시스템 강화)가 이 결정의 데이터 인프라.
+
+---
+
 ## P1 (다음 구현)
 
 ### 5. [설정 페이지] 팀 & 권한 관리 UI

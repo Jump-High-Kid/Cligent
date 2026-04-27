@@ -928,7 +928,7 @@
       const badge = document.getElementById('role-badge');
       badge.textContent = ROLE_LABELS[user.role] || user.role;
       badge.classList.add('text-primary', 'font-semibold');
-      if (DIRECTOR_ROLES.includes(user.role)) {
+      if (DIRECTOR_ROLES.includes(user.role) && user.can_invite) {
         document.getElementById('invite-btn').classList.remove('hidden');
       }
     } catch (e) { /* 네트워크 오류 시 조용히 무시 */ }

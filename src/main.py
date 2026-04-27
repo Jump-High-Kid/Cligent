@@ -74,6 +74,11 @@ if not _secret:
         ".env 파일에 SECRET_KEY=<랜덤 32자 이상 문자열>을 추가하세요."
     )
 
+# ── 옵저버빌리티 초기화 (Sentry + structlog, B2 / 2026-04-27) ─────
+from observability import init_observability, RequestLoggingMiddleware
+
+init_observability()
+
 import anthropic
 from collections import defaultdict
 from time import time as _time_now
@@ -285,6 +290,9 @@ async def lifespan(application: FastAPI):
 
 app = FastAPI(title="Cligent", lifespan=lifespan)
 
+# 모든 HTTP 요청 로깅 + request_id 부여 + 5xx → error_logs/{date}.jsonl 자동 기록
+app.add_middleware(RequestLoggingMiddleware)
+
 static_dir = ROOT / "static"
 static_dir.mkdir(exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
@@ -329,6 +337,125 @@ async def login_page():
 @app.get("/onboard")
 async def onboard_page():
     return FileResponse(ROOT / "templates" / "onboard.html")
+
+
+# ── 약관·방침·사업자정보 (B3, 2026-04-27) ───────────────────────
+@app.get("/terms")
+async def terms_page():
+    """이용약관"""
+    return FileResponse(ROOT / "templates" / "legal" / "terms.html")
+
+
+@app.get("/privacy")
+async def privacy_page():
+    """개인정보처리방침"""
+    return FileResponse(ROOT / "templates" / "legal" / "privacy.html")
+
+
+@app.get("/business")
+async def business_page():
+    """사업자정보"""
+    return FileResponse(ROOT / "templates" / "legal" / "business.html")
+
+
+# ── 비밀번호 찾기 (자가 재설정, 2026-04-27) ───────────────────
+@app.get("/forgot-password")
+async def forgot_password_page():
+    """비밀번호 찾기 페이지 — 인증 불필요"""
+    return FileResponse(ROOT / "templates" / "forgot_password.html", headers=_NO_CACHE)
+
+
+_FORGOT_PW_RATE_LIMIT_SEC = 60
+_forgot_pw_last_request: dict[str, float] = {}
+
+
+@app.post("/api/auth/forgot-password")
+async def api_forgot_password(request: Request):
+    """비밀번호 재설정 토큰 발급 + 이메일 발송.
+
+    보안:
+    - 등록 여부와 무관하게 동일 응답(200) — 이메일 enumeration 방지
+    - 같은 이메일 60초당 1회 제한 (429)
+    - 토큰은 기존 invite 흐름 재사용 (72시간 유효)
+    """
+    body = await request.json()
+    email = (body.get("email") or "").strip().lower()
+
+    if not email or "@" not in email or len(email) > 200:
+        # 형식 오류라도 200 (enumeration 방지)
+        return JSONResponse({"ok": True}, status_code=200)
+
+    # Rate limiting (in-memory, single-worker 가정)
+    now = _time_now()
+    last = _forgot_pw_last_request.get(email)
+    if last and (now - last) < _FORGOT_PW_RATE_LIMIT_SEC:
+        wait = int(_FORGOT_PW_RATE_LIMIT_SEC - (now - last)) or 1
+        return JSONResponse(
+            {"detail": f"잠시 후 다시 시도해주세요 ({wait}초)."},
+            status_code=429,
+        )
+    _forgot_pw_last_request[email] = now
+
+    # 사용자 조회
+    with __import__('db_manager').get_db() as conn:
+        user = conn.execute(
+            "SELECT id, role, clinic_id FROM users WHERE email = ? AND is_active = 1",
+            (email,),
+        ).fetchone()
+
+    # 등록되지 않은 이메일은 silent 200
+    if not user:
+        return JSONResponse({"ok": True}, status_code=200)
+
+    # 토큰 생성 (기존 reinvite 재사용)
+    try:
+        token = create_reinvite(
+            clinic_id=int(user["clinic_id"]),
+            email=email,
+            role=user["role"],
+            created_by=int(user["id"]),
+        )
+    except Exception:
+        _error_logger.exception("forgot-password 토큰 생성 실패 email=%s", email)
+        return JSONResponse({"ok": True}, status_code=200)
+
+    # 이메일 발송 (실패해도 사용자는 동일 응답 받음 — 디버깅은 로그로)
+    base_url = os.getenv("BASE_URL", str(request.base_url).rstrip("/"))
+    reset_url = f"{base_url}/onboard?token={token}"
+
+    html = f"""<!DOCTYPE html>
+<html><body style="font-family:'Apple SD Gothic Neo','Pretendard',sans-serif;color:#1a1a18;line-height:1.6;">
+<div style="max-width:560px;margin:24px auto;padding:32px;border:1px solid #e2e0d8;border-radius:12px;">
+  <div style="font-size:20px;font-weight:800;color:#064e3b;margin-bottom:16px;">Cligent</div>
+  <h2 style="font-size:18px;margin:0 0 12px;">비밀번호 재설정 링크입니다</h2>
+  <p>안녕하세요. Cligent 비밀번호 재설정을 요청하셨습니다.</p>
+  <p>아래 버튼을 누르시면 새 비밀번호를 설정할 수 있습니다.</p>
+  <p style="margin:24px 0;">
+    <a href="{reset_url}"
+       style="display:inline-block;background:#064e3b;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">
+      비밀번호 재설정
+    </a>
+  </p>
+  <p style="font-size:13px;color:#6b6960;">
+    버튼이 작동하지 않으면 아래 주소를 복사해 브라우저에 붙여넣어 주세요:<br>
+    <span style="word-break:break-all;">{reset_url}</span>
+  </p>
+  <hr style="border:none;border-top:1px solid #e2e0d8;margin:24px 0;">
+  <p style="font-size:13px;color:#6b6960;">
+    이 링크는 <strong>72시간</strong> 동안 유효합니다.<br>
+    본인이 요청하지 않으셨다면 이 메일을 무시하셔도 됩니다.
+  </p>
+</div>
+</body></html>
+"""
+
+    try:
+        from plan_notify import _send_smtp
+        _send_smtp(email, "[Cligent] 비밀번호 재설정 링크", html)
+    except Exception:
+        _error_logger.exception("forgot-password 이메일 발송 실패 email=%s", email)
+
+    return JSONResponse({"ok": True}, status_code=200)
 
 
 _NO_CACHE = {"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"}
@@ -403,16 +530,15 @@ async def settings_setup(request: Request):
 
 @app.get("/")
 async def root(request: Request):
-    """대시보드 — 미인증 시 /login 리다이렉트, 모바일이면 /mobile"""
+    """루트 — 인증 시 /app(또는 /mobile)로, 미인증 시 랜딩 페이지(B4, 2026-04-27)."""
     token = request.cookies.get(COOKIE_NAME)
-    if not token:
-        return RedirectResponse("/login")
-
-    ua = request.headers.get("user-agent", "").lower()
-    if any(k in ua for k in ("android", "iphone", "ipad", "mobile")):
-        return RedirectResponse("/mobile")
-
-    return FileResponse(ROOT / "templates" / "dashboard.html", headers=_NO_CACHE)
+    if token:
+        ua = request.headers.get("user-agent", "").lower()
+        if any(k in ua for k in ("android", "iphone", "ipad", "mobile")):
+            return RedirectResponse("/mobile")
+        return RedirectResponse("/app")
+    # 미인증 → 마케팅 랜딩 페이지
+    return FileResponse(ROOT / "templates" / "landing.html")
 
 
 # ── 인증 API ──────────────────────────────────────────────────────
@@ -465,6 +591,18 @@ async def api_logout():
     return response
 
 
+def _is_admin_clinic(user: dict) -> bool:
+    """베타 정책: ADMIN_CLINIC_ID와 일치하는 클리닉만 직원 초대·관리 기능 허용.
+
+    정식 서비스 출시 시 본 함수를 제거하거나 항상 True 반환으로 전환.
+    """
+    admin_cid = os.getenv("ADMIN_CLINIC_ID", "1")
+    try:
+        return int(user.get("clinic_id", 0)) == int(admin_cid)
+    except (TypeError, ValueError):
+        return False
+
+
 @app.get("/api/auth/me")
 async def api_me(user: dict = Depends(get_current_user)):
     """현재 로그인 사용자 정보"""
@@ -481,6 +619,7 @@ async def api_me(user: dict = Depends(get_current_user)):
         "clinic_id": user["clinic_id"],
         "must_change_pw": bool(user["must_change_pw"]),
         "api_key_configured": api_key_configured,
+        "can_invite": _is_admin_clinic(user),
     })
 
 
@@ -505,6 +644,13 @@ async def api_create_invite(request: Request, user: dict = Depends(get_current_u
     """
     if not role_has_access(user["role"], ["chief_director", "director"]):
         return JSONResponse({"detail": "초대 권한이 없습니다."}, status_code=403)
+
+    # 베타 정책: 본인 클리닉 외 직원 초대 차단 (이용약관 제2조·제4조)
+    if not _is_admin_clinic(user):
+        return JSONResponse(
+            {"detail": "베타 단계에서는 직원 초대 기능이 일시 비활성화되어 있습니다. 정식 서비스 출시 이후 단계적으로 지원됩니다."},
+            status_code=403,
+        )
 
     body = await request.json()
     email = body.get("email", "").strip()
@@ -650,6 +796,13 @@ async def reinvite_staff(staff_id: str, request: Request, user: dict = Depends(g
     """비밀번호 재설정 링크 생성 — director 이상 전용"""
     if not role_has_access(user["role"], ["chief_director", "director"]):
         return JSONResponse({"detail": "권한이 없습니다."}, status_code=403)
+
+    # 베타 정책: 본인 클리닉 외 직원 관리 기능 차단
+    if not _is_admin_clinic(user):
+        return JSONResponse(
+            {"detail": "베타 단계에서는 직원 관리 기능이 일시 비활성화되어 있습니다."},
+            status_code=403,
+        )
 
     with __import__('db_manager').get_db() as conn:
         row = conn.execute(

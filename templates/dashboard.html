@@ -589,8 +589,8 @@
       const headerEmail = document.getElementById('header-email')
       if (headerEmail) headerEmail.textContent = currentUser.email
 
-      // 초대 버튼 — director 이상만 표시
-      if (DIRECTOR_ROLES.includes(currentUser.role)) {
+      // 초대 버튼 — director 이상 + 본인 클리닉(베타 정책)만 표시
+      if (DIRECTOR_ROLES.includes(currentUser.role) && currentUser.can_invite) {
         document.getElementById('invite-btn').classList.remove('hidden')
       }
 

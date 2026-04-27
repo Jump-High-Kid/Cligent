@@ -22,7 +22,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **의학 정보**: 검증되지 않은 치료 효과는 사실로 제시 금지 — 항상 불확실성 명시
 - **처방 데이터**: 약재명은 KCD 또는 표준 한의학 용어 사용
 
-## 현재 구현 상태 (2026-04-26 기준)
+## 현재 구현 상태 (2026-04-27 기준)
+
+### 베타 런치 트랙 (B1~B3 완료, B4 Step 1 완료)
+- **B1 백업**: launchd 04:00 일일 (`scripts/backup.sh` + `~/Library/LaunchAgents/kr.cligent.backup.plist`). openssl AES-256-CBC + Keychain 비번
+- **B2 모니터링**: `src/observability.py` (Sentry SDK + structlog + RequestLoggingMiddleware + PII 마스킹). `data/cligent.log` json line. `daily_report.py`에 메트릭 섹션 추가
+- **B3 약관/방침/사업자정보**: `templates/legal/{terms,privacy,business}.html` + `static/legal.css` + 라우트 3개. 자가 비번 재설정 `/forgot-password`. 운영 도구 `scripts/reset_password.py`. 베타 정책 `_is_admin_clinic()` 헬퍼로 invite/reinvite 차단 + UI(can_invite 필드)
+- **B4 Step 1 랜딩**: `templates/landing.html` 8섹션. `/` 라우트가 비로그인 시 랜딩, 로그인 시 /app로 자동
+- 자세한 진행: 메모리 `project_beta_launch_track.md` + `~/.gstack/projects/Jump-High-Kid-Cligent/ceo-plans/2026-04-27-beta-launch-track.md`
+
+
 
 ### 폴더 구조
 ```

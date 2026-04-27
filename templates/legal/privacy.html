@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+  <title>개인정보처리방침 — Cligent</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <link rel="stylesheet" href="/static/legal.css" />
+  <meta name="robots" content="noindex" />
+</head>
+<body>
+  <main class="legal-wrap">
+    <a href="javascript:history.back()" class="legal-back">← 돌아가기</a>
+
+    <div class="legal-brand">
+      <img src="/static/favicon.svg" alt="" />
+      <span>Cligent</span>
+    </div>
+
+    <h1>개인정보처리방침</h1>
+    <p class="legal-meta">최종 변경일: 2026년 4월 27일 · 시행일: 2026년 4월 27일 · 베타 v1</p>
+
+    <div class="legal-warn">
+      ⚠️ 본 방침은 베타 단계용이며, 정식 서비스 전환 시 변호사 검토를 거쳐 갱신됩니다. 갱신 시 시행일 7일 전 공지합니다.
+    </div>
+
+    <h2>1. 처리 목적</h2>
+    <p>Cligent는 다음 목적을 위해 개인정보를 처리합니다.</p>
+    <ul>
+      <li>회원 식별 및 본인 확인, 서비스 제공</li>
+      <li>한의원 운영 보조 콘텐츠(블로그·이미지 프롬프트) 생성</li>
+      <li>요금제·결제 관리 (정식 서비스 전환 후)</li>
+      <li>고객 문의 응대 및 베타 피드백 수집</li>
+      <li>서비스 안정성 모니터링·디버깅 (오류 로그)</li>
+    </ul>
+
+    <h2>2. 수집 항목 및 보유 기간</h2>
+    <table>
+      <thead>
+        <tr><th>항목</th><th>수집 시점</th><th>보유 기간</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>이메일 주소</td>
+          <td>회원가입·베타 신청</td>
+          <td>회원 탈퇴 시까지</td>
+        </tr>
+        <tr>
+          <td>비밀번호 (bcrypt 해시)</td>
+          <td>회원가입</td>
+          <td>회원 탈퇴 시까지</td>
+        </tr>
+        <tr>
+          <td>한의원명·주소·연락처·진료시간·원장 소개</td>
+          <td>설정 페이지 입력 시</td>
+          <td>회원 탈퇴 시까지</td>
+        </tr>
+        <tr>
+          <td>외부 AI API 키 (Fernet 암호화 저장)</td>
+          <td>BYOAI 등록 시</td>
+          <td>회원 탈퇴 또는 등록 해제 시까지</td>
+        </tr>
+        <tr>
+          <td>블로그 생성 입력값(주제·키워드)·결과 전문(全文)</td>
+          <td>블로그 생성 시</td>
+          <td><strong>30일 (자동 삭제)</strong></td>
+        </tr>
+        <tr>
+          <td>블로그 생성 통계 (개수·토큰 수·비용)</td>
+          <td>블로그 생성 시</td>
+          <td>회원 탈퇴 시까지</td>
+        </tr>
+        <tr>
+          <td>접속 로그 (IP, 요청 경로, 응답 시간)</td>
+          <td>서비스 이용 시</td>
+          <td>30일</td>
+        </tr>
+        <tr>
+          <td>오류 로그 (해시화된 사용자 ID 포함)</td>
+          <td>오류 발생 시</td>
+          <td>30일</td>
+        </tr>
+        <tr>
+          <td>피드백·설문 응답</td>
+          <td>입력 시</td>
+          <td>회원 탈퇴 시까지 (익명화 후 통계 영구 보관)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="legal-callout">
+      <strong>환자 식별 정보는 수집하지 않습니다.</strong> 회원이 환자의 성명·연락처·구체적 진료기록 등을 입력하지 않도록 서비스 안내 및 차단 조치를 운영합니다(이용약관 제7조 참조). 의료법 제19조(비밀유지 의무) 준수의 책임은 회원에게 있습니다.
+    </div>
+
+    <h2>3. 처리 위탁</h2>
+    <p>Cligent는 서비스 제공을 위해 다음 외부 사업자에게 처리를 위탁합니다.</p>
+    <table>
+      <thead>
+        <tr><th>수탁자</th><th>위탁 업무</th><th>제공 항목</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Anthropic, PBC (미국)</td>
+          <td>블로그·콘텐츠 생성 (Claude API)</td>
+          <td>회원이 입력한 주제·키워드 (개인 식별 정보 제외)</td>
+        </tr>
+        <tr>
+          <td>OpenAI, L.L.C. (미국)</td>
+          <td>블로그·콘텐츠 생성 (GPT API, 회원 선택 시)</td>
+          <td>회원이 입력한 주제·키워드 (개인 식별 정보 제외)</td>
+        </tr>
+        <tr>
+          <td>Google LLC (미국)</td>
+          <td>블로그·콘텐츠 생성 (Gemini API, 회원 선택 시)</td>
+          <td>회원이 입력한 주제·키워드 (개인 식별 정보 제외)</td>
+        </tr>
+        <tr>
+          <td>Functional Software, Inc. (Sentry, 미국)</td>
+          <td>오류 모니터링·디버깅</td>
+          <td>해시화된 사용자 ID, 오류 발생 경로 (민감 정보 자동 마스킹)</td>
+        </tr>
+        <tr>
+          <td>Google LLC (Gmail SMTP, 미국)</td>
+          <td>알림 메일 발송</td>
+          <td>회원 이메일</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="legal-meta">국외 이전 사실: Anthropic·OpenAI·Google·Sentry는 미국 등 해외에 데이터를 저장·처리할 수 있습니다. 회원의 명시적 동의 절차를 회원가입 시 별도로 받습니다.</p>
+
+    <h2>4. 안전성 확보 조치</h2>
+    <ul>
+      <li><strong>암호화</strong>: 외부 AI API 키는 Fernet 대칭 암호화로 저장. 비밀번호는 bcrypt 해시.</li>
+      <li><strong>접근 통제</strong>: 5단계 RBAC(역할 기반 접근 제어)로 한의원 내부 데이터 접근을 권한별로 분리.</li>
+      <li><strong>전송 보안</strong>: 모든 통신은 HTTPS(TLS 1.2+) 적용.</li>
+      <li><strong>로그 마스킹</strong>: 오류 모니터링 시 API 키·비밀번호·이메일·환경변수 자동 마스킹. 사용자 ID는 SHA-256 해시화 후에만 외부 위탁자에게 전달.</li>
+      <li><strong>백업</strong>: 일일 자동 암호화 백업(AES-256), 30일 보관.</li>
+    </ul>
+
+    <h2>5. 회원의 권리</h2>
+    <p>회원은 언제든지 다음 권리를 행사할 수 있습니다.</p>
+    <ul>
+      <li>개인정보 열람 요구</li>
+      <li>오류가 있을 경우 정정·삭제 요구</li>
+      <li>처리 정지 요구</li>
+      <li>회원 탈퇴 (즉시 처리)</li>
+    </ul>
+    <p>요청은 아래 개인정보 보호책임자 연락처로 보내주세요.</p>
+
+    <h2>6. 개인정보 보호책임자</h2>
+    <table>
+      <tbody>
+        <tr><th style="width:140px;">성명</th><td>Cligent 대표자</td></tr>
+        <tr><th>이메일</th><td>cligent.ai@gmail.com</td></tr>
+        <tr><th>역할</th><td>개인정보 보호책임자 겸 서비스 운영자</td></tr>
+      </tbody>
+    </table>
+
+    <h2>7. 자동 수집 정보</h2>
+    <ul>
+      <li><strong>쿠키</strong>: JWT 인증 토큰을 httpOnly 쿠키로 저장 (로그인 유지 목적). 그 외 추적용 쿠키는 사용하지 않습니다.</li>
+      <li><strong>접속 로그</strong>: IP 주소, 브라우저 정보, 요청 경로, 응답 시간을 자동 수집하며 30일 보관 후 삭제합니다.</li>
+    </ul>
+
+    <h2>8. 변경 시 고지</h2>
+    <p>본 방침이 변경되는 경우 변경 시행일 7일 전 서비스 내 공지하며, 회원에게 불리한 변경의 경우 30일 전 공지하고 별도 동의를 받습니다.</p>
+
+    <h2>9. 권익침해 구제 방법</h2>
+    <p>회원은 개인정보 침해로 인한 신고·상담이 필요한 경우 아래 기관에 문의할 수 있습니다.</p>
+    <ul>
+      <li>개인정보분쟁조정위원회 (☎ 1833-6972, www.kopico.go.kr)</li>
+      <li>개인정보침해신고센터 (☎ 118, privacy.kisa.or.kr)</li>
+      <li>대검찰청 사이버수사과 (☎ 1301, www.spo.go.kr)</li>
+      <li>경찰청 사이버수사국 (☎ 182, ecrm.cyber.go.kr)</li>
+    </ul>
+
+    <h2>부칙</h2>
+    <p>본 방침은 2026년 4월 27일부터 시행합니다.</p>
+
+    <footer class="legal-footer">
+      <span>© 2026 Cligent (베타 운영 중)</span>
+      <span>
+        <a href="/terms">이용약관</a> ·
+        <a href="/privacy">개인정보처리방침</a> ·
+        <a href="/business">사업자정보</a>
+      </span>
+    </footer>
+  </main>
+</body>
+</html>

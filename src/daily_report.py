@@ -82,6 +82,58 @@ def _format_feedbacks(feedbacks: list) -> str:
     return "\n".join(lines)
 
 
+def _count_metrics(date_str: str, errors: list) -> dict:
+    """그 날짜의 핵심 메트릭 — 5xx, 활성 사용자 수, 블로그 생성 수, 5xx 발생 path Top 5."""
+    from collections import Counter
+
+    metric: dict = {
+        "errors_5xx": len(errors),
+        "active_users": 0,
+        "blogs_generated": 0,
+        "top_error_paths": [],
+    }
+
+    # 활성 사용자 수 (error_logs에 user_hash가 있는 경우만 — 부분 추정)
+    user_hashes = {e.get("user_hash") for e in errors if e.get("user_hash")}
+    user_hashes.discard("anon")
+    user_hashes.discard(None)
+    metric["active_users"] = len(user_hashes)
+
+    # 5xx 발생 path 분포
+    path_counter = Counter(e.get("path", "?") for e in errors)
+    metric["top_error_paths"] = path_counter.most_common(5)
+
+    # 블로그 생성 수 (blog_stats.json에서 그 날짜 항목)
+    try:
+        stats_path = ROOT / "data" / "blog_stats.json"
+        if stats_path.exists():
+            stats = json.loads(stats_path.read_text(encoding="utf-8"))
+            entries = stats.get("entries", []) if isinstance(stats, dict) else stats
+            metric["blogs_generated"] = sum(
+                1 for e in entries
+                if isinstance(e, dict) and str(e.get("created_at", "")).startswith(date_str)
+            )
+    except Exception:
+        pass
+
+    return metric
+
+
+def _format_metrics(m: dict) -> str:
+    if not any([m["errors_5xx"], m["active_users"], m["blogs_generated"]]):
+        return "특이사항 없음"
+    lines = [
+        f"- 5xx 에러: **{m['errors_5xx']}건**",
+        f"- 활성 사용자(에러 발생 기준): **{m['active_users']}명**",
+        f"- 블로그 생성: **{m['blogs_generated']}건**",
+    ]
+    if m["top_error_paths"]:
+        lines.append("- 5xx 다발 경로:")
+        for path, cnt in m["top_error_paths"]:
+            lines.append(f"  - `{path}` × {cnt}")
+    return "\n".join(lines)
+
+
 def _build_summary_prompt(date_str: str, errors: list, feedbacks: list) -> str:
     error_block = _format_errors(errors)
     feedback_block = _format_feedbacks(feedbacks)
@@ -113,6 +165,7 @@ def generate_daily_report(date_str: str) -> str:
 
     errors = _load_errors(date_str)
     feedbacks = _load_feedbacks(date_str)
+    metrics = _count_metrics(date_str, errors)
 
     if not errors and not feedbacks:
         summary = "오류 및 피드백 없음 — 정상 운영"
@@ -130,6 +183,10 @@ def generate_daily_report(date_str: str) -> str:
     content = f"""# Cligent 데일리 리포트 — {date_str}
 
 > 생성: {datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}
+
+## 메트릭
+
+{_format_metrics(metrics)}
 
 ## AI 요약
 

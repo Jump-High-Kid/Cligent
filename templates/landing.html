@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5">
+<title>Cligent — 한의원장의 시간을 돌려드립니다</title>
+<meta name="description" content="Cligent는 한의원장의 반복 업무를 AI로 대신합니다. 블로그 자동 생성, BYOAI(Bring Your Own AI) 방식으로 토큰 비용 0원.">
+<meta property="og:title" content="Cligent — Medical AI Agent">
+<meta property="og:description" content="한의원장의 시간을 돌려드립니다. 블로그·마케팅·운영을 AI가 대신.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://cligent.kr">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" rel="stylesheet"/>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
+<link rel="apple-touch-icon" href="/static/favicon.svg"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #faf9f5;
+    --surface: #ffffff;
+    --surface-elev: #fdfcf8;
+    --border: #e2e0d8;
+    --text: #1a1a18;
+    --text-mid: #4a4a45;
+    --muted: #6b6960;
+    --accent: #064e3b;
+    --accent-hover: #053e2f;
+    --accent-soft: #f0fdf4;
+    --warn-bg: #fef3c7;
+    --warn-text: #78350f;
+    --radius: 12px;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.05);
+    --shadow-md: 0 4px 16px rgba(0,0,0,0.06);
+    --shadow-lg: 0 8px 32px rgba(0,0,0,0.08);
+  }
+
+  body {
+    font-family: 'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a { color: inherit; text-decoration: none; }
+  img { max-width: 100%; display: block; }
+
+  /* ── Header ───────────────────────────────────────────── */
+  header.site {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    backdrop-filter: blur(8px);
+    background: rgba(250, 249, 245, 0.85);
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.2s;
+  }
+  header.site.scrolled { border-bottom-color: var(--border); }
+  .nav {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 900;
+    font-size: 20px;
+    color: var(--accent);
+    letter-spacing: -0.025em;
+  }
+  .brand-mark { width: 32px; height: 32px; }
+  .nav-links { display: flex; align-items: center; gap: 28px; font-size: 14px; }
+  .nav-links a { color: var(--text-mid); transition: color 0.15s; }
+  .nav-links a:hover { color: var(--accent); }
+  .btn-primary, .btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 20px;
+    border-radius: 999px;
+    font-weight: 600;
+    font-size: 14px;
+    transition: all 0.15s;
+    cursor: pointer;
+    border: none;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+  }
+  .btn-primary:hover { background: var(--accent-hover); transform: translateY(-1px); }
+  .btn-ghost {
+    background: transparent;
+    color: var(--text-mid);
+    border: 1px solid var(--border);
+  }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-lg { padding: 14px 32px; font-size: 16px; }
+
+  /* ── Hero ─────────────────────────────────────────────── */
+  .hero {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 80px 24px 64px;
+    text-align: center;
+  }
+  .hero-badge {
+    display: inline-block;
+    padding: 6px 14px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 24px;
+  }
+  .hero h1 {
+    font-size: clamp(36px, 5.6vw, 64px);
+    line-height: 1.15;
+    letter-spacing: -0.035em;
+    font-weight: 900;
+    margin-bottom: 20px;
+  }
+  .hero h1 .accent { color: var(--accent); }
+  .hero-sub {
+    font-size: clamp(16px, 2vw, 20px);
+    color: var(--text-mid);
+    max-width: 640px;
+    margin: 0 auto 36px;
+    line-height: 1.5;
+  }
+  .hero-cta {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+  .hero-meta {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 12px;
+  }
+
+  /* ── Section base ─────────────────────────────────────── */
+  section {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 64px 24px;
+  }
+  .section-label {
+    display: inline-block;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 12px;
+  }
+  h2.section-title {
+    font-size: clamp(28px, 4vw, 40px);
+    line-height: 1.2;
+    letter-spacing: -0.025em;
+    font-weight: 800;
+    margin-bottom: 16px;
+  }
+  .section-sub {
+    font-size: clamp(15px, 1.6vw, 18px);
+    color: var(--text-mid);
+    max-width: 640px;
+    margin-bottom: 44px;
+  }
+
+  /* ── Problem ──────────────────────────────────────────── */
+  .problem-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 20px;
+  }
+  .problem-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px;
+  }
+  .problem-card .num {
+    font-size: 32px;
+    font-weight: 800;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+  .problem-card h3 {
+    font-size: 16px;
+    margin-bottom: 8px;
+    font-weight: 700;
+  }
+  .problem-card p {
+    font-size: 14px;
+    color: var(--text-mid);
+  }
+
+  /* ── Solution ─────────────────────────────────────────── */
+  .solution-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 40px;
+    margin-top: 24px;
+  }
+  .demo-flow {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 24px;
+    margin-top: 20px;
+  }
+  .demo-step {
+    border-left: 3px solid var(--accent);
+    padding: 4px 0 4px 16px;
+  }
+  .demo-step .step-num {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.08em;
+  }
+  .demo-step h4 {
+    font-size: 17px;
+    margin: 4px 0 6px;
+    font-weight: 700;
+  }
+  .demo-step p {
+    font-size: 14px;
+    color: var(--text-mid);
+  }
+  .demo-mock {
+    background: var(--surface-elev);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    margin-top: 24px;
+    font-family: ui-monospace, "SF Mono", monospace;
+    font-size: 13px;
+    color: var(--text-mid);
+    line-height: 1.7;
+  }
+  .demo-mock .label { color: var(--accent); font-weight: 700; }
+
+  /* ── BYOAI ─────────────────────────────────────────────── */
+  .compare-table {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    margin-top: 24px;
+  }
+  .compare-table table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .compare-table th, .compare-table td {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+  }
+  .compare-table th {
+    background: var(--surface-elev);
+    font-weight: 700;
+    color: var(--text-mid);
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .compare-table tr:last-child td { border-bottom: none; }
+  .compare-table .col-cligent { background: var(--accent-soft); font-weight: 600; color: var(--accent); }
+
+  /* ── Trust ─────────────────────────────────────────────── */
+  .trust-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-top: 24px;
+  }
+  .trust-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+  }
+  .trust-card .icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: 800;
+    margin-bottom: 12px;
+  }
+  .trust-card h4 { font-size: 15px; margin-bottom: 6px; font-weight: 700; }
+  .trust-card p { font-size: 13px; color: var(--text-mid); line-height: 1.55; }
+
+  /* ── Pricing ───────────────────────────────────────────── */
+  .pricing-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 20px;
+    margin-top: 24px;
+  }
+  .price-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px;
+    position: relative;
+  }
+  .price-card.featured {
+    border-color: var(--accent);
+    border-width: 2px;
+  }
+  .price-tag-featured {
+    position: absolute;
+    top: -10px;
+    right: 16px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 999px;
+    letter-spacing: 0.05em;
+  }
+  .price-card h3 { font-size: 18px; margin-bottom: 10px; font-weight: 700; }
+  .price-amount {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    margin-bottom: 16px;
+  }
+  .price-amount .num {
+    font-size: 32px;
+    font-weight: 800;
+    color: var(--accent);
+  }
+  .price-amount .unit {
+    font-size: 14px;
+    color: var(--muted);
+  }
+  .price-card ul { list-style: none; font-size: 14px; color: var(--text-mid); }
+  .price-card li {
+    padding: 6px 0;
+    padding-left: 20px;
+    position: relative;
+  }
+  .price-card li::before {
+    content: "✓";
+    position: absolute;
+    left: 0;
+    color: var(--accent);
+    font-weight: 700;
+  }
+  .price-note {
+    margin-top: 28px;
+    padding: 16px 20px;
+    background: var(--warn-bg);
+    color: var(--warn-text);
+    border-radius: var(--radius);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  /* ── Beta form ────────────────────────────────────────── */
+  .beta-section {
+    background: var(--surface-elev);
+    border-radius: 24px;
+    margin-top: 64px;
+  }
+  .beta-form {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 36px;
+    max-width: 560px;
+    margin: 24px auto 0;
+  }
+  .beta-form .row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .beta-form label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: var(--text-mid);
+  }
+  .beta-form input, .beta-form textarea {
+    width: 100%;
+    padding: 11px 14px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg);
+    font-size: 15px;
+    color: var(--text);
+    font-family: inherit;
+    margin-bottom: 16px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .beta-form input:focus, .beta-form textarea:focus {
+    border-color: var(--accent);
+    background: #fff;
+  }
+  .beta-form textarea { resize: vertical; min-height: 80px; }
+  .beta-form .submit-btn {
+    width: 100%;
+    padding: 14px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s;
+    margin-top: 4px;
+  }
+  .beta-form .submit-btn:hover { background: var(--accent-hover); }
+  .beta-form .submit-btn:disabled { opacity: 0.6; cursor: default; }
+  .beta-form .terms-note {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 12px;
+    text-align: center;
+    line-height: 1.6;
+  }
+  .beta-form .terms-note a { color: var(--accent); text-decoration: underline; }
+
+  .beta-form .msg {
+    padding: 12px 14px;
+    border-radius: 10px;
+    font-size: 13px;
+    margin-bottom: 16px;
+    display: none;
+  }
+  .beta-form .msg.error { background: #fdf0ef; color: #c0392b; border: 1px solid #f5c6c2; }
+  .beta-form .msg.success { background: var(--accent-soft); color: var(--accent); border: 1px solid #a7f3d0; }
+
+  /* ── FAQ ──────────────────────────────────────────────── */
+  .faq-list { max-width: 760px; margin: 0 auto; }
+  details.faq {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0;
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+  details.faq[open] { border-color: var(--accent); }
+  details.faq summary {
+    padding: 20px 24px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 16px;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  details.faq summary::-webkit-details-marker { display: none; }
+  details.faq summary::after {
+    content: "+";
+    font-size: 22px;
+    color: var(--accent);
+    font-weight: 400;
+    transition: transform 0.2s;
+    flex-shrink: 0;
+  }
+  details.faq[open] summary::after { transform: rotate(45deg); }
+  details.faq div.answer {
+    padding: 0 24px 22px;
+    font-size: 15px;
+    color: var(--text-mid);
+    line-height: 1.7;
+  }
+
+  /* ── Footer ───────────────────────────────────────────── */
+  footer.site {
+    border-top: 1px solid var(--border);
+    margin-top: 64px;
+    padding: 40px 24px 64px;
+    text-align: center;
+  }
+  .footer-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .footer-links { display: flex; gap: 20px; flex-wrap: wrap; }
+  .footer-links a { color: var(--muted); }
+  .footer-links a:hover { color: var(--accent); }
+
+  @media (max-width: 720px) {
+    .nav-links { display: none; }
+    .nav-links.cta-visible { display: flex; gap: 8px; }
+    .hero { padding: 56px 20px 40px; }
+    section { padding: 48px 20px; }
+    .solution-wrap { padding: 24px; }
+    .beta-form { padding: 24px; }
+    .beta-form .row { grid-template-columns: 1fr; gap: 0; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── Header ─────────────────────────────────────────────── -->
+<header class="site" id="siteHeader">
+  <div class="nav">
+    <a href="/" class="brand">
+      <svg class="brand-mark" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <symbol id="sparkle" viewBox="-72 -72 144 144">
+            <path d="M0,-72 C 12,-22 26,-12 72,0 C 26,12 12,22 0,72 C -12,22 -26,12 -72,0 C -26,-12 -12,-22 0,-72 Z"/>
+          </symbol>
+        </defs>
+        <rect width="32" height="32" rx="7" fill="#064e3b"/>
+        <text x="4" y="25" font-family="-apple-system,system-ui,sans-serif" font-size="22" font-weight="900" fill="#ffffff">C</text>
+        <g transform="translate(23 8) scale(0.08)" fill="#ffffff">
+          <use href="#sparkle"/>
+          <use href="#sparkle" transform="translate(78 -60) scale(.55)"/>
+          <use href="#sparkle" transform="translate(86 60) scale(.4)"/>
+        </g>
+      </svg>
+      <span>Cligent</span>
+    </a>
+    <nav class="nav-links">
+      <a href="#problem">문제</a>
+      <a href="#solution">솔루션</a>
+      <a href="#pricing">가격</a>
+      <a href="#faq">FAQ</a>
+      <a href="#beta" class="btn-primary">베타 신청</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ── Hero ──────────────────────────────────────────────── -->
+<div class="hero">
+  <span class="hero-badge">베타 운영 중 · 선착순 5명 무료</span>
+  <h1>
+    한의원장의 <span class="accent">시간을 돌려드립니다</span>
+  </h1>
+  <p class="hero-sub">
+    블로그·마케팅·운영 — 한의원장의 진료 외 반복 업무를
+    <strong>Medical AI Agent, Cligent</strong>가 대신합니다.
+  </p>
+  <div class="hero-cta">
+    <a href="#beta" class="btn-primary btn-lg">베타 신청하기</a>
+    <a href="#solution" class="btn-ghost btn-lg">어떻게 작동하나요?</a>
+  </div>
+  <p class="hero-meta">신청 후 1~3일 내 회신 · 서비스 이용은 무료 · API 키만 본인 발급</p>
+</div>
+
+<!-- ── Problem ───────────────────────────────────────────── -->
+<section id="problem">
+  <span class="section-label">문제</span>
+  <h2 class="section-title">진료보다 진료 외 시간이 더 깁니다</h2>
+  <p class="section-sub">
+    한의원장이 직접 해야 하는 반복 업무. 자동화하지 않으면 매일 1~2시간씩 사라집니다.
+  </p>
+  <div class="problem-grid">
+    <div class="problem-card">
+      <div class="num">1~2시간</div>
+      <h3>블로그 1편 작성</h3>
+      <p>주제 선정, SEO 키워드 분석, 이미지 첨부, 네이버 노출 최적화. 글 한 편에 들어가는 시간.</p>
+    </div>
+    <div class="problem-card">
+      <div class="num">월 8~12편</div>
+      <h3>네이버 SEO 유지</h3>
+      <p>꾸준한 발행이 검색 순위의 핵심. 멈추는 순간 신환 유입이 줄어듭니다.</p>
+    </div>
+    <div class="problem-card">
+      <div class="num">매월 반복</div>
+      <h3>이미지·카드뉴스</h3>
+      <p>블로그 한 편당 4~6장의 이미지가 필요. 프롬프트 직접 작성, AI 사이트 옮겨가며 생성.</p>
+    </div>
+    <div class="problem-card">
+      <div class="num">파편화</div>
+      <h3>분산된 도구</h3>
+      <p>워드, 챗GPT, 미드저니, 네이버 블로그 — 결과물 하나당 도구 4~5개를 오갑니다.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ── Solution ───────────────────────────────────────────── -->
+<section id="solution">
+  <span class="section-label">솔루션</span>
+  <h2 class="section-title">주제 입력 30초, 글 1편 완성</h2>
+  <p class="section-sub">
+    한의학 도메인에 특화된 프롬프트와 5레이어 패턴 엔진. 블로그·이미지 프롬프트를 한 흐름에서 끝냅니다.
+  </p>
+  <div class="solution-wrap">
+    <div class="demo-flow">
+      <div class="demo-step">
+        <div class="step-num">STEP 1</div>
+        <h4>주제만 입력</h4>
+        <p>"불면증 한의학 치료" 한 줄. SEO 키워드는 자동 추출.</p>
+      </div>
+      <div class="demo-step">
+        <div class="step-num">STEP 2</div>
+        <h4>AI가 글 생성</h4>
+        <p>30초 안에 1,500~2,000자, 네이버·구글 SEO 최적화. E-E-A-T 저자 byline 자동.</p>
+      </div>
+      <div class="demo-step">
+        <div class="step-num">STEP 3</div>
+        <h4>이미지 프롬프트</h4>
+        <p>본문에 어울리는 이미지 프롬프트 4~6개 자동. Midjourney·ChatGPT·Gemini 클릭 한 번에 이동.</p>
+      </div>
+    </div>
+    <div class="demo-mock">
+      <div><span class="label">입력:</span> 불면증 한의학 치료</div>
+      <div><span class="label">옵션:</span> 글자 수 2,000자 / 톤 친근함 / 패턴 ‘체계적 분석’</div>
+      <div><span class="label">출력:</span> 제목 → 서론 → 본론(원인/변증/처방) → 사례 → FAQ → 마무리 + 저자 byline</div>
+      <div><span class="label">소요:</span> 약 30~45초</div>
+    </div>
+  </div>
+</section>
+
+<!-- ── BYOAI ──────────────────────────────────────────────── -->
+<section id="byoai">
+  <span class="section-label">BYOAI</span>
+  <h2 class="section-title">당신의 API 키로, 토큰 비용은 0원</h2>
+  <p class="section-sub">
+    Bring Your Own AI — 일반 SaaS는 토큰 비용을 구독료에 얹습니다. Cligent는 그 부분이 없습니다.
+    Anthropic Claude · OpenAI GPT · Google Gemini 모두 지원.
+  </p>
+  <div class="compare-table">
+    <table>
+      <thead>
+        <tr>
+          <th></th>
+          <th>일반 AI 글쓰기 SaaS</th>
+          <th class="col-cligent">Cligent</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>토큰 비용</td>
+          <td>구독료에 포함 (한도 작음)</td>
+          <td class="col-cligent">0원 — 본인 키 직접 결제</td>
+        </tr>
+        <tr>
+          <td>모델 선택</td>
+          <td>고정 (보통 GPT-3.5/4 한정)</td>
+          <td class="col-cligent">Claude / GPT / Gemini 자유</td>
+        </tr>
+        <tr>
+          <td>도메인 최적화</td>
+          <td>일반</td>
+          <td class="col-cligent">한의학 특화 프롬프트</td>
+        </tr>
+        <tr>
+          <td>API 키 보관</td>
+          <td>해당 없음</td>
+          <td class="col-cligent">Fernet AES-256 암호화</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ── Trust ──────────────────────────────────────────────── -->
+<section id="trust">
+  <span class="section-label">신뢰</span>
+  <h2 class="section-title">의료 데이터는 다르게 다룹니다</h2>
+  <p class="section-sub">
+    한의원 데이터 처리에 PIPA·의료법을 그대로 반영. 환자 식별 정보는 입력 단계부터 차단.
+  </p>
+  <div class="trust-grid">
+    <div class="trust-card">
+      <div class="icon">🔒</div>
+      <h4>PIPA·의료법 준수</h4>
+      <p>개인정보보호법 22·26조, 의료법 19조 인용. 위탁업체(Anthropic 등)도 명시.</p>
+    </div>
+    <div class="trust-card">
+      <div class="icon">⏱</div>
+      <h4>30일 자동 삭제</h4>
+      <p>블로그 전문은 30일 후 서버에서 자동 삭제. 통계만 익명화 보관.</p>
+    </div>
+    <div class="trust-card">
+      <div class="icon">🔐</div>
+      <h4>API 키 암호화</h4>
+      <p>본인 API 키는 Fernet AES-256으로 암호화 저장. 평문 노출 없음.</p>
+    </div>
+    <div class="trust-card">
+      <div class="icon">🛡</div>
+      <h4>환자정보 입력 차단</h4>
+      <p>프롬프트 단계에서 환자 식별 정보 자동 차단. 의료법 위반 위험 0.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ── Pricing ────────────────────────────────────────────── -->
+<section id="pricing">
+  <span class="section-label">가격</span>
+  <h2 class="section-title">베타 기간엔 무료입니다</h2>
+  <p class="section-sub">
+    정식 출시 전까지 신청자 모두 무료. 정식 가격은 다음과 같이 책정 예정입니다.
+  </p>
+  <div class="pricing-grid">
+    <div class="price-card">
+      <h3>Free</h3>
+      <div class="price-amount">
+        <span class="num">0원</span>
+        <span class="unit">/ 월</span>
+      </div>
+      <ul>
+        <li>월 3편 블로그 생성</li>
+        <li>BYOAI (본인 키)</li>
+        <li>이미지 프롬프트 무제한</li>
+      </ul>
+    </div>
+    <div class="price-card featured">
+      <span class="price-tag-featured">추천</span>
+      <h3>Standard</h3>
+      <div class="price-amount">
+        <span class="num">29,000원</span>
+        <span class="unit">/ 월</span>
+      </div>
+      <ul>
+        <li>월 30편 블로그</li>
+        <li>BYOAI + 모델 자유 선택</li>
+        <li>SEO 분석 리포트</li>
+        <li>생성 이력 영구 보관</li>
+      </ul>
+    </div>
+    <div class="price-card">
+      <h3>Pro</h3>
+      <div class="price-amount">
+        <span class="num">59,000원</span>
+        <span class="unit">/ 월</span>
+      </div>
+      <ul>
+        <li>무제한 블로그</li>
+        <li>우선 응답 + 신규 기능 우선 제공</li>
+        <li>한의원 대시보드 + CRM (정식 오픈 후)</li>
+      </ul>
+    </div>
+  </div>
+  <div class="price-note">
+    <strong>베타 안내</strong> — 베타 기간(2026년 4~6월 예정) 동안은 모든 신청자 무료. 정식 출시 이전에는 결제·매출이 발생하지 않습니다.
+  </div>
+</section>
+
+<!-- ── Beta form ──────────────────────────────────────────── -->
+<section id="beta" class="beta-section">
+  <span class="section-label">베타 신청</span>
+  <h2 class="section-title">선착순 5명, 무료 우선 이용</h2>
+  <p class="section-sub">
+    이메일을 입력해 주세요. 1~3일 내 검토 후 초대 링크를 보내드립니다.
+  </p>
+  <form class="beta-form" id="betaForm" onsubmit="return submitBeta(event)">
+    <div id="msgBox" class="msg"></div>
+    <div class="row">
+      <div>
+        <label for="bf-name">이름 *</label>
+        <input type="text" id="bf-name" required maxlength="50" placeholder="홍길동">
+      </div>
+      <div>
+        <label for="bf-clinic">한의원명 *</label>
+        <input type="text" id="bf-clinic" required maxlength="80" placeholder="○○한의원">
+      </div>
+    </div>
+    <label for="bf-email">이메일 *</label>
+    <input type="email" id="bf-email" required maxlength="200" placeholder="clinic@example.com">
+
+    <label for="bf-phone">전화번호 (선택)</label>
+    <input type="tel" id="bf-phone" maxlength="30" placeholder="010-0000-0000">
+
+    <label for="bf-note">한 줄 소개 (선택)</label>
+    <textarea id="bf-note" maxlength="500" placeholder="현재 어떤 업무가 가장 부담되시나요?"></textarea>
+
+    <button type="submit" class="submit-btn" id="bf-submit">베타 신청하기</button>
+    <p class="terms-note">
+      신청 시 <a href="/terms">이용약관</a> 및 <a href="/privacy">개인정보처리방침</a>에 동의하는 것으로 간주됩니다.
+    </p>
+  </form>
+</section>
+
+<!-- ── FAQ ────────────────────────────────────────────────── -->
+<section id="faq">
+  <span class="section-label">FAQ</span>
+  <h2 class="section-title">자주 묻는 질문</h2>
+  <div class="faq-list">
+    <details class="faq">
+      <summary>API 키는 어디서 어떻게 받나요?</summary>
+      <div class="answer">
+        Anthropic Claude의 경우 <a href="https://console.anthropic.com" target="_blank" style="color:var(--accent);">console.anthropic.com</a>에서 발급. 신용카드 등록 후 사용량 기반 결제.
+        평균 블로그 1편당 약 50~150원 (Claude 기준). 정식 영상 가이드는 베타 신청 후 함께 보내드립니다.
+      </div>
+    </details>
+    <details class="faq">
+      <summary>환자 정보를 입력해도 되나요?</summary>
+      <div class="answer">
+        <strong>안 됩니다.</strong> 의료법 19조(비밀유지 의무) 위반 가능성 때문에 환자 식별 정보(성명·생년월일·연락처·구체적 진료기록 등)는
+        프롬프트 단계에서 자동 차단됩니다. 일반적인 한의학 콘텐츠 작성에는 영향이 없습니다.
+      </div>
+    </details>
+    <details class="faq">
+      <summary>의료법에 위배되지 않나요?</summary>
+      <div class="answer">
+        Cligent는 진단·처방·치료를 대체하지 않습니다. 한의원장의 마케팅·운영 보조에만 사용되며,
+        AI가 생성한 콘텐츠는 참고 자료입니다. 최종 검토와 게재 책임은 한의원장 본인에게 있습니다.
+      </div>
+    </details>
+    <details class="faq">
+      <summary>비용은 어떻게 발생하나요?</summary>
+      <div class="answer">
+        베타 기간엔 모든 기능 무료. 정식 출시 시 Standard 29,000원/월부터 시작 예정.
+        토큰 비용은 본인 API 키로 직접 결제하므로 Cligent 구독료에 포함되지 않습니다 (BYOAI).
+      </div>
+    </details>
+    <details class="faq">
+      <summary>한의원에 직원이 여러 명인데 같이 쓸 수 있나요?</summary>
+      <div class="answer">
+        베타 단계에선 한의원당 <strong>대표원장 1인</strong>만 가입 가능합니다.
+        직원 초대 기능은 정식 서비스 출시 이후 단계적으로 활성화됩니다.
+      </div>
+    </details>
+    <details class="faq">
+      <summary>해지 / 데이터 삭제는 어떻게 하나요?</summary>
+      <div class="answer">
+        언제든지 <a href="mailto:cligent.ai@gmail.com" style="color:var(--accent);">cligent.ai@gmail.com</a>으로 요청하시면 즉시 처리합니다.
+        블로그 전문은 자동으로 30일 후 삭제되며, 회원 탈퇴 시 모든 개인정보가 삭제됩니다.
+      </div>
+    </details>
+  </div>
+</section>
+
+<!-- ── Footer ─────────────────────────────────────────────── -->
+<footer class="site">
+  <div class="footer-inner">
+    <div>© 2026 Cligent · 베타 운영 중</div>
+    <div class="footer-links">
+      <a href="/terms">이용약관</a>
+      <a href="/privacy">개인정보처리방침</a>
+      <a href="/business">사업자정보</a>
+      <a href="mailto:cligent.ai@gmail.com">문의</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // 헤더 스크롤 시 border 표시
+  const header = document.getElementById('siteHeader');
+  window.addEventListener('scroll', () => {
+    if (window.scrollY > 8) header.classList.add('scrolled');
+    else header.classList.remove('scrolled');
+  });
+
+  // 베타 폼 제출
+  async function submitBeta(e) {
+    e.preventDefault();
+    const btn = document.getElementById('bf-submit');
+    const msg = document.getElementById('msgBox');
+    msg.style.display = 'none';
+    msg.classList.remove('error', 'success');
+
+    const payload = {
+      name: document.getElementById('bf-name').value.trim(),
+      clinic_name: document.getElementById('bf-clinic').value.trim(),
+      email: document.getElementById('bf-email').value.trim(),
+      phone: document.getElementById('bf-phone').value.trim(),
+      note: document.getElementById('bf-note').value.trim(),
+    };
+
+    btn.disabled = true;
+    btn.textContent = '신청 중...';
+
+    try {
+      const res = await fetch('/api/beta/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (res.status === 429) {
+        msg.classList.add('error');
+        msg.textContent = data.detail || '잠시 후 다시 시도해 주세요.';
+        msg.style.display = 'block';
+      } else if (res.status === 409) {
+        msg.classList.add('error');
+        msg.textContent = data.detail || '이미 가입된 이메일입니다.';
+        msg.style.display = 'block';
+      } else if (!res.ok) {
+        msg.classList.add('error');
+        msg.textContent = data.detail || '신청에 실패했습니다.';
+        msg.style.display = 'block';
+      } else {
+        msg.classList.add('success');
+        if (data.duplicate) {
+          msg.textContent = '이미 신청해 주셨습니다. 회신을 기다려 주세요.';
+        } else {
+          msg.textContent = '신청이 접수되었습니다. 1~3일 내 메일로 회신드립니다.';
+        }
+        msg.style.display = 'block';
+        document.getElementById('betaForm').reset();
+      }
+    } catch {
+      msg.classList.add('error');
+      msg.textContent = '서버 연결에 실패했습니다.';
+      msg.style.display = 'block';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '베타 신청하기';
+    }
+    return false;
+  }
+</script>
+
+</body>
+</html>

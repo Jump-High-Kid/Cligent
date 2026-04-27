@@ -2137,7 +2137,7 @@
         badge.textContent = ROLE_LABELS[user.role] || user.role;
         badge.style.color = '#064e3b';
         badge.style.fontWeight = '600';
-        if (['chief_director', 'director'].includes(user.role)) {
+        if (['chief_director', 'director'].includes(user.role) && user.can_invite) {
           document.getElementById('invite-btn').style.display = 'flex';
         }
       } catch (_) {

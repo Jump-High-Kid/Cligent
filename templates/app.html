@@ -654,7 +654,7 @@
       _currentUserRole = user.role;
       _apiKeyConfigured = !!user.api_key_configured;
       document.getElementById('role-badge').textContent = ROLE_LABELS[user.role] || user.role;
-      if (DIRECTOR_ROLES.includes(user.role)) {
+      if (DIRECTOR_ROLES.includes(user.role) && user.can_invite) {
         document.getElementById('invite-btn').style.display = 'flex';
       }
       // API 키 미등록 시 위자드 자동 오픈
