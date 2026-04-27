@@ -669,6 +669,20 @@
         </div>
       </div>
 
+      <!-- 블로그 형식 선택 (v0.3) -->
+      <div style="margin-bottom:14px;">
+        <label for="blogFormatSelect" style="display:block;font-size:0.82rem;font-weight:600;color:#555;margin-bottom:6px;">블로그 형식 (선택)</label>
+        <select id="blogFormatSelect" style="width:100%;padding:9px 12px;font-size:0.9rem;font-family:inherit;border:1.5px solid #d6d3d1;border-radius:8px;background:#fff;color:#333;outline:none;cursor:pointer;">
+          <option value="">자동 — 다양성 보장</option>
+          <option value="information">정보 전달</option>
+          <option value="case_study">케이스 스터디</option>
+          <option value="qna">Q&amp;A</option>
+          <option value="comparison">비교형</option>
+          <option value="seasonal">계절·시기형</option>
+          <option value="lifestyle">라이프스타일</option>
+        </select>
+      </div>
+
       <!-- SEO 키워드 입력 -->
       <div class="seo-keyword-wrap">
         <span class="seo-kw-label">SEO 키워드 (선택) — 본문에 6~8회 자연스럽게 삽입됩니다</span>
@@ -1558,6 +1572,7 @@
       addSeoKeyword();
 
       try {
+        const _fmtVal = document.getElementById('blogFormatSelect')?.value || '';
         const res = await fetch('/generate', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1567,6 +1582,7 @@
             clinic_info: document.getElementById('clinicInfoText').value || '',
             explanation_types: getExplanationTypes(),
             char_count: selectedCharCount,
+            format_id: _fmtVal || null,
           }),
         });
 

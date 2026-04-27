@@ -3,14 +3,34 @@ test_blog.py — Cligent 블로그 생성기 pytest 테스트 (7개)
 FastAPI TestClient + unittest.mock으로 Anthropic API 호출을 모킹합니다.
 """
 import json
+import os
 from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
+os.environ.setdefault("SECRET_KEY", "test-secret-key-for-unit-tests-only")
+
 from main import app
+from auth_manager import get_current_user
 
 client = TestClient(app)
+
+FAKE_USER = {
+    "id": 1,
+    "clinic_id": 1,
+    "role": "chief_director",
+    "email": "test@test.com",
+    "is_active": True,
+}
+
+
+@pytest.fixture(autouse=True)
+def override_auth():
+    """모든 테스트에서 JWT 인증을 가짜 유저로 대체."""
+    app.dependency_overrides[get_current_user] = lambda: FAKE_USER
+    yield
+    app.dependency_overrides.clear()
 
 
 # ── 헬퍼 ──────────────────────────────────────────────────────────────────────
@@ -51,7 +71,8 @@ def test_generate_success():
 
     mock_stream = make_stream_mock(chunks, input_tokens=500, output_tokens=800)
 
-    with patch("blog_generator.anthropic.Anthropic") as mock_client_cls:
+    with patch("blog_generator.anthropic.Anthropic") as mock_client_cls, \
+         patch("main.check_blog_limit"):
         mock_client_cls.return_value.messages.stream.return_value = mock_stream
         with patch("main.os.getenv", return_value="sk-ant-test-key"):
             res = client.post(
@@ -83,7 +104,8 @@ def test_generate_invalid_api_key():
     """잘못된 API 키 → 한국어 오류 메시지 반환"""
     import anthropic as anthropic_lib
 
-    with patch("blog_generator.anthropic.Anthropic") as mock_client_cls:
+    with patch("blog_generator.anthropic.Anthropic") as mock_client_cls, \
+         patch("main.check_blog_limit"):
         mock_stream = MagicMock()
         mock_stream.__enter__ = MagicMock(side_effect=anthropic_lib.AuthenticationError(
             message="Invalid API key",
@@ -111,7 +133,8 @@ def test_generate_insufficient_funds():
     """Claude 크레딧 부족(402) → 한국어 충전 안내 메시지"""
     import anthropic as anthropic_lib
 
-    with patch("blog_generator.anthropic.Anthropic") as mock_client_cls:
+    with patch("blog_generator.anthropic.Anthropic") as mock_client_cls, \
+         patch("main.check_blog_limit"):
         mock_stream = MagicMock()
         err = anthropic_lib.APIStatusError(
             message="Your credit balance is too low",
@@ -140,7 +163,8 @@ def test_generate_empty_output():
     """Claude가 아무 텍스트도 생성하지 않는 경우 — done 이벤트는 정상 수신"""
     mock_stream = make_stream_mock([], input_tokens=50, output_tokens=0)
 
-    with patch("blog_generator.anthropic.Anthropic") as mock_client_cls:
+    with patch("blog_generator.anthropic.Anthropic") as mock_client_cls, \
+         patch("main.check_blog_limit"):
         mock_client_cls.return_value.messages.stream.return_value = mock_stream
         with patch("main.os.getenv", return_value="sk-ant-test"):
             res = client.post(
@@ -157,7 +181,8 @@ def test_generate_empty_output():
 
 def test_generate_empty_keyword():
     """빈 keyword → SSE 오류 이벤트 반환"""
-    with patch("main.os.getenv", return_value="sk-ant-test"):
+    with patch("main.os.getenv", return_value="sk-ant-test"), \
+         patch("main.check_blog_limit"):
         res = client.post("/generate", json={"keyword": "", "answers": {}})
 
     events = parse_sse(res.content)
@@ -177,10 +202,10 @@ def test_conversation_flow_generated():
     mock_message = MagicMock()
     mock_message.content = [MagicMock(text=__import__('json').dumps(mock_flow, ensure_ascii=False))]
 
-    with patch("conversation_flow.anthropic.Anthropic") as mock_client_cls:
+    with patch("conversation_flow.anthropic.Anthropic") as mock_client_cls, \
+         patch("main.os.getenv", return_value="sk-ant-test"):
         mock_client_cls.return_value.messages.create.return_value = mock_message
-        with patch("main.os.getenv", return_value="sk-ant-test"):
-            res = client.post("/conversation-flow", json={"keyword": "소화불량"})
+        res = client.post("/conversation-flow", json={"keyword": "소화불량"})
 
     assert res.status_code == 200
     data = res.json()

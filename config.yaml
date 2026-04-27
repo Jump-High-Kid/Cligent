@@ -73,3 +73,41 @@ agents:
   runtime_dir: agents/runtime
   prompts_dir: prompts/agents
   fallback_message: "죄송합니다. 해당 내용은 제가 도와드리기 어렵습니다. 더 구체적으로 질문해 주세요."
+
+# === v0.3 다양성 보강 ===
+# enabled: false 이면 v0.2 동작 (기존 패턴 선택만 사용)
+diversity:
+  enabled: true
+
+  blog_formats:
+    - { id: information,  label: "정보 전달",     weight: 30, template: "prompts/formats/information.txt" }
+    - { id: case_study,   label: "케이스 스터디", weight: 20, template: "prompts/formats/case_study.txt" }
+    - { id: qna,          label: "Q&A",           weight: 20, template: "prompts/formats/qna.txt" }
+    - { id: comparison,   label: "비교형",         weight: 10, template: "prompts/formats/comparison.txt" }
+    - { id: seasonal,     label: "계절·시기형",    weight: 10, template: "prompts/formats/seasonal.txt" }
+    - { id: lifestyle,    label: "라이프스타일",   weight: 10, template: "prompts/formats/lifestyle.txt" }
+
+  format_selection: "random_weighted"   # random_weighted | user_choice | fixed:<id>
+
+  hooks:
+    - statistic
+    - case
+    - question
+    - season
+    - classic_quote
+  hook_selection: "random"
+
+  citations:
+    static_pool:
+      - "동의보감"
+      - "황제내경"
+      - "본초강목"
+      - "한의학회지"
+      - "대한침구학회지"
+      - "대한한의학회지"
+    static_pick_count: 1
+    dynamic_search:
+      enabled: true
+      providers: ["riss", "kci"]
+      pick_count: 2
+      mode: "link_only"

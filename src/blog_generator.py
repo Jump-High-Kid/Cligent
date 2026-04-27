@@ -9,11 +9,29 @@ import anthropic
 from config_loader import load_config, load_prompt
 from pattern_selector import select_patterns
 from blog_history import get_recent_posts
+from format_selector import select_format, load_format_template
+from hook_selector import select_hook, get_hook_instruction
+from citation_provider import build_citation_block
 
 # claude-sonnet-4-6 가격 (2025년 기준, 달러 기준)
 PRICE_INPUT_PER_M = 3.0    # $3 / 1M 입력 토큰
 PRICE_OUTPUT_PER_M = 15.0  # $15 / 1M 출력 토큰
 KRW_PER_USD = 1400         # 환율 (대략적인 참고값)
+
+# v0.3 충돌 방지 — hook과 format 간 불호환 쌍
+# key: format_id, value: 이 format과 함께 사용하면 안 되는 hook id 집합
+_HOOK_FORMAT_INCOMPATIBLE: dict[str, set] = {
+    "case_study": {"classic_quote", "case"},  # 서론 형식 충돌 (고전인용 / 환자스토리 오프닝)
+    "qna":        {"classic_quote"},           # Q&A 형식은 질문으로 시작해야 함
+}
+
+# v0.3 충돌 방지 — format과 pattern_selector body 패턴 간 중복 쌍
+# key: format_id, value: 제외할 BODY 패턴 ID 집합
+_FORMAT_BODY_EXCLUDE: dict[str, set] = {
+    "qna":        {"Q&A_자주묻는질문형"},
+    "case_study": {"케이스_스터디형"},
+    "comparison": {"서양_한의학_비교형"},
+}
 
 
 _MODE_INSTRUCTIONS = {
@@ -292,6 +310,120 @@ def _build_explanation_section(explanation_types: Optional[List[str]]) -> str:
     return "\n".join(lines)
 
 
+def _get_current_season_note() -> str:
+    """현재 월 기준 한국 계절 정보 문자열 반환."""
+    from datetime import datetime, timezone
+    month = datetime.now(timezone.utc).month
+    if month in (3, 4, 5):
+        season, period = "봄", "3~5월"
+    elif month in (6, 7, 8):
+        season, period = "여름", "6~8월"
+    elif month in (9, 10, 11):
+        season, period = "가을", "9~11월"
+    else:
+        season, period = "겨울", "12~2월"
+    return f"현재는 {season}({period})입니다. 계절 관련 내용은 이 계절에 맞게 작성하세요."
+
+
+def _build_diversity_section(
+    keyword: str,
+    diversity_config: dict,
+    format_id: Optional[str] = None,
+    mode: str = "정보",
+    char_count: Optional[dict] = None,
+) -> dict:
+    """
+    v0.3 다양성 레이어 — format/hook/citation 선택 및 프롬프트 블록 반환.
+    충돌 방지 로직 포함:
+      - lifestyle + 짧은 글자 수 → information으로 대체
+      - hook-format 불호환 쌍 자동 제외
+      - case_study: 가상 임상 시나리오 프레임 + 환자 사례 금지 재정의
+      - comparison + 광고 mode: 결론부에만 CTA 허용 지시
+      - seasonal: 현재 계절 컨텍스트 주입
+      - citation_block 존재 시: LLM의 참고 자료 섹션 생략 지시
+    """
+    if not diversity_config.get("enabled", False):
+        return {
+            "format_id": None, "hook_id": None, "prompt_block": "", "citation_block": "",
+            "exclude_intro_pattern": False, "exclude_body_patterns": set(),
+        }
+
+    # 1. Format 선택
+    chosen_format = select_format(diversity_config, user_choice=format_id)
+    fmt_id = chosen_format["id"]
+
+    # lifestyle + 짧은 글자 수(2000자 미만): 팁 5~7개 구조 충족 불가 → information으로 교체
+    if fmt_id == "lifestyle":
+        min_chars = char_count.get("min", 2000) if char_count else 2000
+        if min_chars < 2000:
+            info_raw = next(
+                (f for f in diversity_config.get("blog_formats", []) if f["id"] == "information"),
+                None,
+            )
+            if info_raw:
+                from format_selector import FormatChoice
+                chosen_format = FormatChoice(
+                    id=info_raw["id"],
+                    label=info_raw["label"],
+                    template_path=info_raw["template"],
+                )
+                fmt_id = chosen_format["id"]
+
+    # 2. Hook 선택 — format과 불호환 hook 제외
+    excluded_hooks = _HOOK_FORMAT_INCOMPATIBLE.get(fmt_id, set())
+    hook_id = select_hook(diversity_config, excluded_hooks=excluded_hooks)
+    hook_instruction = get_hook_instruction(hook_id)
+
+    format_template = load_format_template(chosen_format["template_path"])
+    citation_block = build_citation_block(keyword, diversity_config)
+
+    prompt_lines: list[str] = []
+
+    # 3. citation이 있으면 LLM의 참고 자료 섹션 생략 지시
+    if citation_block:
+        prompt_lines.append(
+            "\n[참고 자료 생략] 관련 학술자료는 시스템이 자동으로 추가합니다. "
+            "본문에서 '## 참고 자료', '## 미주', '## 출처' 등 별도 섹션을 작성하지 마세요."
+        )
+
+    # 4. Format sub-prompt
+    if format_template:
+        prompt_lines.append(f"\n## 이번 글 형식 — {chosen_format['label']}")
+        prompt_lines.append(format_template)
+
+        if fmt_id == "case_study":
+            prompt_lines.append(
+                "\n[형식 재정의] 케이스 스터디 형식에서는 위의 '환자 익명 처리 규칙'을 준수한 "
+                "가상 임상 시나리오 작성이 허용됩니다. "
+                "기본 프롬프트의 '환자 사례 금지'는 실명·식별 가능 정보 금지를 의미하며, "
+                "'환자 A씨'·연령대(50대)·증상만 사용하는 가상 시나리오는 허용됩니다."
+            )
+
+        if fmt_id == "comparison" and mode == "광고":
+            prompt_lines.append(
+                "\n[모드 조정] 비교형 형식은 중립적 비교를 원칙으로 합니다. "
+                "광고 모드의 내원 유도 표현은 비교 섹션이 아닌 결론부에서만 1회 사용하세요."
+            )
+
+        if fmt_id == "seasonal":
+            prompt_lines.append(f"\n[현재 계절] {_get_current_season_note()}")
+
+    # 5. Hook 지시 — hook이 서론을 전담하므로 pattern_selector의 INTRO는 skip됨
+    if hook_instruction:
+        prompt_lines.append(f"\n## 도입부 hook — {hook_id}")
+        prompt_lines.append(f"글의 첫 문단을 다음 방식으로 시작하세요: {hook_instruction}")
+
+    return {
+        "format_id": fmt_id,
+        "format_label": chosen_format["label"],
+        "hook_id": hook_id,
+        "prompt_block": "\n".join(prompt_lines),
+        "citation_block": citation_block,
+        "exclude_intro_pattern": True,
+        "exclude_body_patterns": _FORMAT_BODY_EXCLUDE.get(fmt_id, set()),
+    }
+
+
 def _build_clinic_info_section(clinic_info: str) -> str:
     """한의원 차별화 정보 프롬프트 블록 생성"""
     if not clinic_info or not clinic_info.strip():
@@ -340,18 +472,33 @@ def build_prompt_text(
     reader_level: str = "일반인",
     seo_keywords: Optional[List[str]] = None,
     clinic_info: str = "",
+    format_id: Optional[str] = None,
+    explanation_types: Optional[List[str]] = None,
 ) -> dict:
     """
     Claude에 전송할 system_prompt + user_message를 반환한다.
     API 호출 없이 프롬프트만 조립 — T1(프롬프트 복사) 기능용.
 
-    반환: {"system_prompt": str, "user_message": str}
+    반환: {"system_prompt": str, "user_message": str, "format_id": str|None, "hook_id": str|None}
     """
     config = load_config()
     tone = answers.get("tone", config["blog"]["tone"]) if answers else config["blog"]["tone"]
     history_path = Path(__file__).parent.parent / "data" / "blog_history.json"
 
-    pattern_result = select_patterns(keyword=keyword, materials=materials, history_path=history_path)
+    diversity_cfg = config.get("diversity", {})
+    diversity = _build_diversity_section(keyword, diversity_cfg, format_id=format_id, mode=mode)
+
+    # case_study 형식에서 reader_level=일반인 → 한의학관심 자동 상향
+    if diversity.get("format_id") == "case_study" and reader_level == "일반인":
+        reader_level = "한의학관심"
+
+    pattern_result = select_patterns(
+        keyword=keyword,
+        materials=materials,
+        history_path=history_path,
+        exclude_intro=diversity.get("exclude_intro_pattern", False),
+        exclude_body_ids=diversity.get("exclude_body_patterns", set()),
+    )
     recent_posts = get_recent_posts(limit=5)
 
     prompt_template = load_prompt("blog")
@@ -365,10 +512,12 @@ def build_prompt_text(
             reader_level, _READER_LEVEL_INSTRUCTIONS["일반인"]
         ),
         seo_keywords_section=_build_seo_keywords_section(seo_keywords or []),
-        explanation_section="",
+        explanation_section=_build_explanation_section(explanation_types),
         clinic_info_section=_build_clinic_info_section(clinic_info),
         related_posts_section=_build_related_posts_section(recent_posts, keyword),
     )
+    if diversity["prompt_block"]:
+        system_prompt = system_prompt + "\n\n" + diversity["prompt_block"]
 
     qa_text = ""
     if answers:
@@ -413,7 +562,12 @@ def build_prompt_text(
         )
 
     user_message = f"{seo_prefix}블로그 주제: {keyword}{qa_text}{materials_text}"
-    return {"system_prompt": system_prompt, "user_message": user_message}
+    return {
+        "system_prompt": system_prompt,
+        "user_message": user_message,
+        "format_id": diversity.get("format_id"),
+        "hook_id": diversity.get("hook_id"),
+    }
 
 
 def generate_blog_stream(
@@ -427,13 +581,14 @@ def generate_blog_stream(
     clinic_info: str = "",
     explanation_types: Optional[List[str]] = None,
     char_count: Optional[dict] = None,
+    format_id: Optional[str] = None,
 ) -> Generator[str, None, None]:
     """
     블로그 생성 스트리밍 제너레이터
 
     SSE(Server-Sent Events) 형식으로 데이터를 yield합니다.
     - 생성 중: {"text": "..."}
-    - 완료 시: {"done": true, "usage": {...}, "series": [...]}
+    - 완료 시: {"done": true, "usage": {...}, "series": [...], "format_id": "...", "hook_id": "..."}
     - 오류 시: {"error": "..."}
     """
     config = load_config()
@@ -441,10 +596,24 @@ def generate_blog_stream(
 
     history_path = Path(__file__).parent.parent / "data" / "blog_history.json"
 
+    # v0.3 다양성 레이어 — pattern_selector보다 먼저 실행해야 충돌 방지 파라미터 전달 가능
+    diversity_cfg = config.get("diversity", {})
+    diversity = _build_diversity_section(
+        keyword, diversity_cfg, format_id=format_id, mode=mode, char_count=char_count
+    )
+
+    # case_study 형식에서 reader_level=일반인 → 한의학관심 자동 상향
+    # (임상 용어 과도한 풀이 요구로 케이스 스터디 흐름이 끊기는 문제 방지)
+    if diversity.get("format_id") == "case_study" and reader_level == "일반인":
+        reader_level = "한의학관심"
+
+    # hook이 서론을 담당 + format과 중복되는 body 패턴 제외
     pattern_result = select_patterns(
         keyword=keyword,
         materials=materials,
         history_path=history_path,
+        exclude_intro=diversity.get("exclude_intro_pattern", False),
+        exclude_body_ids=diversity.get("exclude_body_patterns", set()),
     )
 
     # 이전 포스트 연관 링크
@@ -469,6 +638,9 @@ def generate_blog_stream(
         clinic_info_section=_build_clinic_info_section(clinic_info),
         related_posts_section=_build_related_posts_section(recent_posts, keyword),
     )
+    # v0.3: diversity 지시 블록 추가 (기존 프롬프트 뒤에 append)
+    if diversity["prompt_block"]:
+        system_prompt = system_prompt + "\n\n" + diversity["prompt_block"]
 
     # Q&A 답변 컨텍스트
     qa_text = ""
@@ -538,6 +710,12 @@ def generate_blog_stream(
             original_text = "".join(collected_text)
             effective_keywords = list(seo_keywords or [])
             fixed_text = _fix_keyword_counts(original_text, effective_keywords)
+
+            # v0.3: citation block을 본문 끝에 추가
+            citation_block = diversity.get("citation_block", "")
+            if citation_block:
+                fixed_text = fixed_text.rstrip() + "\n\n" + citation_block
+
             if fixed_text != original_text:
                 yield f"data: {json.dumps({'replace': fixed_text}, ensure_ascii=False)}\n\n"
             else:
@@ -561,12 +739,16 @@ def generate_blog_stream(
             series = []
 
         # 4단계: FAQPage JSON-LD 추출 (실패해도 done은 전송)
-        try:
-            faq_schema = extract_faq_schema(fixed_text, keyword)
-        except Exception:
+        # qna 형식은 블로그 전체가 Q&A 구조이므로 추출 skip (중복 방지)
+        if diversity.get("format_id") == "qna":
             faq_schema = None
+        else:
+            try:
+                faq_schema = extract_faq_schema(fixed_text, keyword)
+            except Exception:
+                faq_schema = None
 
-        yield f"data: {json.dumps({'done': True, 'usage': {'input': input_tokens, 'output': output_tokens, 'cost_krw': cost_krw}, 'series': series, 'seo_keywords': seo_keywords or [], 'faq_schema': faq_schema}, ensure_ascii=False)}\n\n"
+        yield f"data: {json.dumps({'done': True, 'usage': {'input': input_tokens, 'output': output_tokens, 'cost_krw': cost_krw}, 'series': series, 'seo_keywords': seo_keywords or [], 'faq_schema': faq_schema, 'format_id': diversity.get('format_id'), 'hook_id': diversity.get('hook_id')}, ensure_ascii=False)}\n\n"
 
     except anthropic.AuthenticationError:
         yield _error_event("API 키를 확인해주세요. .env 파일의 ANTHROPIC_API_KEY를 확인하세요.")

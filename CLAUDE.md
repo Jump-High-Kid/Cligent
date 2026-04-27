@@ -24,12 +24,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 현재 구현 상태 (2026-04-27 기준)
 
-### 베타 런치 트랙 (B1~B3 완료, B4 Step 1 완료)
+### 베타 런치 트랙 (B1~B4 Step 1 완료)
 - **B1 백업**: launchd 04:00 일일 (`scripts/backup.sh` + `~/Library/LaunchAgents/kr.cligent.backup.plist`). openssl AES-256-CBC + Keychain 비번
 - **B2 모니터링**: `src/observability.py` (Sentry SDK + structlog + RequestLoggingMiddleware + PII 마스킹). `data/cligent.log` json line. `daily_report.py`에 메트릭 섹션 추가
 - **B3 약관/방침/사업자정보**: `templates/legal/{terms,privacy,business}.html` + `static/legal.css` + 라우트 3개. 자가 비번 재설정 `/forgot-password`. 운영 도구 `scripts/reset_password.py`. 베타 정책 `_is_admin_clinic()` 헬퍼로 invite/reinvite 차단 + UI(can_invite 필드)
 - **B4 Step 1 랜딩**: `templates/landing.html` 8섹션. `/` 라우트가 비로그인 시 랜딩, 로그인 시 /app로 자동
 - 자세한 진행: 메모리 `project_beta_launch_track.md` + `~/.gstack/projects/Jump-High-Kid-Cligent/ceo-plans/2026-04-27-beta-launch-track.md`
+
+### 다양성 보강 v0.3 (2026-04-27 완료, 142/142 테스트 통과)
+- **포맷 6종**: `prompts/formats/` — information / case_study / qna / comparison / seasonal / lifestyle
+- **훅 5종**: `src/hook_selector.py` — statistic / case / question / season / classic_quote
+- **인용 풀**: `src/citation_provider.py` — RISS·KCI 동적 링크 + 정적 고전 풀
+- **패턴 엔진**: `src/pattern_selector.py` — `exclude_intro`, `exclude_body_ids` 파라미터로 중복 방지
+- **충돌 해결 10건**: hook-format 비호환 행렬, format-body 중복 배제, 참고자료 이중 출력, 계절 컨텍스트 주입, lifestyle 글자수 가드, case_study 독자 수준 자동업, qna FAQ 스키마 생략, comparison 광고모드 CTA 제한
+- **신규 파일**: `src/format_selector.py`, `src/citation_provider.py`, `src/hook_selector.py`, `prompts/formats/*.txt`, `tests/test_format_selector.py`, `tests/test_citation_provider.py`, `tests/test_hook_selector.py`, `tests/test_blog_format_integration.py`
 
 
 

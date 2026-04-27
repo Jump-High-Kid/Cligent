@@ -1587,7 +1587,9 @@ async def build_prompt_endpoint(request: Request, user: dict = Depends(get_curre
     mode         = body.get("mode", "정보")
     reader_level = body.get("reader_level", "일반인")
     seo_keywords = body.get("seo_keywords", [])
-    clinic_info  = body.get("clinic_info", "")
+    clinic_info       = body.get("clinic_info", "")
+    format_id         = body.get("format_id", None)
+    explanation_types = body.get("explanation_types", [])
 
     if not keyword:
         return {"error": "주제를 입력해주세요."}
@@ -1601,11 +1603,14 @@ async def build_prompt_endpoint(request: Request, user: dict = Depends(get_curre
             reader_level=reader_level,
             seo_keywords=seo_keywords,
             clinic_info=clinic_info,
+            format_id=format_id,
+            explanation_types=explanation_types,
         )
-        # 사용자가 AI에 붙여넣기 쉽도록 system + user를 구분해서 반환
         return {
             "system_prompt": result["system_prompt"],
             "user_message": result["user_message"],
+            "format_id": result.get("format_id"),
+            "hook_id": result.get("hook_id"),
         }
     except Exception as exc:
         return {"error": str(exc)}
@@ -1637,6 +1642,7 @@ async def generate(request: Request, user: dict = Depends(get_current_user)):
     clinic_info       = body.get("clinic_info", "").strip()       # 블로그 생성기 추가 입력
     explanation_types = body.get("explanation_types", [])          # 선택된 설명 방식 목록
     char_count        = body.get("char_count", None)               # {"min": N, "max": M} or None
+    format_id         = body.get("format_id", None)                # v0.3 형식 선택 (없으면 자동)
 
     if not keyword:
         async def _err():
@@ -1685,6 +1691,7 @@ async def generate(request: Request, user: dict = Depends(get_current_user)):
                 seo_keywords=seo_keywords, clinic_info=clinic_info,
                 explanation_types=explanation_types,
                 char_count=char_count,
+                format_id=format_id,
             ),
             keyword, tone, seo_keywords,
             clinic_id=user["clinic_id"],

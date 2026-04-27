@@ -111,6 +111,8 @@ def select_patterns(
     keyword: str,
     materials: Optional[dict] = None,
     history_path: Optional[Path] = None,
+    exclude_intro: bool = False,
+    exclude_body_ids: Optional[set] = None,
 ) -> dict:
     """
     블로그 주제와 사용자 추가 자료를 분석해 최적 패턴 조합을 반환합니다.
@@ -128,19 +130,27 @@ def select_patterns(
     content_signals = _analyze_content(keyword, materials)
 
     # 서론 선택
-    intro_scores = _score_patterns(INTRO_PATTERNS, content_signals)
-    intro_scores = _apply_history_penalty(intro_scores, history_path)
-    n_intro = random.choice([1, 2])
-    selected_intro = _weighted_sample(intro_scores, k=n_intro)
+    if exclude_intro:
+        selected_intro = []
+        intro_tags: set[str] = set()
+    else:
+        intro_scores = _score_patterns(INTRO_PATTERNS, content_signals)
+        intro_scores = _apply_history_penalty(intro_scores, history_path)
+        n_intro = random.choice([1, 2])
+        selected_intro = _weighted_sample(intro_scores, k=n_intro)
 
-    # 서론 태그 집합 (Layer 2 아크 + Layer 1 블록에 사용)
-    intro_tags: set[str] = set()
-    for pid in selected_intro:
-        intro_tags.update(INTRO_PATTERNS[pid]["tags"])
+        # 서론 태그 집합 (Layer 2 아크 + Layer 1 블록에 사용)
+        intro_tags: set[str] = set()
+        for pid in selected_intro:
+            intro_tags.update(INTRO_PATTERNS[pid]["tags"])
 
     # Layer 1: 하드 블록 적용 후 본론 풀 구성
-    available_body = {
+    body_pool = {
         pid: data for pid, data in BODY_PATTERNS.items()
+        if exclude_body_ids is None or pid not in exclude_body_ids
+    }
+    available_body = {
+        pid: data for pid, data in body_pool.items()
         if not any((intro, pid) in INCOMPATIBLE_INTRO_BODY for intro in selected_intro)
     }
 
@@ -348,14 +358,16 @@ def _build_prompt_block(
         history_note,
         "⚠ **패턴명 노출 절대 금지**: 아래 패턴명([화제 전환:...], 섹션 N —, 패턴ID 등)은 내부 작성 지시입니다. 블로그 본문에 패턴명이 그대로 출력되어서는 안 됩니다. 패턴의 스타일과 흐름만 반영하세요.",
         "",
-        "### 서론",
     ]
 
-    for pid in intro:
-        inst = instructions.get(pid, "")
-        lines.append(f"- **{pid.replace('_', ' ')}**: {inst}")
+    if intro:
+        lines.append("### 서론")
+        for pid in intro:
+            inst = instructions.get(pid, "")
+            lines.append(f"- **{pid.replace('_', ' ')}**: {inst}")
+        lines.append("")
 
-    lines += ["", "### 본론 (번호 순서대로 작성)"]
+    lines += ["### 본론 (번호 순서대로 작성)"]
 
     pivot_positions = _distribute_pivots(len(body), len(pivots))
     pivot_index = 0
