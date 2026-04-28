@@ -26,8 +26,8 @@ def save_blog_entry(
     cost_krw: int,
     seo_keywords: Optional[List[str]] = None,
     blog_text: str = "",
-) -> None:
-    """블로그 생성 완료 시 통계와 전문을 분리 저장"""
+) -> int:
+    """블로그 생성 완료 시 통계와 전문을 분리 저장. 생성된 entry_id 반환."""
     now = datetime.now()
     entry_id = _next_id()
 
@@ -42,6 +42,7 @@ def save_blog_entry(
         "char_count": char_count,
         "cost_krw": cost_krw,
         "seo_keywords": seo_keywords or [],
+        "naver_url": "",
         "created_at": now.isoformat(),
     })
     _save_json(STATS_PATH, stats)
@@ -56,6 +57,8 @@ def save_blog_entry(
             "expires_at": (now + timedelta(days=TEXT_RETENTION_DAYS)).isoformat(),
         })
         _save_json(TEXTS_PATH, texts)
+
+    return entry_id
 
 
 def get_blog_stats() -> dict:
@@ -95,7 +98,7 @@ def get_recent_posts(limit: int = 5) -> List[Dict]:
     최근 블로그 이력 반환 (연관 글 링크용)
 
     반환 형식:
-    [{"id": 1, "keyword": "소화불량", "title": "...", "created_at": "..."}]
+    [{"id": 1, "keyword": "소화불량", "title": "...", "naver_url": "https://...", "created_at": "..."}]
     """
     stats = _load_json(STATS_PATH, default=[])
     recent = stats[-limit:] if len(stats) >= limit else stats
@@ -105,10 +108,22 @@ def get_recent_posts(limit: int = 5) -> List[Dict]:
             "keyword": e["keyword"],
             "title": e.get("title", e["keyword"]),
             "seo_keywords": e.get("seo_keywords", []),
+            "naver_url": e.get("naver_url", ""),
             "created_at": e["created_at"],
         }
         for e in reversed(recent)
     ]
+
+
+def update_naver_url(entry_id: int, url: str) -> bool:
+    """특정 블로그 항목에 네이버 발행 URL 저장. 성공 True, 없으면 False."""
+    stats = _load_json(STATS_PATH, default=[])
+    for entry in stats:
+        if entry["id"] == entry_id:
+            entry["naver_url"] = url
+            _save_json(STATS_PATH, stats)
+            return True
+    return False
 
 
 def purge_expired_texts() -> int:

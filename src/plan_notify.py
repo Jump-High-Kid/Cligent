@@ -310,6 +310,72 @@ def send_beta_reminder(to_email: str, name: str, invite_url: str) -> None:
     _send_smtp(to_email, subject, body_html)
 
 
+def send_naver_found_email(to_email: str, title: str, url: str) -> None:
+    """N1: 네이버 블로그 색인 확인 완료 알림."""
+    subject = "[Cligent] 블로그 포스트가 네이버 검색에 등록되었습니다"
+    body_html = f"""
+<html>
+<body style="font-family: 'Pretendard', sans-serif; color: #1c1917; max-width: 600px;">
+  <div style="background:#064e3b; padding:24px 32px; border-radius:16px 16px 0 0;">
+    <h1 style="color:#fff; margin:0; font-size:20px;">Cligent</h1>
+  </div>
+  <div style="padding:32px; background:#fafaf9; border:1px solid #e7e5e4; border-top:none; border-radius:0 0 16px 16px;">
+    <h2 style="font-size:18px; color:#064e3b; margin-top:0;">네이버 검색 등록 완료</h2>
+    <p>작성하신 블로그 포스트가 네이버 검색에 등록된 것을 확인했습니다.</p>
+    <div style="background:#ecfdf5; border:1px solid #6ee7b7; border-radius:12px; padding:16px 24px; margin:16px 0;">
+      <p style="margin:0 0 8px 0; font-size:14px; color:#065f46; font-weight:600;">등록된 포스트</p>
+      <p style="margin:0; font-size:15px;">{title}</p>
+    </div>
+    <p style="margin:24px 0;">
+      <a href="{url}" style="background:#064e3b; color:#fff; padding:14px 28px; border-radius:10px; text-decoration:none; font-size:16px;">포스트 확인하기 ↗</a>
+    </p>
+    <p style="color:#78716c; font-size:13px;">
+      이제 다음 블로그 작성 시 이 포스트가 관련 글로 자동 연결됩니다.
+    </p>
+    <p style="margin-top:32px; color:#78716c; font-size:12px;">
+      이 메일은 Cligent 서비스에서 자동 발송되었습니다.
+    </p>
+  </div>
+</body>
+</html>
+"""
+    _send_smtp(to_email, subject, body_html)
+
+
+def send_naver_expired_email(to_email: str, title: str) -> None:
+    """N2: 7일 내 색인 미확인 — 블로그 검색 노출 점검 권고."""
+    subject = "[Cligent] 블로그 포스트 검색 노출을 확인해주세요"
+    body_html = f"""
+<html>
+<body style="font-family: 'Pretendard', sans-serif; color: #1c1917; max-width: 600px;">
+  <div style="background:#064e3b; padding:24px 32px; border-radius:16px 16px 0 0;">
+    <h1 style="color:#fff; margin:0; font-size:20px;">Cligent</h1>
+  </div>
+  <div style="padding:32px; background:#fafaf9; border:1px solid #e7e5e4; border-top:none; border-radius:0 0 16px 16px;">
+    <h2 style="font-size:18px; color:#b45309; margin-top:0;">검색 등록 미확인 안내</h2>
+    <p>아래 포스트가 7일이 지났음에도 네이버 검색에서 확인되지 않았습니다.</p>
+    <div style="background:#fffbeb; border:1px solid #fcd34d; border-radius:12px; padding:16px 24px; margin:16px 0;">
+      <p style="margin:0; font-size:15px;">{title}</p>
+    </div>
+    <p>검색 노출이 안 되는 경우 아래를 점검해보세요:</p>
+    <ul style="color:#44403c; font-size:14px; line-height:1.8;">
+      <li>블로그가 네이버 검색 제외 설정으로 되어 있지 않은지 확인</li>
+      <li>네이버 서치어드바이저(searchadvisor.naver.com)에서 블로그 등록 여부 확인</li>
+      <li>포스트 발행이 정상적으로 완료되었는지 확인</li>
+    </ul>
+    <p style="color:#78716c; font-size:13px;">
+      7일 이상 검색에 노출되지 않는 블로그는 네이버 검색 알고리즘에 의해 비노출 처리되었을 가능성이 있습니다.
+    </p>
+    <p style="margin-top:32px; color:#78716c; font-size:12px;">
+      이 메일은 Cligent 서비스에서 자동 발송되었습니다.
+    </p>
+  </div>
+</body>
+</html>
+"""
+    _send_smtp(to_email, subject, body_html)
+
+
 def _notify_worker(clinic_id: int) -> None:
     """
     스레드에서 실행되는 알림 로직.

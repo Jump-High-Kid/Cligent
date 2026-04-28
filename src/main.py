@@ -116,7 +116,7 @@ from auth_manager import (
 )
 from blog_generator import generate_blog_stream
 from youtube_generator import generate_youtube_stream
-from blog_history import get_blog_stats, purge_expired_texts, save_blog_entry, get_history_list, get_blog_text
+from blog_history import get_blog_stats, purge_expired_texts, save_blog_entry, get_history_list, get_blog_text, update_naver_url
 from blog_generator import build_prompt_text
 from config_loader import load_config, save_blog_config, save_prompt
 from conversation_flow import generate_conversation_flow
@@ -228,6 +228,57 @@ async def _midnight_scheduler() -> None:
             _error_logger.error("데일리 리포트 생성 실패: %s", e)
 
 
+async def _naver_check_scheduler() -> None:
+    """30분마다 pending_checks 폴링 — 색인 확인 + 이메일 알림 발송"""
+    while True:
+        await asyncio.sleep(30 * 60)
+        try:
+            from naver_checker import run_pending_checks, get_unnotified, mark_notified
+            from plan_notify import send_naver_found_email, send_naver_expired_email
+
+            # 색인 확인된 항목 처리
+            found_items = await asyncio.to_thread(run_pending_checks)
+            for item in found_items:
+                update_naver_url(item["blog_stat_id"], item["found_url"])
+
+            # found 알림 미발송 항목 이메일 발송
+            for item in await asyncio.to_thread(get_unnotified, "found"):
+                try:
+                    with __import__('db_manager').get_db() as conn:
+                        row = conn.execute(
+                            "SELECT u.email FROM users u "
+                            "JOIN clinics c ON u.clinic_id = c.id "
+                            "WHERE u.role = 'chief_director' LIMIT 1"
+                        ).fetchone()
+                    if row:
+                        await asyncio.to_thread(
+                            send_naver_found_email, row["email"], item["title"], item["found_url"]
+                        )
+                    mark_notified(item["id"])
+                except Exception as exc:
+                    _error_logger.warning("naver found 알림 실패 (id=%s): %s", item["id"], exc)
+
+            # expired 알림 미발송 항목 이메일 발송
+            for item in await asyncio.to_thread(get_unnotified, "expired"):
+                try:
+                    with __import__('db_manager').get_db() as conn:
+                        row = conn.execute(
+                            "SELECT u.email FROM users u "
+                            "JOIN clinics c ON u.clinic_id = c.id "
+                            "WHERE u.role = 'chief_director' LIMIT 1"
+                        ).fetchone()
+                    if row:
+                        await asyncio.to_thread(
+                            send_naver_expired_email, row["email"], item["title"]
+                        )
+                    mark_notified(item["id"])
+                except Exception as exc:
+                    _error_logger.warning("naver expired 알림 실패 (id=%s): %s", item["id"], exc)
+
+        except Exception as e:
+            _error_logger.error("_naver_check_scheduler 오류: %s", e)
+
+
 async def _beta_reminder_scheduler() -> None:
     """E4: 6시간마다 72h 이상 미클릭 초대 신청자에게 리마인더 이메일 발송"""
     while True:
@@ -278,10 +329,13 @@ async def lifespan(application: FastAPI):
     _sched = asyncio.create_task(_midnight_scheduler())
     # E4 베타 리마인더 스케줄러 (6h 주기)
     _reminder_sched = asyncio.create_task(_beta_reminder_scheduler())
+    # 네이버 발행 확인 스케줄러 (30분 주기)
+    _naver_sched = asyncio.create_task(_naver_check_scheduler())
     yield
     _sched.cancel()
     _reminder_sched.cancel()
-    for task in (_sched, _reminder_sched):
+    _naver_sched.cancel()
+    for task in (_sched, _reminder_sched, _naver_sched):
         try:
             await task
         except asyncio.CancelledError:
@@ -880,7 +934,7 @@ async def get_clinic_profile(user: dict = Depends(get_current_user)):
     """한의원 프로필 조회 — 인증된 사용자라면 누구나 조회 가능"""
     with __import__('db_manager').get_db() as conn:
         row = conn.execute(
-            "SELECT name, phone, address, specialty, hours, intro, blog_features FROM clinics WHERE id = ?",
+            "SELECT name, phone, address, specialty, hours, intro, blog_features, naver_blog_id FROM clinics WHERE id = ?",
             (user["clinic_id"],),
         ).fetchone()
     if not row:
@@ -899,6 +953,7 @@ async def get_clinic_profile(user: dict = Depends(get_current_user)):
         "hours": hours,
         "intro": row["intro"] or "",
         "blog_features": row["blog_features"] or "",
+        "naver_blog_id": row["naver_blog_id"] or "",
     })
 
 
@@ -917,6 +972,7 @@ async def save_clinic_profile(request: Request, user: dict = Depends(get_current
     hours = body.get("hours")  # dict or None
     intro = body.get("intro", "").strip()
     blog_features = body.get("blog_features", "").strip()
+    naver_blog_id = body.get("naver_blog_id", "").strip()
 
     if not name:
         return JSONResponse({"detail": "한의원 이름은 필수입니다."}, status_code=400)
@@ -925,8 +981,8 @@ async def save_clinic_profile(request: Request, user: dict = Depends(get_current
 
     with __import__('db_manager').get_db() as conn:
         conn.execute(
-            "UPDATE clinics SET name=?, phone=?, address=?, specialty=?, hours=?, intro=?, blog_features=? WHERE id=?",
-            (name, phone or None, address or None, specialty or None, hours_json, intro or None, blog_features or None, user["clinic_id"]),
+            "UPDATE clinics SET name=?, phone=?, address=?, specialty=?, hours=?, intro=?, blog_features=?, naver_blog_id=? WHERE id=?",
+            (name, phone or None, address or None, specialty or None, hours_json, intro or None, blog_features or None, naver_blog_id or None, user["clinic_id"]),
         )
     return JSONResponse({"ok": True})
 
@@ -1508,6 +1564,56 @@ async def blog_stats(user: dict = Depends(get_current_user)):
     return JSONResponse(stats)
 
 
+@app.post("/api/blog/history/{entry_id}/publish-check")
+async def publish_check(entry_id: int, user: dict = Depends(get_current_user)):
+    """발행 확인 대기 등록 — 네이버 블로그 아이디 필요"""
+    from naver_checker import add_pending_check, get_pending_by_stat_id, is_naver_configured
+    from blog_history import get_history_list
+
+    if not is_naver_configured():
+        raise HTTPException(status_code=400, detail="네이버 API 키가 설정되지 않았습니다. (.env NAVER_CLIENT_ID/SECRET 필요)")
+
+    # 네이버 블로그 아이디 조회
+    with __import__('db_manager').get_db() as conn:
+        row = conn.execute(
+            "SELECT naver_blog_id FROM clinics WHERE id = ?",
+            (user["clinic_id"],),
+        ).fetchone()
+    naver_blog_id = (row["naver_blog_id"] or "").strip() if row else ""
+    if not naver_blog_id:
+        raise HTTPException(status_code=400, detail="네이버 블로그 아이디가 설정되지 않았습니다. 설정 > 한의원 프로필에서 등록하세요.")
+
+    # 블로그 항목 조회
+    history = get_history_list(page=1, per_page=9999)
+    target = next((e for e in history["items"] if e["id"] == entry_id), None)
+    if not target:
+        raise HTTPException(status_code=404, detail="블로그 항목을 찾을 수 없습니다.")
+
+    pending = add_pending_check(
+        blog_stat_id=entry_id,
+        keyword=target["keyword"],
+        title=target.get("title") or target["keyword"],
+        naver_blog_id=naver_blog_id,
+    )
+    return JSONResponse({"status": "ok", "pending": pending})
+
+
+@app.get("/api/blog/notifications")
+async def blog_notifications(user: dict = Depends(get_current_user)):
+    """대시보드 알림 조회 — found + expired 미확인 항목"""
+    from naver_checker import get_dashboard_notifications
+    items = get_dashboard_notifications()
+    return JSONResponse({"items": items})
+
+
+@app.post("/api/blog/notifications/{pending_id}/dismiss")
+async def dismiss_notification(pending_id: int, user: dict = Depends(get_current_user)):
+    """알림 dismiss"""
+    from naver_checker import mark_notified
+    mark_notified(pending_id)
+    return JSONResponse({"status": "ok"})
+
+
 @app.get("/api/blog/history")
 async def blog_history(
     page: int = 1,
@@ -1545,7 +1651,9 @@ def _stream_and_save(
                 blog_text = "".join(collected)
                 char_count = len(blog_text)
                 cost_krw = data.get("usage", {}).get("cost_krw", 0)
-                save_blog_entry(keyword, tone, char_count, cost_krw, seo_keywords, blog_text)
+                entry_id = save_blog_entry(keyword, tone, char_count, cost_krw, seo_keywords, blog_text)
+                # done 직후 entry_id 이벤트를 별도로 발송 (프론트에서 발행 확인 버튼 활성화)
+                yield f"data: {_json.dumps({'entry_id': entry_id}, ensure_ascii=False)}\n\n"
                 # 첫 블로그 생성 완료 시각 기록 (COALESCE — 이후 호출은 무시)
                 if clinic_id:
                     try:
@@ -1942,6 +2050,79 @@ async def beta_apply(request: Request):
 
 
 # ── 베타 모집 — 어드민 API ─────────────────────────────────────────
+
+@app.post("/api/settings/clinic/naver-blog-id")
+async def save_naver_blog_id(request: Request, user: dict = Depends(get_current_user)):
+    """네이버 블로그 아이디 저장 — chief_director 전용"""
+    if not role_has_access(user["role"], ["chief_director"]):
+        return JSONResponse({"detail": "대표원장만 수정할 수 있습니다."}, status_code=403)
+    body = await request.json()
+    naver_blog_id = body.get("naver_blog_id", "").strip()
+    with __import__('db_manager').get_db() as conn:
+        conn.execute(
+            "UPDATE clinics SET naver_blog_id=? WHERE id=?",
+            (naver_blog_id or None, user["clinic_id"]),
+        )
+    return JSONResponse({"ok": True})
+
+
+@app.get("/admin/settings")
+async def admin_settings_page():
+    """어드민 시스템 설정 페이지"""
+    return FileResponse(ROOT / "templates" / "admin_settings.html")
+
+
+@app.get("/api/admin/naver-config")
+async def get_naver_config(request: Request):
+    """네이버 API 설정 조회 — ADMIN_SECRET Bearer 인증"""
+    admin_secret = os.getenv("ADMIN_SECRET", "")
+    auth = request.headers.get("Authorization", "")
+    if not admin_secret or auth != f"Bearer {admin_secret}":
+        raise HTTPException(status_code=403, detail="어드민 인증 필요")
+    from naver_checker import APP_SETTINGS_PATH
+    import json as _j
+    cfg: dict = {}
+    try:
+        if APP_SETTINGS_PATH.exists():
+            with open(APP_SETTINGS_PATH, encoding="utf-8") as f:
+                cfg = _j.load(f)
+    except Exception:
+        pass
+    return JSONResponse({
+        "naver_client_id": cfg.get("naver_client_id", ""),
+        "naver_client_secret_masked": "****" if cfg.get("naver_client_secret") else "",
+        "configured": bool(cfg.get("naver_client_id") and cfg.get("naver_client_secret")),
+    })
+
+
+@app.post("/api/admin/naver-config")
+async def save_naver_config(request: Request):
+    """네이버 API 설정 저장 — ADMIN_SECRET Bearer 인증"""
+    admin_secret = os.getenv("ADMIN_SECRET", "")
+    auth = request.headers.get("Authorization", "")
+    if not admin_secret or auth != f"Bearer {admin_secret}":
+        raise HTTPException(status_code=403, detail="어드민 인증 필요")
+    body = await request.json()
+    client_id = body.get("naver_client_id", "").strip()
+    client_secret = body.get("naver_client_secret", "").strip()
+    if not client_id or not client_secret:
+        raise HTTPException(status_code=400, detail="Client ID와 Secret 모두 필요합니다.")
+    from naver_checker import APP_SETTINGS_PATH
+    import json as _j
+    cfg: dict = {}
+    try:
+        if APP_SETTINGS_PATH.exists():
+            with open(APP_SETTINGS_PATH, encoding="utf-8") as f:
+                cfg = _j.load(f)
+    except Exception:
+        pass
+    cfg["naver_client_id"] = client_id
+    cfg["naver_client_secret"] = client_secret
+    APP_SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(APP_SETTINGS_PATH, "w", encoding="utf-8") as f:
+        _j.dump(cfg, f, ensure_ascii=False, indent=2)
+    return JSONResponse({"ok": True})
+
 
 @app.get("/admin/applicants")
 async def admin_applicants_page():

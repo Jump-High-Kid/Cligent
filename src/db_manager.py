@@ -146,6 +146,7 @@ def init_db() -> None:
             ("blog_features",        "TEXT"),               # 클리닉 특징·장점 (블로그 생성 시 자동 반영)
             # 어드민 클리닉 플래그 — 일반 직원이 합류하지 못하도록 차단
             ("is_admin_clinic",      "INTEGER DEFAULT 0"),
+            ("naver_blog_id",        "TEXT"),               # 네이버 블로그 아이디 (발행 확인용)
         ]:
             if col not in existing:
                 conn.execute(f"ALTER TABLE clinics ADD COLUMN {col} {definition}")

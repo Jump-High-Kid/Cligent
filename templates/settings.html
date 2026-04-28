@@ -594,6 +594,16 @@
         </div>
 
 
+        <!-- 네이버 발행 확인 -->
+        <div class="mb-8 pb-8 border-b border-stone-100">
+          <h3 class="text-sm font-semibold text-stone-600 mb-4">네이버 발행 확인</h3>
+          <div>
+            <label class="block text-sm font-medium text-stone-600 mb-1">네이버 블로그 아이디</label>
+            <input id="blog-naver-blog-id" type="text" class="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700" placeholder="예: hani2025 (blog.naver.com/아이디 에서 아이디 부분)">
+            <p class="text-xs text-stone-400 mt-1">블로그 생성 후 "발행 확인 등록" 클릭 시 네이버 색인 여부를 자동 확인하고 이메일로 알려드립니다.</p>
+          </div>
+        </div>
+
         <div class="flex justify-end mt-6">
           <button id="saveBlogBtn" onclick="saveBlogSettings()" disabled class="bg-emerald-900 hover:bg-emerald-800 text-white px-8 py-2.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed">저장</button>
         </div>
@@ -1251,13 +1261,19 @@
         btn.classList.toggle('selected', btn.dataset.tone === _selectedTone);
       });
 
-      // chief_director만 프롬프트 편집 표시
+      // chief_director만 네이버 블로그 아이디 로드
       if (me.role === 'chief_director') {
-        document.getElementById('blog-prompt-section').classList.remove('hidden');
+        document.getElementById('blog-prompt-section')?.classList.remove('hidden');
         const pr = await fetch('/api/settings/blog/prompt');
         if (pr.ok) {
           const pd = await pr.json();
-          document.getElementById('blog-prompt-text').value = pd.content || '';
+          const promptEl = document.getElementById('blog-prompt-text');
+          if (promptEl) promptEl.value = pd.content || '';
+        }
+        const pfRes = await fetch('/api/settings/clinic/profile');
+        if (pfRes.ok) {
+          const pfData = await pfRes.json();
+          document.getElementById('blog-naver-blog-id').value = pfData.naver_blog_id || '';
         }
       }
 
@@ -1305,14 +1321,22 @@
       }),
     });
     const data = await res.json();
-    if (res.ok) {
-      showSaved();
-      const ind = document.getElementById('blog-save-indicator');
-      ind.classList.remove('hidden');
-      setTimeout(() => ind.classList.add('hidden'), 2000);
-    } else {
-      alert(data.detail || '저장 실패');
+    if (!res.ok) { alert(data.detail || '저장 실패'); return; }
+
+    // 네이버 블로그 아이디 별도 저장 (chief_director만)
+    const naverInput = document.getElementById('blog-naver-blog-id');
+    if (naverInput && naverInput.closest('div').offsetParent !== null) {
+      await fetch('/api/settings/clinic/naver-blog-id', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ naver_blog_id: naverInput.value.trim() }),
+      });
     }
+
+    showSaved();
+    const ind = document.getElementById('blog-save-indicator');
+    ind.classList.remove('hidden');
+    setTimeout(() => ind.classList.add('hidden'), 2000);
   }
 
   // #15 블로그 프롬프트 기본값 초기화

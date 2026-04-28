@@ -45,24 +45,26 @@ def get_dynamic_citations(keyword: str, diversity_config: dict) -> list[Citation
         return []
 
     providers: list[str] = dynamic_cfg.get("providers", [])
-    encoded = quote(keyword)
+    # URL 쿼리는 앞 3단어만 사용 — 전체 제목은 검색 결과 없음
+    short_keyword = " ".join(keyword.split()[:3])
+    encoded = quote(short_keyword)
     result: list[Citation] = []
 
     _url_templates: dict[str, tuple[str, str]] = {
         "riss": (
-            f"RISS 학술자료 — {keyword}",
+            f"RISS 학술자료 검색 — {short_keyword}",
             f"https://www.riss.kr/search/Search.do?query={encoded}",
         ),
         "kci": (
-            f"KCI 한국학술지 — {keyword}",
+            f"KCI 한국학술지 검색 — {short_keyword}",
             f"https://www.kci.go.kr/kciportal/po/search/poSearchArtiList.kci?query={encoded}",
         ),
         "google_scholar": (
-            f"Google Scholar — {keyword}",
+            f"Google Scholar — {short_keyword}",
             f"https://scholar.google.com/scholar?q={encoded}",
         ),
         "pubmed": (
-            f"PubMed — {keyword}",
+            f"PubMed — {short_keyword}",
             f"https://pubmed.ncbi.nlm.nih.gov/?term={encoded}",
         ),
     }

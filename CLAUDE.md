@@ -24,6 +24,34 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 현재 구현 상태 (2026-04-28 기준)
 
+### RAG 학술 검색 통합 (2026-04-28)
+- **신규 파일**: `src/academic_search.py` — 3소스(jkom·PubMed·Naver doc) 병렬 검색 + 24h 디스크 캐시
+- **검색 파이프라인**: 정보형/전문 블로그 생성 시 자동 동작
+  - jkom.org: POST `/articles/search_result.php` + `key=` form data, 브라우저 UA + Referer 필수, urllib.request 사용 (httpx로는 timeout)
+  - PubMed E-utilities: esearch.fcgi + efetch.fcgi, 무료, 한국어→영어 매핑 50+ 용어 (`_KO_EN` dict: 요추, 침, 추나, 추간판 등)
+  - Naver doc.json: 기존 Naver Client ID/Secret 재사용, 권한 활성화 필요 (개발자 콘솔 > 검색 > 전문자료)
+- **캐시**: `data/academic_cache.json` (24h TTL), `_cache_get/_cache_set` 헬퍼
+- **블로그 통합** (`src/blog_generator.py`):
+  - 검색 결과를 `build_rag_context_for_prompt()`로 system_prompt 끝에 append
+  - AI가 실제 논문 인용 포함한 참고 문헌 섹션 작성
+  - `rag_results` 있으면 기존 동적 citation_block 스킵 (이중 인용 방지)
+- **SSE status 이벤트**: "학술 자료를 검색하고 있습니다..." → "N건의 학술 자료를 찾았습니다."
+- **이전 가짜 인용 문제 해결**: `citation_provider.py`의 RISS·KCI 검색 URL 자동 조립 인용은 정적 풀(동의수세보원 등)만 남기고 동적 검색 링크는 RAG 결과 있을 때 비활성
+- **신규 의존성**: `beautifulsoup4==4.12.3`
+- **블로그 잘림 수정**: `max_tokens` 4500 → 8000
+
+### 네이버 발행 확인 + 자동 인링크 (2026-04-28)
+- **신규 파일**: `src/naver_checker.py` — Naver Search API blog.json 폴링, 발행 확인 큐
+- **데이터**: `data/pending_checks.json` 백그라운드 폴링 (60m → 120m×5 → 360m×4 → 720m, 7일 만료)
+- **API**: `POST /api/blog/history/{entry_id}/publish-check`, `GET /api/blog/notifications`, `POST /api/blog/notifications/{id}/dismiss`
+- **UI**: 블로그 결과 화면 "발행 확인 등록" 버튼 + 모달 (보통 1~24시간, 신규 블로그 1~3일 안내)
+- **설정**: 네이버 블로그 아이디는 콘텐츠 에이전트 > 블로그 설정 (placeholder: hani2025)
+- **어드민**: `templates/admin_settings.html` Naver Client ID/Secret 입력 페이지 (`data/app_settings.json`)
+- **알림**: 검색 적중 시 이메일 (`plan_notify.py`) + 대시보드 배너
+
+### 의료법 고지문 자동 삽입 (2026-04-28)
+- `src/blog_generator.py`의 `_inject_legal_disclaimer()`: 의료법 56·57조, 시행령 23·24조 준수 문구를 byline 바로 위 자동 삽입 (`---\n작성:` 또는 `\n작성:` 패턴 매칭)
+
 ### 블로그 프롬프트 v0.4 (2026-04-28)
 - **체류시간 예고문 다양화**: 정형 문구 ("많은 분들이 놓치는 핵심...") 그대로 인용 금지, 8가지 형태(구체정보·질문자극·오해환기·행동유도·사례예고·핵심압축·실용가치·비교안내) 참고용 제시
 - **"참고 자료" → "참고 문헌" 통일**: `prompts/blog.txt` 섹션 제목·`src/citation_provider.py` 헤더·블로그 구조 7번 모두 일괄

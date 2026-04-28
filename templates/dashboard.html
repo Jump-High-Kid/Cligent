@@ -257,6 +257,9 @@
   <!-- 콘텐츠 영역 -->
   <div class="p-10 max-w-[1600px] mx-auto space-y-10">
 
+    <!-- 네이버 발행 확인 알림 배너 (found/expired 항목 있을 때만 표시) -->
+    <div id="naver-notifications" class="hidden space-y-2"></div>
+
     <!-- 인사말 -->
     <section class="flex justify-between items-end">
       <div>
@@ -780,9 +783,50 @@
     if (e.target === e.currentTarget) closeInviteModal()
   })
 
+  // ── 네이버 발행 확인 알림 ──────────────────────────────────────────
+  async function loadNaverNotifications() {
+    try {
+      const res = await fetch('/api/blog/notifications');
+      if (!res.ok) return;
+      const data = await res.json();
+      const items = data.items || [];
+      if (!items.length) return;
+
+      const container = document.getElementById('naver-notifications');
+      container.classList.remove('hidden');
+      container.innerHTML = items.map(item => {
+        const isFound = item.status === 'found';
+        const icon = isFound ? 'check_circle' : 'warning';
+        const color = isFound ? 'emerald' : 'amber';
+        const msg = isFound
+          ? `"${item.title}" 이(가) 네이버에 색인되었습니다.`
+          : `"${item.title}" 이(가) 7일 내 색인되지 않았습니다. 네이버 블로그 글 상태를 확인해주세요.`;
+        const link = isFound && item.found_url
+          ? `<a href="${item.found_url}" target="_blank" class="underline ml-2 text-${color}-700">글 보기 ↗</a>`
+          : '';
+        return `
+          <div class="flex items-start gap-3 p-4 bg-${color}-50 border border-${color}-200 rounded-xl">
+            <span class="material-symbols-outlined text-${color}-600 text-[20px] mt-0.5" style="font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24;">${icon}</span>
+            <p class="flex-1 text-sm text-${color}-800">${msg}${link}</p>
+            <button onclick="dismissNaverNotification(${item.id}, this)" class="text-${color}-500 hover:text-${color}-700 text-xs shrink-0">닫기</button>
+          </div>`;
+      }).join('');
+    } catch (_) {}
+  }
+
+  async function dismissNaverNotification(pendingId, btn) {
+    try {
+      await fetch(`/api/blog/notifications/${pendingId}/dismiss`, { method: 'POST' });
+      btn.closest('div').remove();
+      const container = document.getElementById('naver-notifications');
+      if (!container.children.length) container.classList.add('hidden');
+    } catch (_) {}
+  }
+
   // 페이지 로드 시 실행
   applyModulePermissions()
   loadBlogStats()
+  loadNaverNotifications()
 </script>
 
 </body>

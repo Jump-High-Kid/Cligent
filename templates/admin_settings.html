@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cligent 어드민 — 시스템 설정</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet"/>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Pretendard', -apple-system, sans-serif;
+      background: #f5f5f4;
+      color: #1c1917;
+      min-height: 100dvh;
+    }
+
+    header {
+      background: #064e3b;
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    header h1 { color: #fff; font-size: 18px; font-weight: 700; }
+    header nav { margin-left: auto; display: flex; gap: 8px; }
+    header nav a {
+      color: #6ee7b7;
+      font-size: 13px;
+      text-decoration: none;
+      padding: 6px 14px;
+      border-radius: 8px;
+      border: 1px solid rgba(110,231,183,0.4);
+      transition: background 0.15s;
+    }
+    header nav a:hover { background: rgba(110,231,183,0.15); }
+
+    .container { max-width: 720px; margin: 0 auto; padding: 40px 24px; }
+
+    .card {
+      background: #fff;
+      border-radius: 20px;
+      padding: 32px;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.06);
+      margin-bottom: 24px;
+    }
+
+    .card-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .card-desc {
+      font-size: 13px;
+      color: #78716c;
+      margin-bottom: 24px;
+      line-height: 1.6;
+    }
+
+    .form-group { margin-bottom: 18px; }
+    .form-group label { display: block; font-size: 13px; font-weight: 600; color: #44403c; margin-bottom: 6px; }
+    .form-group input {
+      width: 100%;
+      border: 1px solid #e7e5e4;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 14px;
+      font-family: 'Pretendard', monospace;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .form-group input:focus { border-color: #064e3b; }
+    .form-group .hint { font-size: 12px; color: #a8a29e; margin-top: 5px; }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 12px;
+      border-radius: 20px;
+      margin-bottom: 20px;
+    }
+    .status-badge.ok { background: #f0fdf4; color: #065f46; border: 1px solid #bbf7d0; }
+    .status-badge.none { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+
+    .btn-save {
+      background: #064e3b;
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      padding: 12px 32px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: 'Pretendard', sans-serif;
+      transition: background 0.15s;
+    }
+    .btn-save:hover { background: #065f46; }
+    .btn-save:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .save-msg { display: none; font-size: 13px; color: #065f46; margin-left: 12px; }
+    .save-msg.show { display: inline; }
+
+    #authWall { display: none; }
+    #authWall.show { display: block; }
+    #mainContent { display: none; }
+    #mainContent.show { display: block; }
+
+    .auth-card {
+      background: #fff;
+      border-radius: 20px;
+      padding: 40px;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.06);
+      max-width: 400px;
+      margin: 80px auto;
+      text-align: center;
+    }
+    .auth-card h2 { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+    .auth-card p { font-size: 13px; color: #78716c; margin-bottom: 24px; }
+    .auth-card input {
+      width: 100%;
+      border: 1px solid #e7e5e4;
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 14px;
+      margin-bottom: 12px;
+      outline: none;
+    }
+    .auth-card input:focus { border-color: #064e3b; }
+    .auth-card button {
+      width: 100%;
+      background: #064e3b;
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      padding: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: 'Pretendard', sans-serif;
+    }
+    .auth-error { color: #dc2626; font-size: 12px; margin-top: 8px; display: none; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Cligent 어드민</h1>
+  <nav>
+    <a href="/admin/applicants">베타 신청자</a>
+    <a href="/admin/settings" style="background:rgba(110,231,183,0.15);">시스템 설정</a>
+  </nav>
+</header>
+
+<!-- 인증 화면 -->
+<div id="authWall" class="show">
+  <div class="auth-card">
+    <h2>어드민 인증</h2>
+    <p>ADMIN_SECRET을 입력하세요</p>
+    <input id="secretInput" type="password" placeholder="Admin Secret" onkeydown="if(event.key==='Enter')doAuth()">
+    <button onclick="doAuth()">확인</button>
+    <p id="authError" class="auth-error">인증에 실패했습니다.</p>
+  </div>
+</div>
+
+<!-- 메인 콘텐츠 -->
+<div id="mainContent">
+  <div class="container">
+
+    <div class="card">
+      <div class="card-title">네이버 검색 API</div>
+      <div class="card-desc">
+        블로그 발행 확인 자동화에 사용됩니다. 네이버 개발자 센터에서 앱을 등록하고 검색 API를 활성화한 후 발급받은 키를 입력하세요.<br>
+        발급 경로: <strong>developers.naver.com</strong> → 애플리케이션 등록 → 검색 API 선택
+      </div>
+      <div id="naverStatus" class="status-badge none">미설정</div>
+      <div class="form-group">
+        <label>Client ID</label>
+        <input id="naverClientId" type="text" placeholder="네이버 앱 Client ID">
+        <div class="hint">예: AbCdEfGhIj1234567890</div>
+      </div>
+      <div class="form-group">
+        <label>Client Secret</label>
+        <input id="naverClientSecret" type="password" placeholder="새 값 입력 시에만 입력 (현재 값 유지하려면 빈칸)">
+        <div class="hint">보안상 현재 저장된 값은 표시되지 않습니다. 변경할 경우에만 입력하세요.</div>
+      </div>
+      <div style="display:flex;align-items:center;">
+        <button class="btn-save" id="saveNaverBtn" onclick="saveNaverConfig()">저장</button>
+        <span class="save-msg" id="naverSaveMsg">저장되었습니다</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  let _adminSecret = '';
+
+  async function doAuth() {
+    const secret = document.getElementById('secretInput').value.trim();
+    if (!secret) return;
+    // 조회 시도로 인증 확인
+    const res = await fetch('/api/admin/naver-config', {
+      headers: { 'Authorization': `Bearer ${secret}` }
+    });
+    if (!res.ok) {
+      document.getElementById('authError').style.display = 'block';
+      return;
+    }
+    _adminSecret = secret;
+    document.getElementById('authWall').classList.remove('show');
+    document.getElementById('mainContent').classList.add('show');
+    const data = await res.json();
+    renderNaverStatus(data);
+  }
+
+  function renderNaverStatus(data) {
+    const badge = document.getElementById('naverStatus');
+    if (data.configured) {
+      badge.className = 'status-badge ok';
+      badge.textContent = '✓ 설정 완료';
+    } else {
+      badge.className = 'status-badge none';
+      badge.textContent = '미설정';
+    }
+    document.getElementById('naverClientId').value = data.naver_client_id || '';
+    // Secret은 표시하지 않음 (빈칸 = 변경 없음)
+  }
+
+  async function saveNaverConfig() {
+    const clientId = document.getElementById('naverClientId').value.trim();
+    const clientSecret = document.getElementById('naverClientSecret').value.trim();
+    if (!clientId) { alert('Client ID를 입력하세요.'); return; }
+    if (!clientSecret) { alert('Client Secret을 입력하세요.'); return; }
+
+    const btn = document.getElementById('saveNaverBtn');
+    btn.disabled = true;
+    const res = await fetch('/api/admin/naver-config', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${_adminSecret}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ naver_client_id: clientId, naver_client_secret: clientSecret }),
+    });
+    btn.disabled = false;
+    if (res.ok) {
+      document.getElementById('naverClientSecret').value = '';
+      document.getElementById('naverSaveMsg').classList.add('show');
+      document.getElementById('naverStatus').className = 'status-badge ok';
+      document.getElementById('naverStatus').textContent = '✓ 설정 완료';
+      setTimeout(() => document.getElementById('naverSaveMsg').classList.remove('show'), 2500);
+    } else {
+      const d = await res.json();
+      alert(d.detail || '저장 실패');
+    }
+  }
+</script>
+</body>
+</html>

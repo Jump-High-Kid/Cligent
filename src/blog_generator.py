@@ -156,6 +156,33 @@ def _fix_keyword_counts(text: str, seo_keywords: List[str], target_min: int = 6)
     return text + tail
 
 
+_LEGAL_DISCLAIMER = (
+    "**[의료정보 고지]** 본 포스팅은 의료정보용 포스팅입니다. 본 포스팅은 의료법 제56조 "
+    "의료광고금 등, 같은 법 제57조, 같은 법 시행령 제23조, 제24조를 준수하여 작성한 "
+    "의료정보성 포스팅이며 같은 법 시행령 또한 준수하여 작성한 포스팅입니다."
+)
+
+
+def _inject_legal_disclaimer(text: str) -> str:
+    """저자 byline 바로 위에 의료법 준수 고지문 삽입.
+
+    blog.txt 지시에 따라 byline은 '---\\n작성:' 형태로 생성됨.
+    고지문을 --- 앞 단락으로 삽입하여 작성자 표시 바로 위에 표시.
+    """
+    import re
+    disclaimer_block = f"\n{_LEGAL_DISCLAIMER}\n"
+
+    # 패턴 1: ---\n작성: (가장 일반적인 형태)
+    pat1 = re.compile(r'\n(---\n작성:)')
+    result = pat1.sub(lambda m: disclaimer_block + "\n" + m.group(1), text, count=1)
+    if result != text:
+        return result
+
+    # 패턴 2: \n작성: (수평선 없이 바로 작성:으로 시작)
+    pat2 = re.compile(r'\n(작성:)')
+    return pat2.sub(lambda m: disclaimer_block + "\n" + m.group(1), text, count=1)
+
+
 def extract_faq_schema(blog_text: str, keyword: str) -> Optional[dict]:
     """
     블로그 본문의 Q: / A: 패턴을 파싱해 FAQPage JSON-LD 딕셔너리를 반환합니다.
@@ -482,30 +509,38 @@ def _build_clinic_info_section(clinic_info: str) -> str:
 
 
 def _build_related_posts_section(recent_posts: List[dict], current_keyword: str) -> str:
-    """이전 포스트 연관 링크 프롬프트 블록 생성"""
+    """이전 포스트 연관 링크 프롬프트 블록 생성.
+    naver_url이 확정된 글만 포함. 없으면 빈 문자열 반환 → 관련 글 섹션 생략.
+    """
     if not recent_posts:
         return ""
-    # 현재 주제와 키워드가 겹치는 글만 필터
+
+    # naver_url이 있고, 현재 주제와 키워드가 겹치는 글만 필터
     related = [
         p for p in recent_posts
-        if p["keyword"] != current_keyword and (
+        if p.get("naver_url")
+        and p["keyword"] != current_keyword
+        and (
             any(k in current_keyword for k in p.get("seo_keywords", []))
             or p["keyword"] in current_keyword
             or current_keyword in p["keyword"]
         )
     ]
     if not related:
-        return ""
+        return (
+            "\n## 관련 글 섹션 금지\n"
+            "이 글에는 연결할 이전 포스트가 없습니다. "
+            "'관련 글', '관련 포스트', '더 보기' 등 어떤 형태의 관련 글 섹션도 작성하지 마세요.\n"
+        )
+
     post_lines = "\n".join(
-        f"  - 제목: {p['title']} (주제: {p['keyword']})" for p in related[:3]
+        f"  - [{p['title']}]({p['naver_url']})" for p in related[:3]
     )
     return (
         f"\n## 연관 이전 포스트 (글 하단 '관련 글' 섹션에 링크로 추가)\n"
-        f"아래 이전 블로그 글과 연결하여 독자의 체류 시간을 높이세요.\n"
+        f"아래 링크를 글 맨 끝 마무리 다음에 '---\\n**관련 글 더 보기**' 섹션으로 추가하세요.\n"
+        f"URL은 이미 확정된 값이므로 그대로 사용하세요. 임의로 수정하지 마세요.\n"
         f"{post_lines}\n"
-        f"- 글 맨 끝 마무리 다음에 '---\\n**관련 글 더 보기**' 섹션을 추가하고,\n"
-        f"  각 글을 '[제목](URL을_여기에_입력)' 형식으로 나열하세요.\n"
-        f"- URL은 실제 네이버 블로그 발행 후 수동으로 채워 넣으면 됩니다."
     )
 
 
@@ -737,6 +772,19 @@ def generate_blog_stream(
 
     user_message = f"{seo_prefix}블로그 주제: {keyword}{qa_text}{materials_text}"
 
+    # RAG: 정보형 블로그에서 학술 자료 병렬 검색 후 시스템 프롬프트에 주입
+    rag_results: list[dict] = []
+    if mode in ("정보", "전문"):
+        yield f"data: {json.dumps({'status': '학술 자료를 검색하고 있습니다...'}, ensure_ascii=False)}\n\n"
+        try:
+            from academic_search import search_all_academic, build_rag_context_for_prompt
+            rag_results = search_all_academic(keyword)
+        except Exception:
+            rag_results = []
+        if rag_results:
+            yield f"data: {json.dumps({'status': f'{len(rag_results)}건의 학술 자료를 찾았습니다.'}, ensure_ascii=False)}\n\n"
+            system_prompt += "\n\n" + build_rag_context_for_prompt(rag_results)
+
     client = anthropic.Anthropic(api_key=api_key)
 
     try:
@@ -746,7 +794,7 @@ def generate_blog_stream(
 
         with client.messages.stream(
             model="claude-sonnet-4-6",
-            max_tokens=4500,
+            max_tokens=8000,
             system=system_prompt,
             messages=[{"role": "user", "content": user_message}],
         ) as stream:
@@ -760,10 +808,14 @@ def generate_blog_stream(
             effective_keywords = list(seo_keywords or [])
             fixed_text = _fix_keyword_counts(original_text, effective_keywords)
 
-            # v0.3: citation block을 본문 끝에 추가
-            citation_block = diversity.get("citation_block", "")
-            if citation_block:
-                fixed_text = fixed_text.rstrip() + "\n\n" + citation_block
+            # v0.3: citation block — RAG 결과 있으면 AI가 이미 작성했으므로 skip
+            if not rag_results:
+                citation_block = diversity.get("citation_block", "")
+                if citation_block:
+                    fixed_text = fixed_text.rstrip() + "\n\n" + citation_block
+
+            # 의료법 준수 고지문 — byline 바로 위 삽입
+            fixed_text = _inject_legal_disclaimer(fixed_text)
 
             if fixed_text != original_text:
                 yield f"data: {json.dumps({'replace': fixed_text}, ensure_ascii=False)}\n\n"

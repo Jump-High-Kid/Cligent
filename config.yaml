@@ -1,113 +1,155 @@
-# Cligent 블로그 생성기 설정
-# 이 파일만 수정하면 코드 변경 없이 동작을 바꿀 수 있습니다.
-
 flow:
-  questions_enabled: true   # false 로 바꾸면 질문 단계 없이 바로 생성
-  questions_count: 3        # 질문 개수 (1~5)
-
+  questions_enabled: true
+  questions_count: 3
 blog:
   min_chars: 1500
   max_chars: 2000
-  tone: "전문적"            # 전문적 / 친근한 / 설명적
+  tone: 전문적
   include_hospital_info: true
-
 prompts:
-  questions: "prompts/questions.txt"
-  conversation: "prompts/conversation.txt"
-  blog: "prompts/blog.txt"
-  image_prompt: "prompts/image_prompt.txt"
-  image_analysis: "prompts/image_analysis.txt"
-  image_generation: "prompts/image_generation.txt"
-
+  questions: prompts/questions.txt
+  conversation: prompts/conversation.txt
+  blog: prompts/blog.txt
+  image_prompt: prompts/image_prompt.txt
+  image_analysis: prompts/image_analysis.txt
+  image_generation: prompts/image_generation.txt
 image_prompt:
   ai_platforms:
     midjourney:
-      name: "Midjourney"
-      url: "https://www.midjourney.com/imagine"
+      name: Midjourney
+      url: https://www.midjourney.com/imagine
     dalle:
-      name: "DALL-E"
-      url: "https://chatgpt.com"
+      name: DALL-E
+      url: https://chatgpt.com
     nanobana:
-      name: "나노바나나"
-      url: "https://www.nanobana.ai"
-
-# 대시보드 모듈 설정
-# default_roles: 기본으로 볼 수 있는 역할 (5단계 RBAC)
-#   chief_director(대표원장) > director(원장) > manager(매니저) > team_leader(팀장) > team_member(팀원)
-# 실제 적용 권한은 data/rbac_permissions.json 기준 (위자드 저장 후 우선)
-# 직원별 개별 설정은 data/staff_permissions.json에서 덮어쓸 수 있음
+      name: 나노바나나
+      url: https://www.nanobana.ai
 modules:
   stats_patients:
-    name: "환자 수"
-    default_roles: [chief_director, director, manager, team_leader, team_member]
+    name: 환자 수
+    default_roles:
+    - chief_director
+    - director
+    - manager
+    - team_leader
+    - team_member
   stats_appointments:
-    name: "예약 건수"
-    default_roles: [chief_director, director, manager, team_leader, team_member]
+    name: 예약 건수
+    default_roles:
+    - chief_director
+    - director
+    - manager
+    - team_leader
+    - team_member
   stats_cancellations:
-    name: "예약 취소"
-    default_roles: [chief_director, director, manager, team_leader, team_member]
+    name: 예약 취소
+    default_roles:
+    - chief_director
+    - director
+    - manager
+    - team_leader
+    - team_member
   stats_revenue:
-    name: "총 매출"
-    default_roles: [chief_director, director, manager]
+    name: 총 매출
+    default_roles:
+    - chief_director
+    - director
+    - manager
   stats_revenue_noninsured:
-    name: "비급여 매출"
-    default_roles: [chief_director, director]
+    name: 비급여 매출
+    default_roles:
+    - chief_director
+    - director
   chart_7day:
-    name: "7일 추이 차트"
-    default_roles: [chief_director, director, manager, team_leader, team_member]
+    name: 7일 추이 차트
+    default_roles:
+    - chief_director
+    - director
+    - manager
+    - team_leader
+    - team_member
   crm_actions:
-    name: "후속 조치 리스트"
-    default_roles: [chief_director, director, manager, team_leader]
+    name: 후속 조치 리스트
+    default_roles:
+    - chief_director
+    - director
+    - manager
+    - team_leader
   blog_generator:
-    name: "Blog Generator"
-    default_roles: [chief_director, director, manager, team_leader]
+    name: Blog Generator
+    default_roles:
+    - chief_director
+    - director
+    - manager
+    - team_leader
   insights:
-    name: "New Insights"
-    default_roles: [chief_director, director]
+    name: New Insights
+    default_roles:
+    - chief_director
+    - director
   education_videos:
-    name: "교육 영상"
-    default_roles: [chief_director, director, manager, team_leader, team_member]
-
+    name: 교육 영상
+    default_roles:
+    - chief_director
+    - director
+    - manager
+    - team_leader
+    - team_member
 agents:
   enabled: true
   runtime_dir: agents/runtime
   prompts_dir: prompts/agents
-  fallback_message: "죄송합니다. 해당 내용은 제가 도와드리기 어렵습니다. 더 구체적으로 질문해 주세요."
-
-# === v0.3 다양성 보강 ===
-# enabled: false 이면 v0.2 동작 (기존 패턴 선택만 사용)
+  fallback_message: 죄송합니다. 해당 내용은 제가 도와드리기 어렵습니다. 더 구체적으로 질문해 주세요.
 diversity:
   enabled: true
-
   blog_formats:
-    - { id: information,  label: "정보 전달",     weight: 30, template: "prompts/formats/information.txt" }
-    - { id: case_study,   label: "케이스 스터디", weight: 20, template: "prompts/formats/case_study.txt" }
-    - { id: qna,          label: "Q&A",           weight: 20, template: "prompts/formats/qna.txt" }
-    - { id: comparison,   label: "비교형",         weight: 10, template: "prompts/formats/comparison.txt" }
-    - { id: seasonal,     label: "계절·시기형",    weight: 10, template: "prompts/formats/seasonal.txt" }
-    - { id: lifestyle,    label: "라이프스타일",   weight: 10, template: "prompts/formats/lifestyle.txt" }
-
-  format_selection: "random_weighted"   # random_weighted | user_choice | fixed:<id>
-
+  - id: information
+    label: 정보 전달
+    weight: 30
+    template: prompts/formats/information.txt
+  - id: case_study
+    label: 케이스 스터디
+    weight: 20
+    template: prompts/formats/case_study.txt
+  - id: qna
+    label: Q&A
+    weight: 20
+    template: prompts/formats/qna.txt
+  - id: comparison
+    label: 비교형
+    weight: 10
+    template: prompts/formats/comparison.txt
+  - id: seasonal
+    label: 계절·시기형
+    weight: 10
+    template: prompts/formats/seasonal.txt
+  - id: lifestyle
+    label: 라이프스타일
+    weight: 10
+    template: prompts/formats/lifestyle.txt
+  format_selection: random_weighted
   hooks:
-    - statistic
-    - case
-    - question
-    - season
-    - classic_quote
-  hook_selection: "random"
-
+  - statistic
+  - case
+  - question
+  - season
+  - classic_quote
+  hook_selection: random
   citations:
     static_pool:
-      - "동의보감"
-      - "황제내경"
-      - "본초강목"
-      - "한의학회지"
-      - "대한침구학회지"
-      - "대한한의학회지"
+    - 동의보감
+    - 황제내경
+    - 본초강목
+    - 한의학회지
+    - 대한침구학회지
+    - 대한한의학회지
     static_pick_count: 1
     dynamic_search:
       enabled: true
-      providers: ["riss", "kci", "google_scholar", "pubmed"]
+      providers:
+      - riss
+      - kci
+      - google_scholar
+      - pubmed
       pick_count: 4
-      mode: "link_only"
+      mode: link_only

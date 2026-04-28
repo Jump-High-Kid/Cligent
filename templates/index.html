@@ -290,6 +290,17 @@
     .clipboard-modal-actions .btn-cancel { background: #f5f5f4; color: #78716c; border: none; border-radius: 10px; padding: 10px 18px; font-size: 0.9rem; cursor: pointer; font-family: 'Pretendard', sans-serif; }
     .clipboard-modal-actions .btn-cancel:hover { background: #e7e5e4; }
 
+    /* 발행 확인 등록 완료 모달 */
+    #publishCheckModal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 9999; align-items: center; justify-content: center; }
+    #publishCheckModal.open { display: flex; }
+    .pcheck-modal-box { background: #fff; border-radius: 20px; padding: 36px 28px 28px; max-width: 400px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.18); text-align: center; }
+    .pcheck-modal-icon { width: 52px; height: 52px; background: #f0fdf4; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; }
+    .pcheck-modal-title { font-family: 'Pretendard', sans-serif; font-size: 1.05rem; font-weight: 700; color: #1c1917; margin-bottom: 12px; }
+    .pcheck-modal-body { font-size: 0.875rem; color: #44403c; line-height: 1.7; margin-bottom: 8px; }
+    .pcheck-modal-time { font-size: 0.8rem; color: #78716c; margin-bottom: 24px; }
+    .pcheck-modal-close { width: 100%; background: #064e3b; color: #fff; border: none; border-radius: 12px; padding: 12px; font-size: 0.92rem; font-weight: 600; cursor: pointer; font-family: 'Pretendard', sans-serif; }
+    .pcheck-modal-close:hover { background: #065f46; }
+
     /* 이미지 프롬프트 섹션 */
     #imagePromptSection {
       margin-top: 20px; border-top: 1.5px solid #e8f4f3; padding-top: 20px;
@@ -766,6 +777,7 @@
             <button class="result-btn result-btn-outline site-goto-btn" onclick="gotoAiSite()">바로가기 ↗</button>
           </div>
           <button class="result-btn result-btn-outline" id="imgPromptBtn" onclick="startImagePromptGenerate()" disabled title="블로그 생성 완료 후 활성화됩니다">이미지 프롬프트 생성</button>
+          <button class="result-btn result-btn-outline" id="publishCheckBtn" onclick="publishCheck()" disabled title="생성 완료 후 활성화됩니다">발행 확인 등록</button>
           <button class="result-btn result-btn-outline" onclick="reset()">처음부터</button>
         </div>
       </div>
@@ -858,6 +870,23 @@
     </div>
   </div>
 
+  <!-- 발행 확인 등록 완료 모달 -->
+  <div id="publishCheckModal">
+    <div class="pcheck-modal-box">
+      <div class="pcheck-modal-icon">
+        <span class="material-symbols-outlined text-emerald-700 text-2xl" style="font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24;">check_circle</span>
+      </div>
+      <div class="pcheck-modal-title">발행 확인이 등록되었습니다</div>
+      <div class="pcheck-modal-body">색인이 확인되면 이메일로 알려드립니다.</div>
+      <div class="pcheck-modal-time">
+        보통 <strong>1~24시간</strong> 내에 확인됩니다.<br>
+        처음 개설했거나 게시가 드문 블로그는 <strong>1~3일</strong>이 걸릴 수 있습니다.<br>
+        7일 후에도 색인되지 않으면 만료 안내 이메일을 발송합니다.
+      </div>
+      <button class="pcheck-modal-close" onclick="closePublishCheckModal()">확인</button>
+    </div>
+  </div>
+
   <script>
     let currentKeyword       = '';
     let conversationFlow     = [];
@@ -880,6 +909,7 @@
     let isGenerating = false;
     let pendingAiUrl    = '';
     let betaUsage       = { blog_count: 0, blog_limit: 10, copy_count: 0, copy_limit: 30, api_key_configured: false };
+    let currentEntryId  = null; // 블로그 저장 후 발행 확인용 ID
 
     // ── 시리즈 주제 (이전 생성에서 저장된 목록) ───────────────
     function loadSeriesTopics() {
@@ -1662,6 +1692,7 @@
             try {
               const msg = JSON.parse(jsonStr);
               if (msg.error) { label.textContent = '생성 실패'; showError('step3Error', msg.error); return; }
+              if (msg.status) { label.textContent = msg.status; }
               if (msg.text)  {
                 rawOutputText += msg.text;
                 output.innerHTML = renderMarkdown(rawOutputText);
@@ -1669,6 +1700,11 @@
               if (msg.replace) {
                 rawOutputText = msg.replace;
                 output.innerHTML = renderMarkdown(rawOutputText);
+              }
+              if (msg.entry_id) {
+                currentEntryId = msg.entry_id;
+                const pb = document.getElementById('publishCheckBtn');
+                if (pb) { pb.disabled = false; pb.title = '네이버 블로그에 발행 후 클릭하세요'; }
               }
               if (msg.done)  {
                 betaUsage.blog_count = Math.min(betaUsage.blog_count + 1, betaUsage.blog_limit);
@@ -2113,10 +2149,37 @@
       document.getElementById('keyword').value = btn.textContent;
     }
 
+    async function publishCheck() {
+      if (!currentEntryId) return;
+      const btn = document.getElementById('publishCheckBtn');
+      btn.disabled = true;
+      btn.textContent = '등록 중...';
+      try {
+        const res = await fetch(`/api/blog/history/${currentEntryId}/publish-check`, { method: 'POST' });
+        const data = await res.json();
+        if (res.ok) {
+          btn.textContent = '발행 확인 등록됨';
+          btn.title = '색인 확인 후 이메일로 알려드립니다.';
+          document.getElementById('publishCheckModal').classList.add('open');
+        } else {
+          alert(data.detail || '발행 확인 등록에 실패했습니다.');
+          btn.disabled = false;
+          btn.textContent = '발행 확인 등록';
+        }
+      } catch (e) {
+        alert('네트워크 오류가 발생했습니다.');
+        btn.disabled = false;
+        btn.textContent = '발행 확인 등록';
+      }
+    }
+
+    function closePublishCheckModal() {
+      document.getElementById('publishCheckModal').classList.remove('open');
+    }
 
     function reset() {
       currentKeyword = ''; conversationFlow = []; currentIndex = 0;
-      collectedAnswers = {}; selectedOptions = {}; rawOutputText = '';
+      collectedAnswers = {}; selectedOptions = {}; rawOutputText = ''; currentEntryId = null;
       allPrompts = []; selectedStyle = 'photorealistic'; selectedTone = 'warm';
       selectedMode = '정보'; selectedReaderLevel = '일반인'; selectedCharCount = null;
       collectedMaterials = { text: '', webLinks: [], youtubeLinks: [] };
