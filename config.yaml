@@ -108,6 +108,6 @@ diversity:
     static_pick_count: 1
     dynamic_search:
       enabled: true
-      providers: ["riss", "kci"]
-      pick_count: 2
+      providers: ["riss", "kci", "google_scholar", "pubmed"]
+      pick_count: 4
       mode: "link_only"

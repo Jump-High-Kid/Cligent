@@ -23,8 +23,21 @@
   "subject": "string (영어, 주요 피사체)",
   "setting": "string (영어, 배경 장소)",
   "placement_ko": "string (한글 배치 설명, 예: 블로그 도입부)",
-  "acupoints_used": ["ST36"]
+  "acupoints_used": ["ST36"],
+  "anatomical_region": "leg|arm|foot|hand|back|head|torso|none"
 }
+
+### anatomical_region 결정 규칙 (joint confusion 방지 — 필수)
+- 침 치료·해부학 도해·신체 부위 클로즈업 장면이면 정확한 부위 지정 필수
+- 분류 기준 (acupoints_used 또는 subject 기반):
+  - `leg`: ST36, ST40, SP6, SP10, BL40, GB34 등 다리 경혈 / "다리·무릎·허벅지·종아리" 묘사
+  - `arm`: LU7, LI4, LI11, HT7, PC6, TE5, SI3 등 팔 경혈 / "팔·팔꿈치·전완" 묘사
+  - `foot`: ST44, BL60, KD3, KD6, LV3 등 발 경혈 / "발·발목" 묘사
+  - `hand`: 손 경혈 / "손·손목·손가락" 묘사
+  - `back`: BL17, BL23, GV4, GV14 / "허리·등·척추" 묘사
+  - `head`: GB20, GV20 / "머리·얼굴·목" 묘사
+  - `torso`: ST25, CV4, CV6, CV12, CV17 / "복부·가슴" 묘사
+  - `none`: 인체 클로즈업 없는 장면 (한약재·진료실 풍경·도구 등)
 
 ## 경혈 선택 참고표 (WHO Standard Acupuncture Point Locations 기준)
 | 코드  | 한글명(한자)       | 주요 적응증                                  |

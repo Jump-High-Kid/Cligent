@@ -326,6 +326,17 @@
     .img-btn-ai { padding: 6px 12px; border-radius: 6px; background: #f0f7f6; color: #1a5f5a; border: 1.5px solid #cce0de; font-size: 0.8rem; font-weight: 600; cursor: pointer; font-family: inherit; text-decoration: none; transition: background 0.15s; display: inline-flex; align-items: center; gap: 3px; }
     .img-btn-ai:hover { background: #d4ecea; }
     .img-prompt-footer { display: flex; gap: 8px; margin-top: 14px; justify-content: flex-end; }
+    /* 이미지 통합 액션 바 — 5개 복사 버튼 한 줄 */
+    .img-ctrl-bar { background: #f5f5f4; border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; }
+    .img-ctrl-tabs { display: flex; gap: 6px; margin-bottom: 8px; }
+    .img-ctrl-tab { flex: 1; padding: 7px 8px; border: 1.5px solid #d6d3d1; background: #fff; border-radius: 8px; font-size: 0.82rem; font-family: inherit; cursor: pointer; font-weight: 600; color: #57534e; transition: all 0.15s; }
+    .img-ctrl-tab.active { background: #064e3b; color: #fff; border-color: #064e3b; }
+    .img-ctrl-tab:hover:not(.active) { background: #f0efed; }
+    .img-ctrl-actions { display: flex; gap: 5px; flex-wrap: nowrap; }
+    .img-ctrl-btn { flex: 1; min-width: 0; padding: 8px 4px; border: none; background: #1a5f5a; color: #fff; border-radius: 7px; font-family: inherit; font-size: 0.78rem; cursor: pointer; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: opacity 0.15s; }
+    .img-ctrl-btn:hover { opacity: 0.85; }
+    .img-ctrl-btn-all { background: #064e3b; padding: 9px 8px; font-size: 0.85rem; }
+    .img-ctrl-toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #064e3b; color: #fff; padding: 10px 18px; border-radius: 8px; font-size: 0.85rem; z-index: 9999; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
 
     /* 단계 1 — 모드/독자 수준 칩 */
     .step1-options { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 16px; }
@@ -654,7 +665,7 @@
           <span class="step1-option-label">어떤 설명을 상세히 하시겠습니까? <span style="font-size:0.75rem;color:#78716c;font-weight:400;">(복수 선택 가능, 미선택 시 일반 설명)</span></span>
           <div class="step1-chips" style="flex-wrap:wrap;gap:6px;" id="explanationChips">
             <button class="step1-chip expl-chip" data-value="변증시치" onclick="toggleExplChip(this)">변증시치</button>
-            <button class="step1-chip expl-chip" data-value="사상체질" onclick="toggleExplChip(this)">사상체질</button>
+            <button class="step1-chip expl-chip" data-value="사상체질" onclick="toggleExplChip(this)">체질의학(사상체질)</button>
             <button class="step1-chip expl-chip" data-value="해부학" onclick="toggleExplChip(this)">해부학</button>
             <button class="step1-chip expl-chip" data-value="내분비" onclick="toggleExplChip(this)">내분비</button>
             <button class="step1-chip expl-chip" data-value="신경학" onclick="toggleExplChip(this)">신경학</button>
@@ -800,10 +811,18 @@
         </div>
 
         <label id="imgPromptLabel" class="hidden"></label>
+        <!-- 통합 액션 바: AI 선택 + 1~5번 복사 (Midjourney 시 모두 복사) -->
+        <div class="img-ctrl-bar hidden" id="imgPromptControls">
+          <div class="img-ctrl-tabs">
+            <button class="img-ctrl-tab active" data-ai="midjourney" onclick="selectImgAi(this)">Midjourney</button>
+            <button class="img-ctrl-tab" data-ai="chatgpt" onclick="selectImgAi(this)">ChatGPT</button>
+            <button class="img-ctrl-tab" data-ai="gemini" onclick="selectImgAi(this)">Gemini</button>
+          </div>
+          <div class="img-ctrl-actions" id="imgCtrlActions"></div>
+        </div>
         <div id="imagePromptOutput"></div>
         <div id="step3ImgError" class="error-msg hidden"></div>
         <div class="img-prompt-footer hidden" id="imgPromptFooter">
-          <button class="btn btn-secondary" onclick="copyAllPrompts(this)">전체 복사</button>
           <button class="btn btn-primary" id="imgRegenBtn" onclick="runImagePromptGenerate()">다시 생성</button>
         </div>
       </div>
@@ -965,6 +984,16 @@
       if (isCustom) {
         document.getElementById('explCustomWrap').style.display =
           el.classList.contains('selected') ? 'block' : 'none';
+      }
+      // 사상체질 ↔ 변증시치 상호 배타 (체질의학과 일반 변증은 양립 불가)
+      if (el.classList.contains('selected')) {
+        const value = el.dataset.value;
+        const exclusivePairs = { '사상체질': '변증시치', '변증시치': '사상체질' };
+        const conflict = exclusivePairs[value];
+        if (conflict) {
+          document.querySelectorAll(`.expl-chip[data-value="${conflict}"].selected`)
+            .forEach(other => other.classList.remove('selected'));
+        }
       }
     }
 
@@ -1723,6 +1752,7 @@
       output.innerHTML = '';
       allPrompts = [];
       hideError('step3ImgError');
+      document.getElementById('imgPromptControls').classList.add('hidden');
       document.getElementById('imgPromptFooter').classList.add('hidden');
       label.classList.remove('hidden');
       label.innerHTML = '분석 중<span class="dots"></span>';
@@ -1767,7 +1797,9 @@
                 allPrompts = msg.prompts || [];
                 allPrompts.forEach(p => output.appendChild(buildPromptCard(p)));
                 label.textContent = '이미지 프롬프트 완성 ✓';
+                document.getElementById('imgPromptControls').classList.remove('hidden');
                 document.getElementById('imgPromptFooter').classList.remove('hidden');
+                renderImgCtrlActions();
               }
             } catch (_) {}
           }
@@ -1885,6 +1917,60 @@
         btn.textContent = '복사됨!';
         setTimeout(() => btn.textContent = '전체 복사', 1500);
       });
+    }
+
+    // ── 이미지 통합 액션 바: AI 선택 + 1~5 복사 / 모두 복사 ──
+    let currentImgAi = 'midjourney';
+
+    function selectImgAi(el) {
+      document.querySelectorAll('.img-ctrl-tab').forEach(t => t.classList.remove('active'));
+      el.classList.add('active');
+      currentImgAi = el.dataset.ai;
+      renderImgCtrlActions();
+    }
+
+    function renderImgCtrlActions() {
+      const actions = document.getElementById('imgCtrlActions');
+      if (!actions) return;
+      if (currentImgAi === 'midjourney') {
+        actions.innerHTML =
+          '<button class="img-ctrl-btn img-ctrl-btn-all" onclick="copyAllForMidjourney(this)">5개 모두 복사 (Midjourney)</button>';
+      } else {
+        const aiName = currentImgAi === 'chatgpt' ? 'ChatGPT' : 'Gemini';
+        actions.innerHTML = [1,2,3,4,5].map(n =>
+          `<button class="img-ctrl-btn" onclick="copyPromptForAi(${n})">${n}번 복사</button>`
+        ).join('');
+      }
+    }
+
+    function copyAllForMidjourney(btn) {
+      if (!allPrompts || !allPrompts.length) return;
+      const texts = allPrompts.map((p, i) =>
+        `[${i + 1}] ${p.title_ko} (${p.placement})\n${p.prompt}`
+      ).join('\n\n---\n\n');
+      navigator.clipboard.writeText(texts).then(() => {
+        const orig = btn.textContent;
+        btn.textContent = '5개 복사됨!';
+        setTimeout(() => btn.textContent = orig, 1500);
+      });
+    }
+
+    function copyPromptForAi(num) {
+      const p = allPrompts[num - 1];
+      if (!p) return;
+      const needsTransform = (currentImgAi === 'chatgpt' || currentImgAi === 'gemini');
+      const text = needsTransform
+        ? 'Generate a single standalone image. Do not create a collage, grid, mosaic, or tiled image. 1:1 square crop. ' + stripMjParams(p.prompt)
+        : p.prompt;
+      navigator.clipboard.writeText(text).then(() => showImgToast(num + '번 프롬프트 복사 — ' + (currentImgAi === 'chatgpt' ? 'ChatGPT' : 'Gemini') + '에 붙여넣으세요'));
+    }
+
+    function showImgToast(msg) {
+      const t = document.createElement('div');
+      t.className = 'img-ctrl-toast';
+      t.textContent = msg;
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), 1800);
     }
 
     // ── 마크다운 → HTML 변환 ──────────────────────────────
@@ -2046,6 +2132,7 @@
       document.getElementById('imagePromptOutput').innerHTML = '';
       document.getElementById('imagePromptSection').classList.add('hidden');
       document.getElementById('imgPromptLabel').classList.add('hidden');
+      document.getElementById('imgPromptControls').classList.add('hidden');
       document.getElementById('imgPromptFooter').classList.add('hidden');
       const s = document.getElementById('seriesSection');
       if (s) s.remove();

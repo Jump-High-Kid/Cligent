@@ -66,7 +66,7 @@ def test_build_citation_block_contains_riss_kci():
     block = build_citation_block("허리통증", DIVERSITY_CONFIG)
     assert "riss.kr" in block
     assert "kci.go.kr" in block
-    assert "관련 학술자료 검색" in block
+    assert "참고 문헌" in block
 
 
 def test_build_citation_block_no_effectiveness_claim():

@@ -245,6 +245,26 @@ def _build_seo_keywords_section(seo_keywords: List[str]) -> str:
     )
 
 
+_SASANG_REFERENCE_PATH = Path(__file__).parent.parent / "prompts" / "references" / "sasang.txt"
+
+
+def _load_sasang_reference() -> str:
+    """사상체질 참고 문서 로드 (체질·변증·처방 67방 + 사용 규칙)."""
+    try:
+        return _SASANG_REFERENCE_PATH.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return ""
+
+
+_BRIEF_BYEONJEUNG_INSTRUCTION = (
+    "## 변증 분류 — 짧게 (자동 모드)\n"
+    "- 변증·변증시치 관련 내용은 한 단락(3~4문장)으로만 작성하세요.\n"
+    "- 형식 권장: \"한의학에서는 [증상]을 [변증 유형]으로 분류하고 [치법] 위주로 치료합니다.\" 같은 의미를 매번 다른 표현으로.\n"
+    "- 변증 유형명은 1~2개만 언급. 처방·치법 상세 나열 금지.\n"
+    "- 변증 외 다른 관점(서양의학·생활습관 등)을 균형 있게 포함하세요."
+)
+
+
 _EXPLANATION_DESCRIPTIONS = {
     "변증시치": (
         "변증시치(辨證施治, pattern identification and treatment): "
@@ -252,9 +272,10 @@ _EXPLANATION_DESCRIPTIONS = {
         "기허(氣虛), 음허(陰虛), 어혈(瘀血), 담음(痰飮) 등 변증 유형과 대응 처방을 구체적으로 기술합니다."
     ),
     "사상체질": (
-        "사상체질(四象體質, Sasang constitutional medicine): "
-        "태양인·태음인·소양인·소음인 체질 분류에 따른 원인과 치료 접근을 설명하세요. "
-        "체질별 특성, 적합한 치료법, 주의사항을 구체적으로 기술합니다."
+        "사상체질(四象體質, Sasang constitutional medicine, 이제마 동의수세보원 기반): "
+        "태양인·태음인·소양인·소음인 4체질 분류와 동의수세보원 신축본 67방 처방만 사용하세요. "
+        "별도 첨부된 '사상체질 참고 문서'의 모든 규칙을 절대 준수하며, "
+        "일반 한의 변증·일반 한약 처방명 사용은 금지됩니다. 침·추나는 일반 적용 가능합니다."
     ),
     "해부학": (
         "해부학적 관점(Anatomy): "
@@ -279,11 +300,27 @@ _EXPLANATION_DESCRIPTIONS = {
 }
 
 
-def _build_explanation_section(explanation_types: Optional[List[str]]) -> str:
-    """선택된 설명 방식으로 프롬프트 블록 생성. 미선택 항목은 글에 포함하지 않음."""
+def _build_explanation_section(
+    explanation_types: Optional[List[str]],
+    reader_level: str = "일반인",
+) -> str:
+    """선택된 설명 방식으로 프롬프트 블록 생성.
+
+    분기:
+    - 미선택 + reader_level == "한의학관심" → 빈 문자열 (자유 출력, 기존 동작)
+    - 미선택 + 그 외 reader_level → 변증 1단락 가이드 (자동 모드)
+    - 사상체질 + 변증시치 동시 선택 → 변증시치 자동 배제 (체질의학 상호 배타)
+    - 사상체질 포함 → 사상체질 참고 문서 전체 주입
+    """
+    # 자동 모드 (미선택)
     if not explanation_types:
-        # 아무것도 선택하지 않으면 일반 설명(제약 없음)
-        return ""
+        if reader_level == "한의학관심":
+            return ""
+        return _BRIEF_BYEONJEUNG_INSTRUCTION
+
+    # 사상체질 + 변증시치 동시 선택 시 변증시치 자동 배제
+    if "사상체질" in explanation_types and "변증시치" in explanation_types:
+        explanation_types = [t for t in explanation_types if t != "변증시치"]
 
     lines = ["## 설명 방식 지침 (CRITICAL — 반드시 준수)"]
     lines.append("원인 설명 섹션은 아래에 지정된 관점으로만 작성하세요.")
@@ -306,6 +343,13 @@ def _build_explanation_section(explanation_types: Optional[List[str]]) -> str:
     omitted = [k for k in all_keys if k not in explanation_types]
     if omitted:
         lines.append(f"다음 관점은 선택되지 않았으므로 원인 설명 섹션에 포함하지 마세요: {', '.join(omitted)}")
+
+    # 사상체질 선택 시 참고 문서 전체 주입
+    if "사상체질" in explanation_types:
+        sasang_ref = _load_sasang_reference()
+        if sasang_ref:
+            lines.append("\n---\n# 사상체질 참고 문서 (체질·변증·처방 67방 — 절대 준수)\n")
+            lines.append(sasang_ref)
 
     return "\n".join(lines)
 
@@ -331,6 +375,7 @@ def _build_diversity_section(
     format_id: Optional[str] = None,
     mode: str = "정보",
     char_count: Optional[dict] = None,
+    explanation_types: Optional[List[str]] = None,
 ) -> dict:
     """
     v0.3 다양성 레이어 — format/hook/citation 선택 및 프롬프트 블록 반환.
@@ -375,15 +420,15 @@ def _build_diversity_section(
     hook_instruction = get_hook_instruction(hook_id)
 
     format_template = load_format_template(chosen_format["template_path"])
-    citation_block = build_citation_block(keyword, diversity_config)
+    citation_block = build_citation_block(keyword, diversity_config, explanation_types)
 
     prompt_lines: list[str] = []
 
-    # 3. citation이 있으면 LLM의 참고 자료 섹션 생략 지시
+    # 3. citation이 있으면 LLM의 참고 문헌 섹션 생략 지시
     if citation_block:
         prompt_lines.append(
-            "\n[참고 자료 생략] 관련 학술자료는 시스템이 자동으로 추가합니다. "
-            "본문에서 '## 참고 자료', '## 미주', '## 출처' 등 별도 섹션을 작성하지 마세요."
+            "\n[참고 문헌 생략] 학술 자료 검색 링크는 시스템이 자동으로 추가합니다. "
+            "본문에서 '## 참고 문헌', '## 참고 자료', '## 미주', '## 출처' 등 별도 섹션을 작성하지 마세요."
         )
 
     # 4. Format sub-prompt
@@ -486,7 +531,10 @@ def build_prompt_text(
     history_path = Path(__file__).parent.parent / "data" / "blog_history.json"
 
     diversity_cfg = config.get("diversity", {})
-    diversity = _build_diversity_section(keyword, diversity_cfg, format_id=format_id, mode=mode)
+    diversity = _build_diversity_section(
+        keyword, diversity_cfg, format_id=format_id, mode=mode,
+        explanation_types=explanation_types,
+    )
 
     # case_study 형식에서 reader_level=일반인 → 한의학관심 자동 상향
     if diversity.get("format_id") == "case_study" and reader_level == "일반인":
@@ -512,7 +560,7 @@ def build_prompt_text(
             reader_level, _READER_LEVEL_INSTRUCTIONS["일반인"]
         ),
         seo_keywords_section=_build_seo_keywords_section(seo_keywords or []),
-        explanation_section=_build_explanation_section(explanation_types),
+        explanation_section=_build_explanation_section(explanation_types, reader_level),
         clinic_info_section=_build_clinic_info_section(clinic_info),
         related_posts_section=_build_related_posts_section(recent_posts, keyword),
     )
@@ -599,7 +647,8 @@ def generate_blog_stream(
     # v0.3 다양성 레이어 — pattern_selector보다 먼저 실행해야 충돌 방지 파라미터 전달 가능
     diversity_cfg = config.get("diversity", {})
     diversity = _build_diversity_section(
-        keyword, diversity_cfg, format_id=format_id, mode=mode, char_count=char_count
+        keyword, diversity_cfg, format_id=format_id, mode=mode, char_count=char_count,
+        explanation_types=explanation_types,
     )
 
     # case_study 형식에서 reader_level=일반인 → 한의학관심 자동 상향
@@ -634,7 +683,7 @@ def generate_blog_stream(
             reader_level, _READER_LEVEL_INSTRUCTIONS["일반인"]
         ),
         seo_keywords_section=_build_seo_keywords_section(seo_keywords or []),
-        explanation_section=_build_explanation_section(explanation_types),
+        explanation_section=_build_explanation_section(explanation_types, reader_level),
         clinic_info_section=_build_clinic_info_section(clinic_info),
         related_posts_section=_build_related_posts_section(recent_posts, keyword),
     )

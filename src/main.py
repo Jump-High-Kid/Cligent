@@ -487,6 +487,16 @@ async def app_shell(request: Request):
     return FileResponse(ROOT / "templates" / "app.html", headers=_NO_CACHE)
 
 
+@app.get("/dashboard")
+async def dashboard_page(request: Request):
+    """대시보드 — app.html iframe 안에서 로드되는 직접 서빙 라우트.
+    `/` 가 인증 시 `/app`으로 리다이렉트하므로, iframe 무한 재귀 방지를 위해 별도 경로 사용."""
+    token = request.cookies.get(COOKIE_NAME)
+    if not token:
+        return RedirectResponse("/login")
+    return FileResponse(ROOT / "templates" / "dashboard.html", headers=_NO_CACHE)
+
+
 @app.get("/blog")
 async def blog_page(request: Request):
     """블로그 생성기"""
@@ -1771,7 +1781,9 @@ async def generate_image_prompts(request: Request, user: dict = Depends(get_curr
 
 @app.get("/chat")
 async def chat_page(request: Request, current_user: dict = Depends(get_current_user)):
-    return FileResponse(ROOT / "templates" / "chat.html")
+    """AI 도우미 — 베타 이후 자연어 라우팅 어시스턴트로 재구현 예정 (현재 비활성).
+    URL 직접 접근 시 대시보드로 리다이렉트."""
+    return RedirectResponse("/dashboard")
 
 
 @app.get("/api/agents/available")

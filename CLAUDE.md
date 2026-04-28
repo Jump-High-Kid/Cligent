@@ -22,7 +22,50 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **의학 정보**: 검증되지 않은 치료 효과는 사실로 제시 금지 — 항상 불확실성 명시
 - **처방 데이터**: 약재명은 KCD 또는 표준 한의학 용어 사용
 
-## 현재 구현 상태 (2026-04-27 기준)
+## 현재 구현 상태 (2026-04-28 기준)
+
+### 블로그 프롬프트 v0.4 (2026-04-28)
+- **체류시간 예고문 다양화**: 정형 문구 ("많은 분들이 놓치는 핵심...") 그대로 인용 금지, 8가지 형태(구체정보·질문자극·오해환기·행동유도·사례예고·핵심압축·실용가치·비교안내) 참고용 제시
+- **"참고 자료" → "참고 문헌" 통일**: `prompts/blog.txt` 섹션 제목·`src/citation_provider.py` 헤더·블로그 구조 7번 모두 일괄
+- **참고 문헌 4~6개 + 학술 검색 출처 우선**: RISS·KCI·Google Scholar·PubMed 4개 동적 + 정적 1 = 5개 자동. config.yaml `providers: ["riss","kci","google_scholar","pubmed"]`
+- **사상체질 참고 문서 분리**: `prompts/references/sasang.txt` 신설 — 동의수세보원 신축본 67방(태양2/태음24/소양17/소음24) + LLM 사용 규칙(체질변증·체질방 화이트리스트, 일반 변증·일반 처방명 금지). `_build_explanation_section()`이 사상체질 선택 시 자동 주입
+- **임상진료지침 자동 인용**: 사상체질 선택 시 정적 인용 1개 → 동의수세보원 + 사상체질의학회 임상진료지침 2개 고정
+- **변증 자동 모드 가이드**: explanation_types 미선택 + 일반/건강관심 reader_level → "한의학에서는 [증상]을 [변증]으로 분류" 1단락 제한. 한의학관심 모드는 기존 자유 출력
+- **사상체질 ↔ 변증시치 상호 배타**: 백엔드(`_build_explanation_section`) + UI(`toggleExplChip`) 양방향 가드
+- **AI 문체 억제 강화**: "예시 문구 그대로 인용 금지" 규칙 추가 — 모든 예문은 참고용, 매번 다른 표현
+
+### 이미지 프롬프트 v0.5 (2026-04-28)
+- **🔴 최우선 준수 섹션 신설**: `prompts/image_generation.txt` 최상단 4대 원칙 — 인체 묘사 정밀성 / 한국 의료 정체성 / 해부학 도해 형태 보존 / 색 변형 인접 색상 한정
+- **8K resolution 제거**: photorealistic 접두어에서 `8K resolution` → `web-resolution detail` (900×900 모바일 대응)
+- **한국 의료 정체성 시각 단서 7종**: 한약(한지 약봉지·전탕기), 침(스테인리스 트레이 멸균), 뜸(간접뜸 paper barrier), 부항(투명 플라스틱 펌프), 추나(Korean Chuna table), 진료실(현대 한의원), 의복(한국 standard)에 한국식 명시 + 중국·일본 차단
+- **공통 네거티브 강화**: 관절 혼동(elbow on leg, knee on arm), 디지트(extra/missing/fused fingers, six fingers), 좌우대칭, 중국 TCM(red lanterns, ceramic herb jars), 일본 kampo·shiatsu, 간체자·신자체 텍스트
+- **해부학 부위 disambiguation**: `image_analysis.txt` scene 객체에 `anatomical_region` 필드 (leg/arm/foot/hand/back/head/torso/none) — 경혈 코드별 자동 매핑. `image_generation.txt`가 이 필드를 읽어 "LEG anatomy with knee joint and patella — NOT arm, NOT elbow joint" 식으로 명시 박아넣기
+- **단일 이미지 강제**: 모든 프롬프트 끝에 `generate as single standalone image, do not combine into grid/mosaic/collage` 자동 부착 (Nano Banana 2/ChatGPT 정책 변경 대응)
+- **의학 레퍼런스 충실도**: 해부학 도해 한정 `WHO Standard Acupuncture Point Locations, Netter Atlas standard, no creative reinterpretation`
+- **스타일별 후미 파라미터에 정확성 추가**: photorealistic `anatomically accurate, medical illustration accuracy`, 그 외 `correct human anatomy`
+
+### 이미지 결과 UI 통합 액션 바 (2026-04-28)
+- `templates/index.html` `imagePromptOutput` 위에 통합 컨트롤 바 신설
+- AI 선택 탭: Midjourney(기본) / ChatGPT / Gemini
+- **Midjourney 선택 시**: "5개 모두 복사 (Midjourney)" 1버튼 (가로 100%) — 그리드 출력 친화
+- **ChatGPT/Gemini 선택 시**: 1번~5번 개별 복사 버튼 5개 (`flex-wrap: nowrap` 한 줄 강제) — 모자이크 합성 회피
+- ChatGPT/Gemini 복사 시 자동으로 Midjourney 파라미터 제거 + "Generate a single standalone image" 머리에 삽입
+- 토스트 알림 (1.8초)
+- 기존 카드별 버튼은 폴백으로 유지
+
+### iframe 무한 재귀 수정 (2026-04-28)
+- **버그**: `/`→`/app` 리다이렉트 + `app.html` iframe이 `/` 로드 → 재귀 nesting → 사이드바 3개·온보딩 위자드 3개 표시
+- **수정**: `src/main.py`에 `/dashboard` 라우트 신설(dashboard.html 직접 서빙, 리다이렉트 없음). `templates/app.html` 사이드바 데이터·모바일 nav·iframe 초기 path 모두 `/dashboard`로 갱신
+- 사용자 직접 `/`/`/app` 진입 → app.html → iframe `/dashboard` 단일 로드
+
+### AI 도우미 베타용 차단 (2026-04-28)
+- **결정**: 에이전트 챗 시스템(`agent_router.py` + 8개 prompt)은 베타에 노출하지 않음. Cligent 정체성과 다른 챗 동작 회피
+- **차단**: 사이드바 "AI 도우미 (준비 중)" 비활성, 모바일 nav 비활성, `/chat` → `/dashboard` 리다이렉트
+- **유지**: 백엔드 인프라(`/api/agent/chat`, agent_router/middleware, 8 YAML+prompt) 그대로 — 베타 이후 자연어 라우팅 어시스턴트로 재구현 예정 (의도: 자연어 → Cligent 기능 페이지 이동, 화이트리스트 기반 Q&A, 범위 외 질문 회피)
+
+---
+
+## 이전 구현 상태 (2026-04-27 기준)
 
 ### 베타 런치 트랙 (B1~B4 Step 1 완료)
 - **B1 백업**: launchd 04:00 일일 (`scripts/backup.sh` + `~/Library/LaunchAgents/kr.cligent.backup.plist`). openssl AES-256-CBC + Keychain 비번

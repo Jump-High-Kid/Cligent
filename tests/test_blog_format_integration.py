@@ -172,7 +172,7 @@ class TestSystemPromptInjection:
         replace_events = [e for e in events if "replace" in e]
         assert len(replace_events) > 0, "replace 이벤트가 없음 — citation이 append되지 않았을 수 있음"
         final_text = replace_events[-1]["replace"]
-        assert "riss.kr" in final_text or "kci.go.kr" in final_text or "관련 학술자료" in final_text
+        assert "riss.kr" in final_text or "kci.go.kr" in final_text or "참고 문헌" in final_text
 
 
 class TestBuildPromptEndpoint:

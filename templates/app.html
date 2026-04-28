@@ -114,7 +114,7 @@
 
   <!-- 네비게이션 -->
   <nav class="flex flex-col gap-y-1 flex-1">
-    <a class="nav-item flex items-center gap-3 text-stone-600 px-4 py-3 rounded-xl hover:bg-stone-200 transition-all cursor-pointer" data-path="/">
+    <a class="nav-item flex items-center gap-3 text-stone-600 px-4 py-3 rounded-xl hover:bg-stone-200 transition-all cursor-pointer" data-path="/dashboard">
       <span class="material-symbols-outlined flex-shrink-0">dashboard</span>
       <span class="nav-label font-medium text-sm whitespace-nowrap">대시보드</span>
     </a>
@@ -122,9 +122,9 @@
       <span class="material-symbols-outlined flex-shrink-0">article</span>
       <span class="nav-label font-medium text-sm whitespace-nowrap">블로그 생성기</span>
     </a>
-    <a class="nav-item flex items-center gap-3 text-stone-600 px-4 py-3 rounded-xl hover:bg-stone-200 transition-all cursor-pointer" data-path="/chat">
+    <a class="nav-item flex items-center gap-3 text-stone-400 px-4 py-3 rounded-xl cursor-not-allowed" data-path="#" title="베타 이후 오픈 예정 — Cligent 기능 안내·자연어 페이지 이동 어시스턴트로 재구현 예정">
       <span class="material-symbols-outlined flex-shrink-0">chat</span>
-      <span class="nav-label font-medium text-sm whitespace-nowrap">AI 도우미</span>
+      <span class="nav-label font-medium text-sm whitespace-nowrap">AI 도우미 (준비 중)</span>
     </a>
     <a class="nav-item flex items-center gap-3 text-stone-600 px-4 py-3 rounded-xl hover:bg-stone-200 transition-all cursor-pointer" data-path="/youtube">
       <span class="material-symbols-outlined flex-shrink-0">smart_display</span>
@@ -605,7 +605,7 @@
 <nav id="mobile-nav" style="display:none;"
   class="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-stone-200 safe-area-inset-bottom">
   <div class="flex items-center justify-around px-2 py-2">
-    <button onclick="mobileNav('/')"
+    <button onclick="mobileNav('/dashboard')"
       id="mnav-dash"
       class="mobile-nav-btn flex flex-col items-center gap-0.5 flex-1 py-1.5 rounded-xl transition-all">
       <span class="material-symbols-outlined text-[22px]">dashboard</span>
@@ -617,9 +617,10 @@
       <span class="material-symbols-outlined text-[22px]">article</span>
       <span class="text-[10px] font-medium">블로그</span>
     </button>
-    <button onclick="mobileNav('/chat')"
+    <button onclick="alert('AI 도우미는 베타 이후 오픈 예정입니다.')"
       id="mnav-chat"
-      class="mobile-nav-btn flex flex-col items-center gap-0.5 flex-1 py-1.5 rounded-xl transition-all">
+      class="mobile-nav-btn flex flex-col items-center gap-0.5 flex-1 py-1.5 rounded-xl transition-all opacity-40 cursor-not-allowed"
+      disabled>
       <span class="material-symbols-outlined text-[22px]">chat</span>
       <span class="text-[10px] font-medium">AI 도우미</span>
     </button>
@@ -819,14 +820,15 @@
   function updateActive(path) {
     document.querySelectorAll('.nav-item').forEach(el => {
       const p = el.dataset.path;
-      const isActive = p === path || (path === '/' && p === '/');
+      // '/' 접근 시에도 대시보드 활성 표시 (호환)
+      const isActive = p === path || (path === '/' && p === '/dashboard');
       el.classList.toggle('bg-emerald-900', isActive);
       el.classList.toggle('text-white', isActive);
       el.classList.toggle('text-stone-600', !isActive);
       el.classList.toggle('hover:bg-stone-200', !isActive);
     });
     // 모바일 하단 네비 활성 상태
-    const mobileMap = { '/': 'mnav-dash', '/blog': 'mnav-blog', '/chat': 'mnav-chat', '/settings': 'mnav-settings' };
+    const mobileMap = { '/dashboard': 'mnav-dash', '/': 'mnav-dash', '/blog': 'mnav-blog', '/chat': 'mnav-chat', '/settings': 'mnav-settings' };
     document.querySelectorAll('.mobile-nav-btn').forEach(btn => btn.classList.remove('active'));
     const activeId = mobileMap[path];
     if (activeId) document.getElementById(activeId)?.classList.add('active');
@@ -884,9 +886,11 @@
     }
 
     // 현재 URL 기준으로 초기 페이지 결정 (?onboard=1은 쿼리만 제거)
+    // /app 직접 접근 또는 /로 들어와서 /app으로 리다이렉트된 경우 → iframe은 /dashboard 로드
+    // (iframe이 /를 로드하면 / → /app 리다이렉트로 무한 재귀 발생)
     const params = new URLSearchParams(location.search);
     const onboard = params.get('onboard') === '1';
-    const path = location.pathname === '/app' ? '/' : location.pathname;
+    const path = (location.pathname === '/app' || location.pathname === '/') ? '/dashboard' : location.pathname;
     document.getElementById('frame').src = path;
     updateActive(path);
     // ?onboard=1 파라미터 제거 (히스토리에 깨끗한 URL 남기기)
