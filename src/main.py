@@ -56,7 +56,7 @@ from fastapi.exception_handlers import http_exception_handler, request_validatio
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import (
     FileResponse, HTMLResponse, JSONResponse,
-    RedirectResponse, StreamingResponse,
+    RedirectResponse, Response, StreamingResponse,
 )
 from fastapi.staticfiles import StaticFiles
 
@@ -630,6 +630,61 @@ async def root(request: Request):
         return RedirectResponse("/app")
     # 미인증 → 마케팅 랜딩 페이지
     return FileResponse(ROOT / "templates" / "landing.html")
+
+
+# ── SEO: robots.txt / sitemap.xml ─────────────────────────────────
+
+@app.get("/robots.txt")
+async def robots_txt() -> Response:
+    """검색엔진 크롤러용 robots.txt — 공개 페이지만 허용, 앱·관리자 차단."""
+    body = (
+        "User-agent: *\n"
+        "Allow: /\n"
+        "Disallow: /api/\n"
+        "Disallow: /admin\n"
+        "Disallow: /admin/\n"
+        "Disallow: /app\n"
+        "Disallow: /dashboard\n"
+        "Disallow: /blog\n"
+        "Disallow: /chat\n"
+        "Disallow: /settings\n"
+        "Disallow: /onboard\n"
+        "Disallow: /login\n"
+        "Disallow: /forgot-password\n"
+        "Disallow: /youtube\n"
+        "Disallow: /help\n"
+        "\n"
+        "Sitemap: https://cligent.kr/sitemap.xml\n"
+    )
+    return Response(content=body, media_type="text/plain; charset=utf-8")
+
+
+@app.get("/sitemap.xml")
+async def sitemap_xml() -> Response:
+    """검색엔진 색인용 사이트맵 — 공개 페이지 4개."""
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    urls = [
+        ("https://cligent.kr/",         "weekly",  "1.0"),
+        ("https://cligent.kr/terms",    "monthly", "0.3"),
+        ("https://cligent.kr/privacy",  "monthly", "0.3"),
+        ("https://cligent.kr/business", "monthly", "0.3"),
+    ]
+    parts = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    ]
+    for loc, freq, prio in urls:
+        parts.append(
+            f"  <url>\n"
+            f"    <loc>{loc}</loc>\n"
+            f"    <lastmod>{today}</lastmod>\n"
+            f"    <changefreq>{freq}</changefreq>\n"
+            f"    <priority>{prio}</priority>\n"
+            f"  </url>"
+        )
+    parts.append("</urlset>")
+    body = "\n".join(parts) + "\n"
+    return Response(content=body, media_type="application/xml; charset=utf-8")
 
 
 # ── 인증 API ──────────────────────────────────────────────────────

@@ -24,6 +24,51 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 현재 구현 상태 (2026-04-29 기준)
 
+### 랜딩 리뉴얼 1·2단계 + SEO 인프라 (2026-04-29)
+
+**1단계 — 카피·구조 (`templates/landing.html`):**
+- 한의원장→**원장님** 통일, 베타 배지 "선착순 5명 무료" 제거
+- Hero h1: "원장님의 **시간**을 돌려드립니다" (시간 단어만 accent), 서브카피 마케팅 톤
+- Problem 섹션 마케팅·신환 확보 톤 (네이버 C-Rank, 마케팅 대행 200~1000만원, 도구 4~5개)
+- Solution **3 STEP→4 STEP** (주제→옵션→AI 생성+학술 검색→이미지), "30초"→"1~2분"
+- **BYOAI 섹션 → "왜 Cligent인가" 비교 섹션**: 7개 항목(한의학 이해도·블로그 프롬프트·**휴머나이저**·이미지·참고 문헌·이용량·운영·고도화)
+- **로드맵 섹션 신설** (Trust 다음): 현재(블로그+이미지)·다음(유튜브)·이후(재고/문진/CRM)·비전
+- 베타 섹션 "선착순 5명 무료" → "베타 테스터로 먼저 만나보세요"
+
+**2단계 — 디자인:**
+- **soft sage 보조 컬러** 토큰 신설(`--sage:#a8b5a0`, `--sage-soft:#eef1ea`, `--sage-tint:#f6f8f4`)
+- 배경 아이보리(#faf9f5)→**pure white** 통일
+- 타이포 위계 강화(h1 40~76px, 자간 -0.04em, "시간" accent에 sage 하이라이트 underline)
+- 카드 elevation+hover(translateY -3px, shadow-md, sage border) — problem/trust/roadmap/FAQ
+- 로드맵 "현재" 카드는 emerald 배경 그라데이션
+- **section-label에 sage dash** 추가(`— SECTION` 형태)
+- 히어로에 sage+emerald 라디얼 글로우 2개
+- 베타 섹션 sage-tint 그라데이션 + 카드 shadow-md
+- **비교표 강화**: Cligent 헤더 emerald 풀 배경 + 흰 글자, 셀에 ✓ 자동 prefix, 행 hover sage-tint
+- 헤더 backdrop blur 12px, 로고 옆 **"Beta" 배지** 추가(sage-soft 배경)
+- 로고 SVG: `font-size 26, x=4 y=27`, 스파클 `translate(23 8) scale(0.08)`, 색 **pure white** 통일
+- 섹션 padding 64→96px, footer sage-tint 배경
+
+**SEO 인프라 (`src/main.py` + `templates/landing.html`):**
+- FastAPI 라우트 신설:
+  - `GET /robots.txt` — 공개 페이지 허용, `/api/`·`/admin`·`/app`·`/dashboard`·`/blog`·`/chat`·`/settings`·`/onboard`·`/login`·`/forgot-password`·`/youtube`·`/help` 차단
+  - `GET /sitemap.xml` — 공개 4개 URL(/, /terms, /privacy, /business), `lastmod` 자동 갱신
+  - `from fastapi.responses import Response` 추가
+- `landing.html` head 메타 보강:
+  - `<link rel="canonical">`, `<meta name="keywords|author|robots">`
+  - **Open Graph 풀세트**: title/description/type/url/site_name/locale/image(1200×630)/image:alt
+  - **Twitter Card**: summary_large_image
+  - **JSON-LD `@graph`**: Organization + WebSite + SoftwareApplication
+- **Google Search Console 소유권 인증 완료** (토큰: `1W24HKtWNVkWebhUsc-IyUG6TjyeVVNm3WN1Tpwb8dg`)
+- **Naver Search Advisor 소유권 인증 완료** (토큰: `4f52868ae171c9987fd900323d156bc39f74b4d3`)
+- **남은 작업**: 사이트맵 제출(Search Console + Search Advisor), URL 색인 요청, OG 이미지(1200×630 PNG) 생성
+
+**알려진 이슈 — 모바일 Chrome 미해결:**
+- cligent.kr이 모바일 Chrome에서 안 열림 (데스크톱 Chrome / 모바일 Naver는 정상)
+- Safe Browsing 차단 아님(데이터 없음=신규 미색인)
+- 가설: HTTP/3(QUIC)이 ASUS 공유기 UDP 443 포트포워딩 미통과 → Caddy `Alt-Svc: h3` 광고하지만 Chrome 모바일이 fallback에 실패하는 케이스 의심
+- 다른 폰 결과 + Caddyfile 확인 후, 임시 해결: Caddy 전역에 `protocols h1 h2` 또는 라우터에서 UDP 443 포트포워딩 추가
+
 ### 대시보드 실데이터 전환 (2026-04-29)
 - `templates/dashboard.html` 환자 관리 목업(KPI 5장·차트·CRM 후속조치·교육영상) 전부 제거
 - 새 구성: 인사말+"새 블로그 작성" CTA / 사용량 3카드(이번 달·누적·첫 블로그까지) / **최근 생성한 블로그 리스트** (10건 + "더 보기") / 다음 시리즈 주제 칩 / 최근 공지 1건
