@@ -22,7 +22,58 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **의학 정보**: 검증되지 않은 치료 효과는 사실로 제시 금지 — 항상 불확실성 명시
 - **처방 데이터**: 약재명은 KCD 또는 표준 한의학 용어 사용
 
-## 현재 구현 상태 (2026-04-28 기준)
+## 현재 구현 상태 (2026-04-29 기준)
+
+### 대시보드 실데이터 전환 (2026-04-29)
+- `templates/dashboard.html` 환자 관리 목업(KPI 5장·차트·CRM 후속조치·교육영상) 전부 제거
+- 새 구성: 인사말+"새 블로그 작성" CTA / 사용량 3카드(이번 달·누적·첫 블로그까지) / **최근 생성한 블로그 리스트** (10건 + "더 보기") / 다음 시리즈 주제 칩 / 최근 공지 1건
+- 발행 상태 뱃지 4단계: `미등록`·`대기 중`(파랑)·`✓ 발행 확인됨`(녹색·클릭 시 네이버 글)·`! 누락`(앰버)
+- 액션: 보기(`/api/blog/history/{id}/text` → 새 창 미리보기), 발행 확인 등록(`/api/blog/history/{id}/publish-check`)
+- `GET /api/blog/publish-status` 신규 — `{by_id: {blog_stat_id: {status, found_url, started_at, check_count}}}` 일괄 반환
+- 헤더 우측 아이콘(알림·설정·사람) 통일 — 모두 `w-9 h-9 rounded-full border-emerald-700`, 사람 아이콘은 `/settings#system`(시스템 & 보안 탭)으로 이동
+- `settings.html`에 해시 딥링크 추가 — `location.hash`(`#system`) 읽고 매칭하는 tab-btn 자동 클릭. `app.html` `updateActive`도 hash 제거 후 매칭
+
+### 관리자 패널 P1 (2026-04-29)
+- **`_require_admin_or_session(request)`** 헬퍼 신설(`src/main.py`) — 세션(chief_director + ADMIN_CLINIC_ID) **또는** `ADMIN_SECRET` Bearer. CLI 스크립트 호환 유지
+- 진입점: `/admin` 인덱스(5카드) + `app.html` 사이드바·모바일 드로어 "관리자" 메뉴(`is_admin`만)
+- 기존 `/admin/settings`, `/admin/applicants` 페이지의 secret 모달·`sessionStorage.admin_secret`·Bearer 헤더 모두 제거 → 세션 쿠키만으로 진입
+- **신규 페이지 3개:**
+  - `/admin/clinics` — 클리닉 전체 목록 + 메타 수정 모달(plan_id/trial_expires_at/plan_expires_at). API: `GET /api/admin/clinics`, `PATCH /api/admin/clinic/{id}`
+  - `/admin/usage` — 이번 달 블로그·누적·프롬프트 복사·오늘 에러 + Top 50 클리닉 랭킹. API: `GET /api/admin/usage`
+  - `/admin/feedback` — 필터(전체/미확인/확인됨), NEW 뱃지, viewed_at 토글. API: `GET /api/admin/feedback`, `POST /api/admin/feedback/{id}/viewed`, `POST /api/admin/feedback/{id}/unview`
+- DB 마이그: `feedback.viewed_at TEXT` 컬럼 ALTER
+
+### 참고 문헌 검증 가능성 강화 (2026-04-29)
+- **문제**: 사용자가 생성된 블로그의 인용을 역검색했을 때 안 잡힘 → 가상 논문 할루시네이션
+- **수정 (4단)**:
+  - **A. RAG 항상 호출** — `search_all_academic`이 정보·전문 모드에서만 → 모든 모드에서. 0건 반환 시 시스템 프롬프트에 "학술 논문 형식 인용 작성 금지" 주입
+  - **B. `prompts/blog.txt` 재작성** — "절대 원칙: 가상 인용 생성 금지" 섹션 신설, "4~6개 항목" 강제 제거, RAG 자료만 인용 가능
+  - **C. `build_rag_context_for_prompt`** 5대 규칙: 번호 그대로 / 메타데이터·URL 그대로 / 인용구는 초록만 / 가상 논문 금지 (PubMed URL은 PMID 직링크)
+  - **D. `citation_provider.build_citation_block`** — "원전 / 가이드라인" + "추가 검색 링크 — 클릭하여 직접 확인하세요" 두 그룹 분리
+
+### 공지사항 게시판 (2026-04-29 신설, 2026-04-29 정책 확립)
+- DB: `announcements` / `announcement_reads` / `announcement_attachments` 3 테이블
+- 라우트: `/announcements` (목록), `/announcements/{id}` (상세), `/announcements/new`·`/{id}/edit` (admin only)
+- API: `GET /api/announcements`, `GET/POST /api/announcements/{id}`, `PATCH/DELETE`, `POST /api/announcements/{id}/read`, `GET /api/announcements/unread-count`, `POST /api/announcements/upload-image`
+- 권한: `_require_announce_admin` — chief_director + ADMIN_CLINIC_ID
+- 본문: marked.js + DOMPurify 클라이언트 markdown 렌더, 이미지 첨부 5MB(jpg/png/webp/gif), `static/uploads/announcements/`에 저장
+- 카테고리 3종(업데이트/점검/일반), 상단 고정, 안 읽은 공지 뱃지(사이드바 숫자, 모바일 점)
+- **공지 작성 정책**: 외부 사용자용 — 내부 구현 상세(파일명·버전·정책 수치) 제외, 사용자 가치 중심. memory `feedback_announcement_scope.md`
+
+### 모바일 UX 정비 (2026-04-29)
+- `/mobile` 라우트 + UA sniff 제거 → **단일 진입점 `/app` 반응형**으로 통일
+- 햄버거(좌상단) ↔ API 아이콘(우상단). 둘 다 `top-4 w-9 h-9 text-[20px] border-emerald-700 rounded-full bg-white`
+- 햄버거 클릭 시 우측 슬라이드 드로어 — 도움말 / YouTube / 팀원 초대 / 관리자(is_admin) / 로그아웃
+- 하단 nav 4탭: 대시보드 / 블로그(`edit_square` 아이콘 — 공지의 `campaign`과 시각 분리) / 공지(미확인 빨간 점) / 설정. 컨테이너에 `w-full` 추가해 좌우 균등 배치
+- API 키 배너: `확인` ✓ → `닫기` ✗(close 아이콘)으로 변경, 일일 닫기 정책(`localStorage.cligent_apikey_banner_dismissed`). 등록 여부 무관 표시(원장 테스트 편의)
+
+### 랜딩 정비 (2026-04-29)
+- `templates/landing.html` 가격 정보 완전 제거: 네비 "가격" 링크, `#pricing` 섹션(Free/Standard/Pro 3카드 + 베타 안내) 51줄, FAQ "Standard 29,000원" 구체 가격
+- FAQ 답변 → "정식 가격은 베타 운영 결과에 따라 추후 공지"
+
+---
+
+## 이전 구현 상태 (2026-04-28 기준)
 
 ### RAG 학술 검색 통합 (2026-04-28)
 - **신규 파일**: `src/academic_search.py` — 3소스(jkom·PubMed·Naver doc) 병렬 검색 + 24h 디스크 캐시

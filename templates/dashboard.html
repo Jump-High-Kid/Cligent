@@ -238,19 +238,20 @@
         <button onclick="submitDashFeedback()" class="absolute right-3 top-1/2 -translate-y-1/2 bg-emerald-900 text-white text-xs font-semibold px-3 py-1.5 rounded-full hover:opacity-90 transition-all">전송</button>
       </div>
     </div>
-    <div class="flex items-center gap-4">
-      <button class="hover:bg-surface-container-highest p-2 rounded-full transition-all">
-        <span class="material-symbols-outlined text-slate-600">notifications</span>
+    <div class="flex items-center gap-2">
+      <span id="header-email" class="text-[0.8125rem] text-on-surface-variant hidden sm:block mr-1"></span>
+      <button title="알림"
+        class="w-9 h-9 rounded-full border border-emerald-700 bg-white hover:bg-emerald-50 transition-all inline-flex items-center justify-center">
+        <span class="material-symbols-outlined text-[20px] text-emerald-900">notifications</span>
       </button>
-      <a onclick="(window.parent!==window?window.parent.navigate('/settings'):window.location.href='/settings');return false;" href="/settings" class="hover:bg-surface-container-highest p-2 rounded-full transition-all inline-flex">
-        <span class="material-symbols-outlined text-slate-600">settings</span>
+      <a onclick="(window.parent!==window?window.parent.navigate('/settings'):window.location.href='/settings');return false;" href="/settings" title="설정"
+        class="w-9 h-9 rounded-full border border-emerald-700 bg-white hover:bg-emerald-50 transition-all inline-flex items-center justify-center">
+        <span class="material-symbols-outlined text-[20px] text-emerald-900">settings</span>
       </a>
-      <div class="flex items-center gap-2 ml-2">
-        <span id="header-email" class="text-[0.8125rem] text-on-surface-variant hidden sm:block"></span>
-        <div class="h-8 w-8 rounded-full bg-surface-container-high border border-outline-variant/15 flex items-center justify-center">
-          <span class="material-symbols-outlined text-primary">person</span>
-        </div>
-      </div>
+      <a onclick="(window.parent!==window?window.parent.navigate('/settings#system'):window.location.href='/settings#system');return false;" href="/settings#system" title="프로필 설정 (시스템 & 보안)"
+        class="w-9 h-9 rounded-full border border-emerald-700 bg-white hover:bg-emerald-50 transition-all inline-flex items-center justify-center">
+        <span class="material-symbols-outlined text-[20px] text-emerald-900">person</span>
+      </a>
     </div>
   </header>
 
@@ -260,296 +261,84 @@
     <!-- 네이버 발행 확인 알림 배너 (found/expired 항목 있을 때만 표시) -->
     <div id="naver-notifications" class="hidden space-y-2"></div>
 
-    <!-- 인사말 -->
-    <section class="flex justify-between items-end">
+    <!-- 인사말 + 빠른 시작 (A3) -->
+    <section class="flex flex-wrap justify-between items-end gap-4">
       <div>
         <h2 class="text-[1.75rem] font-semibold text-on-surface">안녕하세요, <span class="text-primary" id="greeting-name">원장님</span></h2>
-        <p class="text-slate-500 mt-1" id="greeting-date">오늘의 진료를 확인해보세요.</p>
+        <p class="text-slate-500 mt-1" id="greeting-date">새 블로그를 작성해보세요.</p>
       </div>
-      <div class="flex gap-2">
-        <span class="px-4 py-2 bg-secondary-container text-on-secondary-fixed-variant rounded-full text-[0.875rem] font-medium">실시간 데이터 업데이트 중</span>
+      <button onclick="(window.parent!==window?window.parent.navigate('/blog'):window.location.href='/blog');"
+        class="inline-flex items-center gap-2 px-5 py-3 bg-emerald-900 hover:bg-emerald-800 text-white rounded-xl font-semibold text-sm shadow-sm transition-all">
+        <span class="material-symbols-outlined text-[20px]">edit_square</span>
+        <span>새 블로그 작성</span>
+      </button>
+    </section>
+
+    <!-- 사용량 요약 (A3) -->
+    <section class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div class="neumorphic-card p-5 rounded-xl border border-outline-variant/10">
+        <p class="text-slate-400 text-[0.75rem] mb-1">이번 달 생성</p>
+        <p class="text-2xl font-bold text-primary" id="blog-this-month">—</p>
+      </div>
+      <div class="neumorphic-card p-5 rounded-xl border border-outline-variant/10">
+        <p class="text-slate-400 text-[0.75rem] mb-1">누적 생성</p>
+        <p class="text-2xl font-bold" id="blog-total">—</p>
+      </div>
+      <div id="blog-onboarding-time" class="hidden neumorphic-card p-5 rounded-xl border border-emerald-100 bg-emerald-50">
+        <p class="text-emerald-700 text-[0.7rem] mb-1 font-semibold uppercase tracking-wide">첫 블로그까지</p>
+        <p class="text-2xl font-bold text-emerald-800" id="blog-onboarding-duration">—</p>
       </div>
     </section>
 
-    <!-- 오늘 통계 카드 행 -->
-    <section class="grid grid-cols-5 gap-6">
-
-      <div data-module="stats_patients" class="neumorphic-card p-6 rounded-xl border border-outline-variant/10">
-        <div class="flex justify-between items-start mb-4">
-          <span class="material-symbols-outlined text-primary bg-primary/10 p-2 rounded-lg">person</span>
-          <span class="text-[0.75rem] font-bold text-primary flex items-center gap-1">
-            <span class="material-symbols-outlined text-[14px]">trending_up</span> 12%
-          </span>
+    <!-- 메인: 최근 생성한 블로그 (A1 + A2 발행 상태 통합) -->
+    <section class="neumorphic-card p-6 sm:p-8 rounded-xl">
+      <div class="flex items-center justify-between mb-5">
+        <div class="flex items-center gap-2">
+          <span class="material-symbols-outlined text-emerald-900">edit_square</span>
+          <h3 class="text-[1.25rem] font-semibold">최근 생성한 블로그</h3>
         </div>
-        <p class="text-slate-500 text-[0.875rem] mb-1">환자 수</p>
-        <h3 class="text-2xl font-bold">142<span class="text-[1rem] font-normal text-slate-400 ml-1">명</span></h3>
+        <a href="/settings#content"
+          onclick="(window.parent!==window?window.parent.navigate('/settings#content'):window.location.href='/settings#content');return false;"
+          class="text-emerald-900 text-sm font-semibold hover:underline">전체 보기 →</a>
       </div>
-
-      <div data-module="stats_appointments" class="neumorphic-card p-6 rounded-xl border border-outline-variant/10">
-        <div class="flex justify-between items-start mb-4">
-          <span class="material-symbols-outlined text-primary bg-primary/10 p-2 rounded-lg">event_available</span>
-          <span class="text-[0.75rem] font-bold text-primary flex items-center gap-1">
-            <span class="material-symbols-outlined text-[14px]">trending_up</span> 5.4%
-          </span>
-        </div>
-        <p class="text-slate-500 text-[0.875rem] mb-1">예약 건수</p>
-        <h3 class="text-2xl font-bold">86<span class="text-[1rem] font-normal text-slate-400 ml-1">건</span></h3>
+      <div id="blog-list-container">
+        <div class="text-sm text-slate-400 text-center py-12">불러오는 중...</div>
       </div>
-
-      <div data-module="stats_cancellations" class="neumorphic-card p-6 rounded-xl border border-outline-variant/10">
-        <div class="flex justify-between items-start mb-4">
-          <span class="material-symbols-outlined text-tertiary bg-tertiary/10 p-2 rounded-lg">event_busy</span>
-          <span class="text-[0.75rem] font-bold text-tertiary flex items-center gap-1">
-            <span class="material-symbols-outlined text-[14px]">trending_down</span> 2%
-          </span>
-        </div>
-        <p class="text-slate-500 text-[0.875rem] mb-1">예약 취소</p>
-        <h3 class="text-2xl font-bold">4<span class="text-[1rem] font-normal text-slate-400 ml-1">건</span></h3>
+      <div id="blog-list-load-more" class="hidden mt-4 text-center">
+        <button onclick="loadMoreBlogs()"
+          class="px-4 py-2 text-sm text-emerald-900 hover:bg-emerald-50 rounded-xl font-semibold">더 보기</button>
       </div>
-
-      <div data-module="stats_revenue" class="neumorphic-card p-6 rounded-xl border border-outline-variant/10">
-        <div class="flex justify-between items-start mb-4">
-          <span class="material-symbols-outlined text-primary bg-primary/10 p-2 rounded-lg">payments</span>
-          <span class="text-[0.75rem] font-bold text-primary flex items-center gap-1">
-            <span class="material-symbols-outlined text-[14px]">trending_up</span> 8.2%
-          </span>
-        </div>
-        <p class="text-slate-500 text-[0.875rem] mb-1">총 매출</p>
-        <h3 class="text-2xl font-bold">12.4<span class="text-[1rem] font-normal text-slate-400 ml-1">M</span></h3>
-      </div>
-
-      <div data-module="stats_revenue_noninsured" class="neumorphic-card p-6 rounded-xl border border-outline-variant/10">
-        <div class="flex justify-between items-start mb-4">
-          <span class="material-symbols-outlined text-primary bg-primary/10 p-2 rounded-lg">clinical_notes</span>
-          <span class="text-[0.75rem] font-bold text-primary flex items-center gap-1">
-            <span class="material-symbols-outlined text-[14px]">trending_up</span> 15%
-          </span>
-        </div>
-        <p class="text-slate-500 text-[0.875rem] mb-1">비급여 매출</p>
-        <h3 class="text-2xl font-bold">5.8<span class="text-[1rem] font-normal text-slate-400 ml-1">M</span></h3>
-      </div>
-
     </section>
 
-    <!-- 중간 섹션 (차트 + CRM) -->
-    <section class="grid grid-cols-12 gap-8">
+    <!-- 하단: 다음 시리즈(A4) + 최근 공지(A5) -->
+    <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-      <div data-module="chart_7day" class="col-span-8 neumorphic-card p-8 rounded-xl">
-        <div class="flex justify-between items-center mb-8">
-          <h3 class="text-[1.375rem] font-semibold">7일간의 지표 추이</h3>
-          <div class="flex gap-4 text-[0.875rem]">
-            <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-primary"></span> 내원 환자</div>
-            <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-secondary"></span> 예약</div>
-          </div>
+      <div class="neumorphic-card p-6 rounded-xl">
+        <div class="flex items-center gap-2 mb-4">
+          <span class="material-symbols-outlined text-emerald-900">auto_stories</span>
+          <h3 class="text-[1.125rem] font-semibold">다음 시리즈 주제</h3>
         </div>
-        <div class="h-64 flex items-end justify-between gap-4 px-2">
-          <div class="flex-1 flex flex-col items-center gap-2 group">
-            <div class="w-full flex items-end justify-center gap-1 h-full">
-              <div class="w-3 bg-primary/20 rounded-t h-[60%] group-hover:bg-primary transition-colors"></div>
-              <div class="w-3 bg-secondary/20 rounded-t h-[45%] group-hover:bg-secondary transition-colors"></div>
-            </div>
-            <span class="text-[0.75rem] text-slate-400">05.18</span>
-          </div>
-          <div class="flex-1 flex flex-col items-center gap-2 group">
-            <div class="w-full flex items-end justify-center gap-1 h-full">
-              <div class="w-3 bg-primary/20 rounded-t h-[75%] group-hover:bg-primary transition-colors"></div>
-              <div class="w-3 bg-secondary/20 rounded-t h-[55%] group-hover:bg-secondary transition-colors"></div>
-            </div>
-            <span class="text-[0.75rem] text-slate-400">05.19</span>
-          </div>
-          <div class="flex-1 flex flex-col items-center gap-2 group">
-            <div class="w-full flex items-end justify-center gap-1 h-full">
-              <div class="w-3 bg-primary/20 rounded-t h-[90%] group-hover:bg-primary transition-colors"></div>
-              <div class="w-3 bg-secondary/20 rounded-t h-[65%] group-hover:bg-secondary transition-colors"></div>
-            </div>
-            <span class="text-[0.75rem] text-slate-400">05.20</span>
-          </div>
-          <div class="flex-1 flex flex-col items-center gap-2 group">
-            <div class="w-full flex items-end justify-center gap-1 h-full">
-              <div class="w-3 bg-primary/20 rounded-t h-[70%] group-hover:bg-primary transition-colors"></div>
-              <div class="w-3 bg-secondary/20 rounded-t h-[50%] group-hover:bg-secondary transition-colors"></div>
-            </div>
-            <span class="text-[0.75rem] text-slate-400">05.21</span>
-          </div>
-          <div class="flex-1 flex flex-col items-center gap-2 group">
-            <div class="w-full flex items-end justify-center gap-1 h-full">
-              <div class="w-3 bg-primary/20 rounded-t h-[85%] group-hover:bg-primary transition-colors"></div>
-              <div class="w-3 bg-secondary/20 rounded-t h-[60%] group-hover:bg-secondary transition-colors"></div>
-            </div>
-            <span class="text-[0.75rem] text-slate-400">05.22</span>
-          </div>
-          <div class="flex-1 flex flex-col items-center gap-2 group">
-            <div class="w-full flex items-end justify-center gap-1 h-full">
-              <div class="w-3 bg-primary/20 rounded-t h-[95%] group-hover:bg-primary transition-colors"></div>
-              <div class="w-3 bg-secondary/20 rounded-t h-[70%] group-hover:bg-secondary transition-colors"></div>
-            </div>
-            <span class="text-[0.75rem] text-slate-400">05.23</span>
-          </div>
-          <div class="flex-1 flex flex-col items-center gap-2 group">
-            <div class="w-full flex items-end justify-center gap-1 h-full">
-              <div class="w-3 bg-primary rounded-t h-[100%] shadow-[0_0_15px_rgba(0,82,67,0.3)]"></div>
-              <div class="w-3 bg-secondary rounded-t h-[75%] shadow-[0_0_15px_rgba(73,100,92,0.3)]"></div>
-            </div>
-            <span class="text-[0.75rem] font-bold text-primary">오늘</span>
-          </div>
-        </div>
+        <p id="series-empty" class="text-sm text-slate-400">블로그를 작성하면 다음 주제 추천이 여기 나타납니다.</p>
+        <div id="series-chips" class="hidden flex flex-wrap gap-2"></div>
       </div>
 
-      <div data-module="crm_actions" class="col-span-4 neumorphic-card p-8 rounded-xl flex flex-col">
-        <h3 class="text-[1.375rem] font-semibold mb-6">후속 조치 리스트</h3>
-        <div class="space-y-4 flex-1">
-          <div class="flex items-center justify-between p-4 bg-surface-container rounded-xl">
-            <div class="flex items-center gap-3">
-              <span class="material-symbols-outlined text-primary">prescriptions</span>
-              <span class="font-medium">재처방 대상</span>
-            </div>
-            <span class="bg-primary text-white px-2 py-0.5 rounded text-[0.75rem]">12명</span>
+      <div class="neumorphic-card p-6 rounded-xl">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-emerald-900">campaign</span>
+            <h3 class="text-[1.125rem] font-semibold">최근 공지</h3>
           </div>
-          <div class="flex items-center justify-between p-4 bg-surface-container rounded-xl">
-            <div class="flex items-center gap-3">
-              <span class="material-symbols-outlined text-primary">call</span>
-              <span class="font-medium">전화 상담 필요</span>
-            </div>
-            <span class="bg-primary text-white px-2 py-0.5 rounded text-[0.75rem]">5명</span>
-          </div>
-          <div class="flex items-center justify-between p-4 bg-surface-container rounded-xl">
-            <div class="flex items-center gap-3">
-              <span class="material-symbols-outlined text-primary">chat</span>
-              <span class="font-medium">카카오톡 문의</span>
-            </div>
-            <span class="bg-primary text-white px-2 py-0.5 rounded text-[0.75rem]">8건</span>
-          </div>
+          <a href="/announcements"
+            onclick="(window.parent!==window?window.parent.navigate('/announcements'):window.location.href='/announcements');return false;"
+            class="text-emerald-900 text-sm font-semibold hover:underline">전체 보기 →</a>
         </div>
-        <div class="mt-8 flex justify-end">
-          <button class="flex items-center gap-2 text-primary font-bold hover:gap-3 transition-all">
-            CRM 바로가기
-            <span class="material-symbols-outlined">arrow_forward</span>
-          </button>
+        <div id="recent-announcement-body">
+          <p class="text-sm text-slate-400">불러오는 중...</p>
         </div>
       </div>
 
     </section>
 
-    <!-- 하단 섹션 -->
-    <section class="grid grid-cols-4 gap-8">
-
-      <div data-module="blog_generator" class="col-span-2 neumorphic-card p-8 rounded-xl group cursor-pointer hover:translate-y-[-4px] transition-all" onclick="location.href='/blog'">
-        <div class="flex justify-between items-start mb-6">
-          <div>
-            <span class="px-2 py-1 bg-primary-container text-on-primary-container rounded text-[0.625rem] font-bold mb-2 inline-block">AI POWERED</span>
-            <h4 class="text-[1.375rem] font-semibold">Blog Generator</h4>
-          </div>
-          <span class="material-symbols-outlined text-primary text-3xl">auto_awesome</span>
-        </div>
-        <!-- 동적 stats 영역 -->
-        <div id="blog-stats" class="mb-5 grid grid-cols-2 gap-3">
-          <div class="bg-surface-container rounded-xl p-3">
-            <p class="text-slate-400 text-[0.7rem] mb-1">이번 달 생성</p>
-            <p class="text-[1.25rem] font-bold text-primary" id="blog-this-month">—</p>
-          </div>
-          <div class="bg-surface-container rounded-xl p-3">
-            <p class="text-slate-400 text-[0.7rem] mb-1">누적 생성</p>
-            <p class="text-[1.25rem] font-bold text-on-surface" id="blog-total">—</p>
-          </div>
-        </div>
-        <!-- 온보딩 → 첫 블로그 소요 시간 (첫 블로그 완료 후에만 표시) -->
-        <div id="blog-onboarding-time" class="mb-5 hidden">
-          <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-3 flex items-center gap-3">
-            <span class="material-symbols-outlined text-emerald-600 text-[20px]" style="font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24;">timer</span>
-            <div>
-              <p class="text-[0.65rem] text-emerald-600 font-semibold uppercase tracking-wide">첫 블로그까지 소요</p>
-              <p class="text-[1rem] font-bold text-emerald-800" id="blog-onboarding-duration">—</p>
-            </div>
-          </div>
-        </div>
-        <div id="blog-recent" class="mb-5 hidden">
-          <p class="text-slate-400 text-[0.7rem] mb-2">최근 생성 주제</p>
-          <ul id="blog-recent-list" class="space-y-1"></ul>
-        </div>
-        <div class="flex gap-2">
-          <span class="bg-surface-container-high px-3 py-1 rounded-full text-[0.75rem] font-medium">네이버 블로그</span>
-          <span class="bg-surface-container-high px-3 py-1 rounded-full text-[0.75rem] font-medium">인스타그램</span>
-        </div>
-      </div>
-
-      <div data-module="insights" class="neumorphic-card p-8 rounded-xl">
-        <div class="flex items-center gap-3 mb-4">
-          <span class="material-symbols-outlined text-secondary">lightbulb</span>
-          <h4 class="text-[1.125rem] font-semibold">New Insights</h4>
-        </div>
-        <p class="text-slate-500 text-[0.875rem] mb-4">최근 3일간 야간 내원 환자가 15% 증가했습니다. 야간 진료 시간 조정을 고려해보세요.</p>
-        <button class="text-primary text-[0.875rem] font-bold">리포트 상세보기</button>
-      </div>
-
-      <!-- Coming Soon 카드들 (모듈 속성 없음 — 항상 표시) -->
-      <div class="space-y-4">
-        <div class="neumorphic-card p-6 rounded-xl relative opacity-60 grayscale">
-          <div class="absolute inset-0 flex items-center justify-center z-10">
-            <div class="bg-surface px-4 py-2 rounded-full border border-outline-variant/30 flex items-center gap-2 shadow-sm">
-              <span class="material-symbols-outlined text-[18px]">lock</span>
-              <span class="text-[0.75rem] font-bold">Coming Soon</span>
-            </div>
-          </div>
-          <div class="flex items-center gap-3 mb-2">
-            <span class="material-symbols-outlined text-slate-400">inventory_2</span>
-            <h4 class="text-[1rem] font-semibold">재고 관리</h4>
-          </div>
-          <div class="h-1 bg-slate-200 rounded-full w-full"></div>
-        </div>
-        <div class="neumorphic-card p-6 rounded-xl relative opacity-60 grayscale">
-          <div class="absolute inset-0 flex items-center justify-center z-10">
-            <div class="bg-surface px-4 py-2 rounded-full border border-outline-variant/30 flex items-center gap-2 shadow-sm">
-              <span class="material-symbols-outlined text-[18px]">lock</span>
-              <span class="text-[0.75rem] font-bold">Coming Soon</span>
-            </div>
-          </div>
-          <div class="flex items-center gap-3 mb-2">
-            <span class="material-symbols-outlined text-slate-400">calendar_month</span>
-            <h4 class="text-[1rem] font-semibold">일정 자동화</h4>
-          </div>
-          <div class="h-1 bg-slate-200 rounded-full w-full"></div>
-        </div>
-      </div>
-
-    </section>
-
-    <!-- 교육 영상 섹션 -->
-    <section data-module="education_videos" class="neumorphic-card p-8 rounded-xl">
-      <div class="flex justify-between items-center mb-6">
-        <h3 class="text-[1.375rem] font-semibold">교육 영상</h3>
-        <button class="text-slate-500 text-[0.875rem] flex items-center gap-1">전체 보기 <span class="material-symbols-outlined text-[16px]">chevron_right</span></button>
-      </div>
-      <div class="grid grid-cols-4 gap-6">
-        <div class="group cursor-pointer">
-          <div class="aspect-video bg-surface-container rounded-xl overflow-hidden mb-3 relative flex items-center justify-center">
-            <span class="material-symbols-outlined text-slate-300 text-5xl">play_circle</span>
-          </div>
-          <h5 class="font-medium text-[0.875rem] mb-1 line-clamp-1">Cligent AI 에이전트 활용 가이드 1편</h5>
-          <p class="text-slate-400 text-[0.75rem]">조회수 1.2k • 3일 전</p>
-        </div>
-        <div class="group cursor-pointer">
-          <div class="aspect-video bg-surface-container rounded-xl overflow-hidden mb-3 relative flex items-center justify-center">
-            <span class="material-symbols-outlined text-slate-300 text-5xl">play_circle</span>
-          </div>
-          <h5 class="font-medium text-[0.875rem] mb-1 line-clamp-1">CRM 데이터 분석으로 내원율 20% 높이기</h5>
-          <p class="text-slate-400 text-[0.75rem]">조회수 850 • 1주일 전</p>
-        </div>
-        <div class="group cursor-pointer">
-          <div class="aspect-video bg-surface-container rounded-xl overflow-hidden mb-3 relative flex items-center justify-center">
-            <span class="material-symbols-outlined text-slate-300 text-5xl">play_circle</span>
-          </div>
-          <h5 class="font-medium text-[0.875rem] mb-1 line-clamp-1">효율적인 병원 재고 관리 노하우</h5>
-          <p class="text-slate-400 text-[0.75rem]">조회수 2.1k • 2주일 전</p>
-        </div>
-        <div class="group cursor-pointer">
-          <div class="aspect-video bg-surface-container rounded-xl overflow-hidden mb-3 relative flex items-center justify-center">
-            <span class="material-symbols-outlined text-slate-300 text-5xl">play_circle</span>
-          </div>
-          <h5 class="font-medium text-[0.875rem] mb-1 line-clamp-1">2024년 의료 정책 변화와 대응 전략</h5>
-          <p class="text-slate-400 text-[0.75rem]">조회수 3.4k • 1개월 전</p>
-        </div>
-      </div>
-    </section>
 
 
   </div>
@@ -644,18 +433,6 @@
         data.this_month > 0 ? `${data.this_month}편` : '0편'
       document.getElementById('blog-total').textContent =
         data.total > 0 ? `${data.total}편` : '0편'
-
-      // 최근 주제 목록 (생성 이력 있을 때만 표시)
-      if (data.recent_keywords && data.recent_keywords.length > 0) {
-        const recentEl = document.getElementById('blog-recent')
-        const listEl = document.getElementById('blog-recent-list')
-        listEl.innerHTML = data.recent_keywords.map(kw =>
-          `<li class="text-[0.8rem] text-slate-500 flex items-center gap-1">
-            <span class="material-symbols-outlined text-[14px] text-primary">article</span>${kw}
-          </li>`
-        ).join('')
-        recentEl.classList.remove('hidden')
-      }
 
       // 온보딩 → 첫 블로그 소요 시간
       if (data.onboarding_seconds != null) {
@@ -823,10 +600,212 @@
     } catch (_) {}
   }
 
+  // ── 최근 블로그 리스트 (A1 + 발행 상태) ────────────────────────────
+  const BLOG_PAGE_SIZE = 10;
+  let _blogPage = 1;
+  let _blogTotal = 0;
+  let _publishStatus = {}; // by_id
+
+  function _fmtDate(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    return d.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+  }
+
+  function _publishBadge(blogId) {
+    const ps = _publishStatus[blogId];
+    if (!ps) {
+      return `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-stone-100 text-stone-500" title="발행 확인 미등록">미등록</span>`;
+    }
+    if (ps.status === 'found') {
+      return `<a href="${ps.found_url || '#'}" target="_blank" rel="noopener"
+        class="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100">
+        <span class="material-symbols-outlined text-[12px]" style="font-variation-settings:'FILL' 1;">check_circle</span>
+        발행 확인됨
+      </a>`;
+    }
+    if (ps.status === 'pending') {
+      return `<span class="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200" title="네이버 검색 폴링 중">
+        <span class="material-symbols-outlined text-[12px]">schedule</span>대기 중</span>`;
+    }
+    if (ps.status === 'expired') {
+      return `<span class="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200" title="7일 내 색인 안 됨">
+        <span class="material-symbols-outlined text-[12px]">warning</span>누락</span>`;
+    }
+    return `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-stone-100 text-stone-500">미등록</span>`;
+  }
+
+  function _renderBlogList(items) {
+    const container = document.getElementById('blog-list-container');
+    if (!items.length) {
+      container.innerHTML = `
+        <div class="text-center py-12">
+          <p class="text-sm text-slate-500 mb-4">아직 작성한 블로그가 없습니다.</p>
+          <button onclick="(window.parent!==window?window.parent.navigate('/blog'):window.location.href='/blog');"
+            class="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-900 hover:bg-emerald-800 text-white rounded-xl text-sm font-semibold">
+            <span class="material-symbols-outlined text-[18px]">edit_square</span>
+            첫 블로그 작성하기
+          </button>
+        </div>`;
+      return;
+    }
+    container.innerHTML = items.map(it => {
+      const safeTitle = (it.title || it.keyword || '').replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
+      const charBadge = it.char_count ? `${it.char_count.toLocaleString()}자` : '';
+      const tone = it.tone || '';
+      const expired = !it.has_text;
+      return `
+        <div class="flex items-center gap-3 py-3 border-b border-stone-100 last:border-b-0">
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 flex-wrap mb-1">
+              <p class="font-medium text-stone-900 truncate flex-1 min-w-0">${safeTitle}</p>
+              ${_publishBadge(it.id)}
+            </div>
+            <div class="flex items-center gap-2 text-[11px] text-slate-400 flex-wrap">
+              <span>${_fmtDate(it.created_at)}</span>
+              ${charBadge ? `<span>·</span><span>${charBadge}</span>` : ''}
+              ${tone ? `<span>·</span><span>${tone}</span>` : ''}
+              ${expired ? `<span>·</span><span class="text-stone-400">전문 만료</span>` : ''}
+            </div>
+          </div>
+          <div class="flex items-center gap-1 flex-shrink-0">
+            ${!expired ? `<button onclick="viewBlog(${it.id})" title="보기"
+              class="w-8 h-8 rounded-full hover:bg-stone-100 flex items-center justify-center text-stone-600">
+              <span class="material-symbols-outlined text-[18px]">visibility</span>
+            </button>` : ''}
+            ${!_publishStatus[it.id] ? `<button onclick="registerPublishCheck(${it.id})" title="발행 확인 등록"
+              class="w-8 h-8 rounded-full hover:bg-stone-100 flex items-center justify-center text-stone-600">
+              <span class="material-symbols-outlined text-[18px]">add_link</span>
+            </button>` : ''}
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  async function loadBlogList(page = 1, append = false) {
+    try {
+      const [histRes, statusRes] = await Promise.all([
+        fetch(`/api/blog/history?page=${page}&per_page=${BLOG_PAGE_SIZE}`),
+        fetch('/api/blog/publish-status'),
+      ]);
+      if (!histRes.ok) return;
+      const hist = await histRes.json();
+      _blogTotal = hist.total || 0;
+      try {
+        const sd = await statusRes.json();
+        _publishStatus = sd.by_id || {};
+      } catch (_) { _publishStatus = {}; }
+
+      const items = hist.items || [];
+      if (append && page > 1) {
+        // 기존 + 신규
+        const prev = window._loadedBlogs || [];
+        window._loadedBlogs = prev.concat(items);
+        _renderBlogList(window._loadedBlogs);
+      } else {
+        window._loadedBlogs = items;
+        _renderBlogList(items);
+      }
+      _blogPage = page;
+      const loadMoreEl = document.getElementById('blog-list-load-more');
+      const shown = (window._loadedBlogs || []).length;
+      if (shown < _blogTotal) loadMoreEl.classList.remove('hidden');
+      else loadMoreEl.classList.add('hidden');
+    } catch (err) {
+      document.getElementById('blog-list-container').innerHTML =
+        '<p class="text-sm text-red-500 text-center py-8">목록을 불러오지 못했습니다.</p>';
+    }
+  }
+
+  function loadMoreBlogs() { loadBlogList(_blogPage + 1, true); }
+
+  async function viewBlog(entryId) {
+    try {
+      const res = await fetch(`/api/blog/history/${entryId}/text`);
+      if (!res.ok) { alert('전문을 불러올 수 없습니다.'); return; }
+      const data = await res.json();
+      // 새 창에 글 띄움 (간단 viewer)
+      const w = window.open('', '_blank');
+      if (!w) { alert('팝업이 차단되었습니다.'); return; }
+      w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>블로그 미리보기</title>
+        <style>body{font-family:'Pretendard',sans-serif;max-width:760px;margin:2rem auto;padding:0 1.5rem;line-height:1.8;color:#1c1917;}h1,h2,h3{color:#064e3b;}</style>
+        </head><body><pre style="white-space:pre-wrap;font-family:inherit;">${(data.text||'').replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))}</pre></body></html>`);
+      w.document.close();
+    } catch (_) { alert('오류가 발생했습니다.'); }
+  }
+
+  async function registerPublishCheck(entryId) {
+    if (!confirm('네이버 발행 확인을 등록할까요? 검색 색인까지 보통 1~24시간(신규 블로그 1~3일) 소요됩니다.')) return;
+    try {
+      const res = await fetch(`/api/blog/history/${entryId}/publish-check`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) { alert(data.detail || '등록 실패'); return; }
+      // 즉시 상태 갱신
+      await loadBlogList(1, false);
+    } catch (_) { alert('오류가 발생했습니다.'); }
+  }
+
+  // ── 다음 시리즈 주제 (A4) ─────────────────────────────────────────
+  function loadSeriesTopics() {
+    try {
+      const raw = localStorage.getItem('cligent_series_topics');
+      if (!raw) return;
+      const topics = JSON.parse(raw);
+      if (!Array.isArray(topics) || !topics.length) return;
+      const empty = document.getElementById('series-empty');
+      const chips = document.getElementById('series-chips');
+      empty.classList.add('hidden');
+      chips.classList.remove('hidden');
+      chips.innerHTML = topics.slice(0, 6).map(t => `
+        <button onclick="goToBlogWithTopic(${JSON.stringify(t).replace(/"/g,'&quot;')})"
+          class="px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-900 text-sm font-medium border border-emerald-100">
+          ${String(t).replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))}
+        </button>
+      `).join('');
+    } catch (_) {}
+  }
+  function goToBlogWithTopic(t) {
+    try { localStorage.setItem('cligent_blog_seed_keyword', t); } catch (_) {}
+    if (window.parent !== window) window.parent.navigate('/blog');
+    else window.location.href = '/blog';
+  }
+
+  // ── 최근 공지 1건 (A5) ────────────────────────────────────────────
+  async function loadRecentAnnouncement() {
+    try {
+      const res = await fetch('/api/announcements');
+      if (!res.ok) return;
+      const data = await res.json();
+      const list = data.announcements || [];
+      const body = document.getElementById('recent-announcement-body');
+      if (!list.length) {
+        body.innerHTML = '<p class="text-sm text-slate-400">아직 공지가 없습니다.</p>';
+        return;
+      }
+      const top = list[0];
+      const safeTitle = (top.title || '').replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
+      const cat = { update: '업데이트', maintenance: '점검 안내', general: '일반 공지' }[top.category] || '일반';
+      body.innerHTML = `
+        <a href="/announcements/${top.id}"
+          onclick="(window.parent!==window?window.parent.navigate('/announcements/${top.id}'):window.location.href='/announcements/${top.id}');return false;"
+          class="block p-3 rounded-xl hover:bg-stone-50 border border-stone-100">
+          <div class="flex items-center gap-2 mb-1">
+            ${top.is_pinned ? '<span class="material-symbols-outlined text-emerald-700 text-[14px]">push_pin</span>' : ''}
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">${cat}</span>
+          </div>
+          <p class="font-medium text-stone-900 line-clamp-1">${safeTitle}</p>
+          <p class="text-xs text-slate-400 mt-1">${_fmtDate(top.created_at)}</p>
+        </a>`;
+    } catch (_) {}
+  }
+
   // 페이지 로드 시 실행
   applyModulePermissions()
   loadBlogStats()
   loadNaverNotifications()
+  loadBlogList(1, false)
+  loadSeriesTopics()
+  loadRecentAnnouncement()
 </script>
 
 </body>

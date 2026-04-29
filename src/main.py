@@ -2,8 +2,8 @@
 main.py — FastAPI 앱 진입점
 
 페이지 라우트:
-  GET  /              → dashboard.html (JWT 인증 필요, 미인증 시 /login 리다이렉트)
-  GET  /mobile        → dashboard_mobile.html
+  GET  /              → 인증 시 /app 리다이렉트, 미인증 시 landing.html
+  GET  /app           → app.html (반응형 사이드바 + iframe 쉘)
   GET  /login         → login.html
   GET  /onboard       → onboard.html (초대 토큰 검증)
   GET  /blog          → index.html (블로그 생성기)
@@ -51,7 +51,7 @@ from pathlib import Path
 from typing import Generator, Optional
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.exception_handlers import http_exception_handler, request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import (
@@ -111,6 +111,7 @@ from auth_manager import (
     create_access_token,
     create_invite,
     create_reinvite,
+    decode_token,
     get_current_user,
     verify_invite,
 )
@@ -120,7 +121,7 @@ from blog_history import get_blog_stats, purge_expired_texts, save_blog_entry, g
 from blog_generator import build_prompt_text
 from config_loader import load_config, save_blog_config, save_prompt
 from conversation_flow import generate_conversation_flow
-from db_manager import create_clinic, init_db, seed_demo_clinic, seed_demo_owner
+from db_manager import create_clinic, init_db, seed_demo_clinic, seed_demo_owner, seed_first_announcement
 from image_prompt_generator import generate_image_prompts_stream
 from module_manager import (
     get_allowed_modules,
@@ -211,6 +212,39 @@ def _require_admin(request: Request) -> None:
     auth = request.headers.get("Authorization", "")
     if not auth.startswith("Bearer ") or auth[7:] != admin_secret:
         raise HTTPException(status_code=401, detail="인증 실패")
+
+
+def _require_admin_or_session(request: Request) -> None:
+    """세션 쿠키(chief_director + ADMIN_CLINIC_ID) 또는 ADMIN_SECRET Bearer 둘 중 하나 통과 시 OK.
+    브라우저 진입에는 세션, CLI 스크립트에는 Bearer를 사용.
+    """
+    # 1) ADMIN_SECRET Bearer 우선
+    admin_secret = os.getenv("ADMIN_SECRET", "")
+    auth = request.headers.get("Authorization", "")
+    if admin_secret and auth.startswith("Bearer ") and auth[7:] == admin_secret:
+        return
+    # 2) 세션 쿠키 — chief_director + ADMIN_CLINIC_ID
+    token = request.cookies.get(COOKIE_NAME)
+    if not token:
+        raise HTTPException(status_code=401, detail="인증이 필요합니다.")
+    try:
+        payload = decode_token(token)
+        user_id = int(payload.get("sub", 0))
+        from db_manager import get_db as _g
+        with _g() as conn:
+            row = conn.execute(
+                "SELECT id, role, clinic_id FROM users WHERE id = ? AND is_active = 1",
+                (user_id,),
+            ).fetchone()
+        if not row:
+            raise HTTPException(status_code=401, detail="세션이 만료되었습니다.")
+        admin_cid = os.getenv("ADMIN_CLINIC_ID", "1")
+        if row["role"] != "chief_director" or int(row["clinic_id"]) != int(admin_cid):
+            raise HTTPException(status_code=403, detail="관리자 권한이 없습니다.")
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=401, detail="세션 검증 실패")
 
 
 async def _midnight_scheduler() -> None:
@@ -315,6 +349,10 @@ async def _beta_reminder_scheduler() -> None:
 async def lifespan(application: FastAPI):
     """서버 시작/종료 시 리소스 초기화 및 정리."""
     init_db()
+    # 첫 공지 시드 (테이블이 비어 있을 때만)
+    seed_first_announcement()
+    # 공지 첨부 이미지 업로드 폴더 보장
+    (ROOT / "static" / "uploads" / "announcements").mkdir(parents=True, exist_ok=True)
     # error_logs 폴더 보장
     (ROOT / "data" / "error_logs").mkdir(parents=True, exist_ok=True)
     # 개발 환경: 클리닉이 없으면 데모 클리닉 자동 생성
@@ -524,14 +562,6 @@ async def blog_page(request: Request):
     return FileResponse(ROOT / "templates" / "index.html", headers=_NO_CACHE)
 
 
-@app.get("/mobile")
-async def mobile_dashboard(request: Request):
-    token = request.cookies.get(COOKIE_NAME)
-    if not token:
-        return RedirectResponse("/login")
-    return FileResponse(ROOT / "templates" / "dashboard_mobile.html", headers=_NO_CACHE)
-
-
 @app.get("/app")
 async def app_shell(request: Request):
     """앱 쉘 — 사이드바 고정 레이아웃 (iframe으로 콘텐츠 로드)"""
@@ -594,12 +624,9 @@ async def settings_setup(request: Request):
 
 @app.get("/")
 async def root(request: Request):
-    """루트 — 인증 시 /app(또는 /mobile)로, 미인증 시 랜딩 페이지(B4, 2026-04-27)."""
+    """루트 — 인증 시 반응형 /app, 미인증 시 마케팅 랜딩 (B4, 2026-04-27)."""
     token = request.cookies.get(COOKIE_NAME)
     if token:
-        ua = request.headers.get("user-agent", "").lower()
-        if any(k in ua for k in ("android", "iphone", "ipad", "mobile")):
-            return RedirectResponse("/mobile")
         return RedirectResponse("/app")
     # 미인증 → 마케팅 랜딩 페이지
     return FileResponse(ROOT / "templates" / "landing.html")
@@ -676,6 +703,7 @@ async def api_me(user: dict = Depends(get_current_user)):
             (user["clinic_id"],),
         ).fetchone()
     api_key_configured = bool(clinic["api_key_configured"]) if clinic else False
+    is_admin = _is_admin_clinic(user) and user["role"] == "chief_director"
     return JSONResponse({
         "id": user["id"],
         "email": user["email"],
@@ -684,6 +712,7 @@ async def api_me(user: dict = Depends(get_current_user)):
         "must_change_pw": bool(user["must_change_pw"]),
         "api_key_configured": api_key_configured,
         "can_invite": _is_admin_clinic(user),
+        "is_admin": is_admin,
     })
 
 
@@ -1606,6 +1635,22 @@ async def blog_notifications(user: dict = Depends(get_current_user)):
     return JSONResponse({"items": items})
 
 
+@app.get("/api/blog/publish-status")
+async def blog_publish_status(user: dict = Depends(get_current_user)):
+    """블로그 항목별 발행 확인 상태 일괄 반환 — by_id={stat_id: {status, found_url, ...}}"""
+    from naver_checker import _load as _load_pending
+    items = _load_pending()
+    by_id: dict = {}
+    for it in items:
+        by_id[int(it.get("blog_stat_id", 0))] = {
+            "status": it.get("status"),
+            "found_url": it.get("found_url"),
+            "started_at": it.get("started_at"),
+            "check_count": it.get("check_count", 0),
+        }
+    return JSONResponse({"by_id": by_id})
+
+
 @app.post("/api/blog/notifications/{pending_id}/dismiss")
 async def dismiss_notification(pending_id: int, user: dict = Depends(get_current_user)):
     """알림 dismiss"""
@@ -2066,19 +2111,206 @@ async def save_naver_blog_id(request: Request, user: dict = Depends(get_current_
     return JSONResponse({"ok": True})
 
 
+@app.get("/admin")
+async def admin_index_page(request: Request):
+    """어드민 메인 — 하위 페이지 카드 인덱스. 세션 + is_admin 필요."""
+    _require_admin_or_session(request)
+    return FileResponse(ROOT / "templates" / "admin_index.html")
+
+
+@app.get("/admin/clinics")
+async def admin_clinics_page(request: Request):
+    _require_admin_or_session(request)
+    return FileResponse(ROOT / "templates" / "admin_clinics.html")
+
+
+@app.get("/admin/usage")
+async def admin_usage_page(request: Request):
+    _require_admin_or_session(request)
+    return FileResponse(ROOT / "templates" / "admin_usage.html")
+
+
+@app.get("/admin/feedback")
+async def admin_feedback_page(request: Request):
+    _require_admin_or_session(request)
+    return FileResponse(ROOT / "templates" / "admin_feedback.html")
+
+
+# ─── 어드민 API: 클리닉/사용량/피드백 ──────────────────────────────
+
+@app.get("/api/admin/clinics")
+async def api_admin_clinics(request: Request):
+    """전체 클리닉 목록 + 핵심 메타. 세션 또는 ADMIN_SECRET Bearer."""
+    _require_admin_or_session(request)
+    with _get_db() as conn:
+        rows = conn.execute(
+            """
+            SELECT c.id, c.name, c.created_at, c.plan_id, c.plan_expires_at,
+                   c.trial_expires_at, c.api_key_configured, c.first_blog_at,
+                   c.is_admin_clinic, c.naver_blog_id,
+                   (SELECT COUNT(*) FROM usage_logs u
+                      WHERE u.clinic_id = c.id AND u.feature = 'blog_generate'
+                        AND u.used_at >= datetime('now','start of month')) AS blog_this_month,
+                   (SELECT COUNT(*) FROM usage_logs u WHERE u.clinic_id = c.id) AS usage_total,
+                   (SELECT MAX(used_at) FROM usage_logs u WHERE u.clinic_id = c.id) AS last_seen,
+                   (SELECT COUNT(*) FROM users WHERE clinic_id = c.id AND is_active = 1) AS active_users
+            FROM clinics c
+            ORDER BY c.created_at DESC
+            """
+        ).fetchall()
+    return JSONResponse({"clinics": [dict(r) for r in rows]})
+
+
+@app.patch("/api/admin/clinic/{clinic_id}")
+async def api_admin_update_clinic(clinic_id: int, request: Request):
+    """클리닉 메타 일부 수정 — plan_id / trial_expires_at / plan_expires_at."""
+    _require_admin_or_session(request)
+    body = await request.json()
+    fields: list[str] = []
+    values: list = []
+    if "plan_id" in body:
+        plan = (body["plan_id"] or "").strip()
+        if plan:
+            fields.append("plan_id = ?"); values.append(plan)
+    if "trial_expires_at" in body:
+        fields.append("trial_expires_at = ?"); values.append(body["trial_expires_at"] or None)
+    if "plan_expires_at" in body:
+        fields.append("plan_expires_at = ?"); values.append(body["plan_expires_at"] or None)
+    if not fields:
+        raise HTTPException(status_code=400, detail="수정할 항목이 없습니다.")
+    values.append(clinic_id)
+    with _get_db() as conn:
+        cur = conn.execute(f"UPDATE clinics SET {', '.join(fields)} WHERE id = ?", values)
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="클리닉을 찾을 수 없습니다.")
+    return JSONResponse({"ok": True})
+
+
+@app.get("/api/admin/usage")
+async def api_admin_usage(request: Request):
+    """전체·클리닉별 사용량 집계."""
+    _require_admin_or_session(request)
+    with _get_db() as conn:
+        # 전체 합산
+        total_blog = conn.execute(
+            "SELECT COUNT(*) AS c FROM usage_logs "
+            "WHERE feature = 'blog_generate' AND used_at >= datetime('now','start of month')"
+        ).fetchone()
+        total_blog_all = conn.execute(
+            "SELECT COUNT(*) AS c FROM usage_logs WHERE feature = 'blog_generate'"
+        ).fetchone()
+        total_copy = conn.execute(
+            "SELECT COUNT(*) AS c FROM usage_logs "
+            "WHERE feature = 'prompt_copy' AND used_at >= datetime('now','start of month')"
+        ).fetchone()
+        # 클리닉별 이번 달 블로그 랭킹
+        ranking = conn.execute(
+            """
+            SELECT c.id, c.name, c.plan_id,
+                   COUNT(u.id) AS blog_this_month
+            FROM clinics c
+            LEFT JOIN usage_logs u
+              ON u.clinic_id = c.id AND u.feature = 'blog_generate'
+                 AND u.used_at >= datetime('now','start of month')
+            GROUP BY c.id
+            ORDER BY blog_this_month DESC, c.created_at DESC
+            LIMIT 50
+            """
+        ).fetchall()
+    # 에러 카운트 (data/error_logs/{date}.jsonl 오늘자만 빠르게)
+    error_count_today = 0
+    try:
+        from datetime import datetime as _dt
+        today = _dt.utcnow().strftime("%Y-%m-%d")
+        err_path = ROOT / "data" / "error_logs" / f"{today}.jsonl"
+        if err_path.exists():
+            with open(err_path, encoding="utf-8") as f:
+                error_count_today = sum(1 for line in f if line.strip())
+    except Exception:
+        pass
+    return JSONResponse({
+        "blog_this_month": int(total_blog["c"]) if total_blog else 0,
+        "blog_all_time": int(total_blog_all["c"]) if total_blog_all else 0,
+        "prompt_copy_this_month": int(total_copy["c"]) if total_copy else 0,
+        "error_count_today": error_count_today,
+        "ranking": [dict(r) for r in ranking],
+    })
+
+
+@app.get("/api/admin/feedback")
+async def api_admin_feedback(
+    request: Request,
+    status: str = "all",  # all / new / viewed
+    page: int = 1,
+    per_page: int = 30,
+):
+    """피드백 목록. status=new(미확인) / viewed(확인됨) / all."""
+    _require_admin_or_session(request)
+    where = ""
+    if status == "new":
+        where = "WHERE viewed_at IS NULL"
+    elif status == "viewed":
+        where = "WHERE viewed_at IS NOT NULL"
+    offset = (max(page, 1) - 1) * per_page
+    with _get_db() as conn:
+        total = conn.execute(f"SELECT COUNT(*) AS c FROM feedback {where}").fetchone()["c"]
+        new_count = conn.execute(
+            "SELECT COUNT(*) AS c FROM feedback WHERE viewed_at IS NULL"
+        ).fetchone()["c"]
+        rows = conn.execute(
+            f"""
+            SELECT f.id, f.page, f.message, f.created_at, f.viewed_at,
+                   f.clinic_id, f.user_id,
+                   c.name AS clinic_name,
+                   u.email AS user_email
+            FROM feedback f
+            LEFT JOIN clinics c ON c.id = f.clinic_id
+            LEFT JOIN users u ON u.id = f.user_id
+            {where}
+            ORDER BY f.created_at DESC
+            LIMIT ? OFFSET ?
+            """,
+            (per_page, offset),
+        ).fetchall()
+    return JSONResponse({
+        "total": total,
+        "new_count": new_count,
+        "items": [dict(r) for r in rows],
+    })
+
+
+@app.post("/api/admin/feedback/{fid}/viewed")
+async def api_admin_feedback_mark_viewed(fid: int, request: Request):
+    """피드백 확인 처리."""
+    _require_admin_or_session(request)
+    with _get_db() as conn:
+        cur = conn.execute(
+            "UPDATE feedback SET viewed_at = datetime('now','utc') WHERE id = ? AND viewed_at IS NULL",
+            (fid,),
+        )
+    return JSONResponse({"ok": True, "updated": cur.rowcount})
+
+
+@app.post("/api/admin/feedback/{fid}/unview")
+async def api_admin_feedback_unview(fid: int, request: Request):
+    """피드백 확인 취소 (다시 미확인)."""
+    _require_admin_or_session(request)
+    with _get_db() as conn:
+        conn.execute("UPDATE feedback SET viewed_at = NULL WHERE id = ?", (fid,))
+    return JSONResponse({"ok": True})
+
+
 @app.get("/admin/settings")
-async def admin_settings_page():
-    """어드민 시스템 설정 페이지"""
+async def admin_settings_page(request: Request):
+    """어드민 시스템 설정 페이지 (네이버 API). 세션 + is_admin 필요."""
+    _require_admin_or_session(request)
     return FileResponse(ROOT / "templates" / "admin_settings.html")
 
 
 @app.get("/api/admin/naver-config")
 async def get_naver_config(request: Request):
-    """네이버 API 설정 조회 — ADMIN_SECRET Bearer 인증"""
-    admin_secret = os.getenv("ADMIN_SECRET", "")
-    auth = request.headers.get("Authorization", "")
-    if not admin_secret or auth != f"Bearer {admin_secret}":
-        raise HTTPException(status_code=403, detail="어드민 인증 필요")
+    """네이버 API 설정 조회 — 세션 또는 ADMIN_SECRET Bearer 인증"""
+    _require_admin_or_session(request)
     from naver_checker import APP_SETTINGS_PATH
     import json as _j
     cfg: dict = {}
@@ -2097,11 +2329,8 @@ async def get_naver_config(request: Request):
 
 @app.post("/api/admin/naver-config")
 async def save_naver_config(request: Request):
-    """네이버 API 설정 저장 — ADMIN_SECRET Bearer 인증"""
-    admin_secret = os.getenv("ADMIN_SECRET", "")
-    auth = request.headers.get("Authorization", "")
-    if not admin_secret or auth != f"Bearer {admin_secret}":
-        raise HTTPException(status_code=403, detail="어드민 인증 필요")
+    """네이버 API 설정 저장 — 세션 또는 ADMIN_SECRET Bearer 인증"""
+    _require_admin_or_session(request)
     body = await request.json()
     client_id = body.get("naver_client_id", "").strip()
     client_secret = body.get("naver_client_secret", "").strip()
@@ -2125,18 +2354,16 @@ async def save_naver_config(request: Request):
 
 
 @app.get("/admin/applicants")
-async def admin_applicants_page():
-    """어드민 신청자 관리 페이지 — 인증은 JS에서 API 호출 시 처리"""
+async def admin_applicants_page(request: Request):
+    """어드민 신청자 관리 페이지. 세션 + is_admin 필요."""
+    _require_admin_or_session(request)
     return FileResponse(ROOT / "templates" / "admin_applicants.html")
 
 
 @app.get("/api/admin/applicants")
 async def api_admin_applicants(request: Request):
-    """
-    신청자 목록 + 통계 반환.
-    인증: Authorization: Bearer <ADMIN_SECRET>
-    """
-    _require_admin(request)
+    """신청자 목록 + 통계 반환. 세션 또는 ADMIN_SECRET Bearer 인증."""
+    _require_admin_or_session(request)
 
     from db_manager import get_db as _get_db
     with _get_db() as conn:
@@ -2168,15 +2395,12 @@ async def api_admin_applicants(request: Request):
 async def api_admin_invite_batch(request: Request):
     """
     선택한 신청자에게 초대 링크 일괄 발송.
-    인증: Authorization: Bearer <ADMIN_SECRET>
+    인증: 세션(chief_director + ADMIN_CLINIC_ID) 또는 Bearer ADMIN_SECRET.
 
     요청: { "ids": [1, 2, 3] }
     응답: { "invited": [...], "failed": [...] }
-
-    - ADMIN_CLINIC_ID / ADMIN_USER_ID 환경 변수로 어드민 클리닉/사용자 지정
-    - create_invite() ValueError(슬롯 부족, 이미 등록)는 per-row failed[] 처리
     """
-    _require_admin(request)
+    _require_admin_or_session(request)
 
     try:
         body = await request.json()
@@ -2241,3 +2465,199 @@ async def api_admin_invite_batch(request: Request):
     await asyncio.gather(*[_send_one(dict(r)) for r in rows])
 
     return JSONResponse({"invited": invited, "failed": failed})
+
+
+# ─── 공지사항 게시판 ──────────────────────────────────────────────
+from db_manager import get_db as _get_db  # noqa: E402  (announcements 라우트 전용)
+
+_ANNOUNCE_CATEGORIES = {"update", "maintenance", "general"}
+_ANNOUNCE_ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+_ANNOUNCE_MAX_UPLOAD = 5 * 1024 * 1024  # 5MB
+
+
+def _require_announce_admin(user: dict) -> None:
+    """공지 작성·수정·삭제 권한: ADMIN_CLINIC_ID + chief_director."""
+    if not (_is_admin_clinic(user) and user["role"] == "chief_director"):
+        raise HTTPException(status_code=403, detail="공지 작성 권한이 없습니다.")
+
+
+@app.get("/announcements")
+async def announcements_page(_user: dict = Depends(get_current_user)):
+    """공지사항 목록 페이지 (인증 필수)."""
+    return FileResponse(ROOT / "templates" / "announcements.html")
+
+
+@app.get("/announcements/new")
+async def announcement_new_page(user: dict = Depends(get_current_user)):
+    """공지 작성 페이지 — admin only."""
+    _require_announce_admin(user)
+    return FileResponse(ROOT / "templates" / "announcement_edit.html")
+
+
+@app.get("/announcements/{ann_id}")
+async def announcement_detail_page(ann_id: int, _user: dict = Depends(get_current_user)):
+    """공지 상세 페이지 (인증 필수)."""
+    return FileResponse(ROOT / "templates" / "announcement_detail.html")
+
+
+@app.get("/announcements/{ann_id}/edit")
+async def announcement_edit_page(ann_id: int, user: dict = Depends(get_current_user)):
+    """공지 수정 페이지 — admin only."""
+    _require_announce_admin(user)
+    return FileResponse(ROOT / "templates" / "announcement_edit.html")
+
+
+@app.get("/api/announcements")
+async def api_announcements_list(_user: dict = Depends(get_current_user)):
+    """공지 목록 — pinned 우선, 그 다음 created_at desc."""
+    with _get_db() as conn:
+        rows = conn.execute(
+            "SELECT id, title, category, is_pinned, author, created_at, updated_at "
+            "FROM announcements "
+            "ORDER BY is_pinned DESC, created_at DESC"
+        ).fetchall()
+    return JSONResponse({"announcements": [dict(r) for r in rows]})
+
+
+@app.get("/api/announcements/unread-count")
+async def api_announcements_unread_count(user: dict = Depends(get_current_user)):
+    """안 읽은 공지 개수."""
+    with _get_db() as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) AS cnt FROM announcements a "
+            "WHERE NOT EXISTS ("
+            "  SELECT 1 FROM announcement_reads r "
+            "  WHERE r.announcement_id = a.id AND r.user_id = ?"
+            ")",
+            (user["id"],),
+        ).fetchone()
+    return JSONResponse({"unread": int(row["cnt"]) if row else 0})
+
+
+@app.get("/api/announcements/{ann_id}")
+async def api_announcement_detail(ann_id: int, _user: dict = Depends(get_current_user)):
+    """공지 상세."""
+    with _get_db() as conn:
+        row = conn.execute(
+            "SELECT id, title, body_md, category, is_pinned, author, created_at, updated_at "
+            "FROM announcements WHERE id = ?",
+            (ann_id,),
+        ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="공지를 찾을 수 없습니다.")
+    return JSONResponse(dict(row))
+
+
+@app.post("/api/announcements")
+async def api_announcement_create(request: Request, user: dict = Depends(get_current_user)):
+    """공지 신규 작성 — admin only."""
+    _require_announce_admin(user)
+    body = await request.json()
+    title = (body.get("title") or "").strip()
+    body_md = (body.get("body_md") or "").strip()
+    category = body.get("category", "general")
+    is_pinned = 1 if body.get("is_pinned") else 0
+    if not title or not body_md:
+        raise HTTPException(status_code=400, detail="제목과 본문을 입력해주세요.")
+    if category not in _ANNOUNCE_CATEGORIES:
+        category = "general"
+    author = body.get("author") or "원장"
+    with _get_db() as conn:
+        cur = conn.execute(
+            "INSERT INTO announcements (title, body_md, category, is_pinned, author) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (title, body_md, category, is_pinned, author),
+        )
+        new_id = cur.lastrowid
+    return JSONResponse({"id": new_id})
+
+
+@app.patch("/api/announcements/{ann_id}")
+async def api_announcement_update(ann_id: int, request: Request, user: dict = Depends(get_current_user)):
+    """공지 수정 — admin only."""
+    _require_announce_admin(user)
+    body = await request.json()
+    fields = []
+    values = []
+    for key in ("title", "body_md", "author"):
+        if key in body:
+            val = (body[key] or "").strip()
+            if not val:
+                raise HTTPException(status_code=400, detail=f"{key}는 비워둘 수 없습니다.")
+            fields.append(f"{key} = ?")
+            values.append(val)
+    if "category" in body:
+        cat = body["category"]
+        if cat not in _ANNOUNCE_CATEGORIES:
+            cat = "general"
+        fields.append("category = ?")
+        values.append(cat)
+    if "is_pinned" in body:
+        fields.append("is_pinned = ?")
+        values.append(1 if body["is_pinned"] else 0)
+    if not fields:
+        raise HTTPException(status_code=400, detail="수정할 항목이 없습니다.")
+    fields.append("updated_at = datetime('now', 'utc')")
+    values.append(ann_id)
+    with _get_db() as conn:
+        cur = conn.execute(
+            f"UPDATE announcements SET {', '.join(fields)} WHERE id = ?",
+            values,
+        )
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="공지를 찾을 수 없습니다.")
+    return JSONResponse({"ok": True})
+
+
+@app.delete("/api/announcements/{ann_id}")
+async def api_announcement_delete(ann_id: int, user: dict = Depends(get_current_user)):
+    """공지 삭제 — admin only."""
+    _require_announce_admin(user)
+    with _get_db() as conn:
+        cur = conn.execute("DELETE FROM announcements WHERE id = ?", (ann_id,))
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="공지를 찾을 수 없습니다.")
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/announcements/{ann_id}/read")
+async def api_announcement_mark_read(ann_id: int, user: dict = Depends(get_current_user)):
+    """공지 읽음 처리."""
+    with _get_db() as conn:
+        # 존재 확인
+        exists = conn.execute("SELECT 1 FROM announcements WHERE id = ?", (ann_id,)).fetchone()
+        if not exists:
+            raise HTTPException(status_code=404, detail="공지를 찾을 수 없습니다.")
+        conn.execute(
+            "INSERT OR IGNORE INTO announcement_reads (user_id, announcement_id) VALUES (?, ?)",
+            (user["id"], ann_id),
+        )
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/announcements/upload-image")
+async def api_announcement_upload_image(
+    file: UploadFile = File(...),
+    user: dict = Depends(get_current_user),
+):
+    """공지 본문 첨부 이미지 업로드 — admin only. 반환: {url}"""
+    _require_announce_admin(user)
+    import uuid as _uuid
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in _ANNOUNCE_ALLOWED_EXT:
+        raise HTTPException(status_code=400, detail="지원하지 않는 형식입니다 (jpg, png, webp, gif).")
+    data = await file.read()
+    if len(data) > _ANNOUNCE_MAX_UPLOAD:
+        raise HTTPException(status_code=400, detail="파일이 너무 큽니다 (최대 5MB).")
+    upload_dir = ROOT / "static" / "uploads" / "announcements"
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    fname = f"{_uuid.uuid4().hex}{ext}"
+    fpath = upload_dir / fname
+    fpath.write_bytes(data)
+    url = f"/static/uploads/announcements/{fname}"
+    with _get_db() as conn:
+        conn.execute(
+            "INSERT INTO announcement_attachments (filename, url) VALUES (?, ?)",
+            (fname, url),
+        )
+    return JSONResponse({"url": url})

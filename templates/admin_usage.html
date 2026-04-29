@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Cligent — 사용량 대시보드</title>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet"/>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+  tailwind.config = { theme: { extend: { fontFamily: { sans: ['Pretendard', 'sans-serif'] } } } };
+</script>
+<style>
+  body { font-family: 'Pretendard', sans-serif; background: #fafaf9; }
+  .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24; }
+</style>
+</head>
+<body class="text-stone-800">
+
+<main class="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+  <a href="/admin" class="inline-flex items-center gap-1 text-sm text-stone-500 hover:text-stone-800 mb-2">
+    <span class="material-symbols-outlined text-[16px]">arrow_back</span>관리자 메인
+  </a>
+  <h1 class="text-2xl font-bold text-stone-900 mb-6">사용량 대시보드</h1>
+
+  <!-- 합산 -->
+  <section class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+    <div class="bg-white border border-stone-200 rounded-2xl p-5">
+      <p class="text-xs text-stone-500 mb-1">이번 달 블로그</p>
+      <p class="text-2xl font-bold text-emerald-900" id="m-blog-month">—</p>
+    </div>
+    <div class="bg-white border border-stone-200 rounded-2xl p-5">
+      <p class="text-xs text-stone-500 mb-1">누적 블로그</p>
+      <p class="text-2xl font-bold" id="m-blog-all">—</p>
+    </div>
+    <div class="bg-white border border-stone-200 rounded-2xl p-5">
+      <p class="text-xs text-stone-500 mb-1">이번 달 프롬프트 복사</p>
+      <p class="text-2xl font-bold" id="m-copy-month">—</p>
+    </div>
+    <div class="bg-white border border-stone-200 rounded-2xl p-5">
+      <p class="text-xs text-stone-500 mb-1">오늘 에러</p>
+      <p class="text-2xl font-bold" id="m-err">—</p>
+    </div>
+  </section>
+
+  <!-- 클리닉별 랭킹 -->
+  <section class="bg-white border border-stone-200 rounded-2xl p-5 sm:p-6">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="font-semibold text-stone-900">클리닉별 이번 달 블로그 생성 (Top 50)</h2>
+      <button onclick="loadData()" class="inline-flex items-center gap-1 px-3 py-1.5 bg-stone-100 hover:bg-stone-200 rounded-lg text-sm text-stone-700">
+        <span class="material-symbols-outlined text-[16px]">refresh</span>새로고침
+      </button>
+    </div>
+    <div id="ranking-container">
+      <p class="text-sm text-stone-400 text-center py-10">불러오는 중...</p>
+    </div>
+  </section>
+</main>
+
+<script>
+  function esc(s) {
+    return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  async function loadData() {
+    try {
+      const res = await fetch('/api/admin/usage');
+      if (res.status === 401 || res.status === 403) { location.href = '/login?next=/admin/usage'; return; }
+      const d = await res.json();
+      document.getElementById('m-blog-month').textContent = d.blog_this_month + '편';
+      document.getElementById('m-blog-all').textContent   = d.blog_all_time + '편';
+      document.getElementById('m-copy-month').textContent = d.prompt_copy_this_month + '회';
+      document.getElementById('m-err').textContent        = d.error_count_today + '건';
+
+      const ranking = d.ranking || [];
+      const c = document.getElementById('ranking-container');
+      if (!ranking.length) {
+        c.innerHTML = '<p class="text-sm text-stone-400 text-center py-6">데이터 없음</p>';
+        return;
+      }
+      c.innerHTML = `
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-xs text-stone-500 border-b border-stone-200">
+              <th class="text-left py-2 font-medium">#</th>
+              <th class="text-left py-2 font-medium">클리닉</th>
+              <th class="text-left py-2 font-medium">플랜</th>
+              <th class="text-right py-2 font-medium">이번 달 블로그</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${ranking.map((r, i) => `
+              <tr class="border-b border-stone-100">
+                <td class="py-2 text-stone-400">${i + 1}</td>
+                <td class="py-2"><strong>${esc(r.name)}</strong></td>
+                <td class="py-2 text-stone-500">${esc(r.plan_id || 'free')}</td>
+                <td class="py-2 text-right font-bold ${r.blog_this_month > 0 ? 'text-emerald-900' : 'text-stone-300'}">${r.blog_this_month}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>`;
+    } catch (e) {
+      document.getElementById('ranking-container').innerHTML =
+        '<p class="text-sm text-red-500 text-center py-6">불러오지 못했습니다.</p>';
+    }
+  }
+  loadData();
+</script>
+</body>
+</html>

@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Cligent - 공지사항</title>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet"/>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+  tailwind.config = { theme: { extend: { fontFamily: { sans: ['Pretendard', 'sans-serif'] } } } };
+</script>
+<style>
+  body { font-family: 'Pretendard', sans-serif; background: #fafaf9; }
+  .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24; }
+  .cat-update      { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+  .cat-maintenance { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
+  .cat-general     { background: #f5f5f4; color: #44403c; border: 1px solid #e7e5e4; }
+</style>
+</head>
+<body class="text-stone-800">
+
+<main class="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl sm:text-3xl font-bold text-stone-900">공지사항</h1>
+      <p class="text-sm text-stone-500 mt-1">업데이트·점검 안내·일반 공지를 한 곳에서 확인하세요.</p>
+    </div>
+    <a id="newBtn" href="/announcements/new" style="display:none;"
+      class="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-900 text-white rounded-xl text-xs font-semibold hover:bg-emerald-800 transition-colors">
+      <span class="material-symbols-outlined text-[18px]">edit</span>
+      <span>공지 작성</span>
+    </a>
+  </div>
+
+  <div id="list" class="space-y-3">
+    <div class="text-sm text-stone-400 text-center py-12">불러오는 중...</div>
+  </div>
+</main>
+
+<script>
+  const CAT_LABEL = { update: '업데이트', maintenance: '점검 안내', general: '일반 공지' };
+  const CAT_CLASS = { update: 'cat-update', maintenance: 'cat-maintenance', general: 'cat-general' };
+
+  function fmtDate(iso) {
+    if (!iso) return '';
+    const d = new Date(iso.endsWith('Z') || iso.includes('+') ? iso : iso + 'Z');
+    return d.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
+  }
+
+  async function loadList() {
+    try {
+      const [meRes, listRes, unreadRes] = await Promise.all([
+        fetch('/api/auth/me'),
+        fetch('/api/announcements'),
+        fetch('/api/announcements/unread-count').catch(() => null),
+      ]);
+      if (!meRes.ok) { window.location.href = '/login'; return; }
+      const me = await meRes.json();
+      if (me.is_admin) document.getElementById('newBtn').style.display = 'inline-flex';
+
+      const data = await listRes.json();
+      const list = data.announcements || [];
+      const unreadIds = new Set(); // 서버는 count만 — 읽음 여부는 상세에서 처리
+
+      const el = document.getElementById('list');
+      if (list.length === 0) {
+        el.innerHTML = '<div class="text-sm text-stone-400 text-center py-12">아직 공지가 없습니다.</div>';
+        return;
+      }
+      el.innerHTML = list.map(a => `
+        <a href="/announcements/${a.id}"
+          class="block bg-white border border-stone-200 rounded-xl px-4 sm:px-5 py-4 hover:border-emerald-300 hover:shadow-sm transition-all">
+          <div class="flex items-start gap-3 flex-wrap">
+            ${a.is_pinned ? `<span class="material-symbols-outlined text-emerald-700 text-[18px] mt-0.5" title="상단 고정">push_pin</span>` : ''}
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${CAT_CLASS[a.category] || 'cat-general'}">${CAT_LABEL[a.category] || '일반'}</span>
+            <h2 class="font-semibold text-stone-900 flex-1 min-w-0 break-keep">${escapeHtml(a.title)}</h2>
+          </div>
+          <div class="mt-2 text-xs text-stone-400 flex items-center gap-2 flex-wrap">
+            <span>${escapeHtml(a.author || '원장')}</span>
+            <span>·</span>
+            <span>${fmtDate(a.created_at)}</span>
+          </div>
+        </a>
+      `).join('');
+    } catch (err) {
+      document.getElementById('list').innerHTML =
+        '<div class="text-sm text-red-500 text-center py-12">목록을 불러오지 못했습니다.</div>';
+    }
+  }
+
+  function escapeHtml(s) {
+    return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  loadList();
+</script>
+</body>
+</html>

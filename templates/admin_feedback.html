@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Cligent — 피드백 뷰어</title>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet"/>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+  tailwind.config = { theme: { extend: { fontFamily: { sans: ['Pretendard', 'sans-serif'] } } } };
+</script>
+<style>
+  body { font-family: 'Pretendard', sans-serif; background: #fafaf9; }
+  .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24; }
+  .filter-btn { padding:6px 14px; border-radius:9999px; font-size:13px; font-weight:600; background:#f5f5f4; color:#57534e; }
+  .filter-btn.active { background:#064e3b; color:#fff; }
+</style>
+</head>
+<body class="text-stone-800">
+
+<main class="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+  <a href="/admin" class="inline-flex items-center gap-1 text-sm text-stone-500 hover:text-stone-800 mb-2">
+    <span class="material-symbols-outlined text-[16px]">arrow_back</span>관리자 메인
+  </a>
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-stone-900">피드백 뷰어</h1>
+      <p class="text-sm text-stone-500 mt-1">
+        미확인 <span id="newCount" class="font-bold text-emerald-900">0</span>건 / 전체 <span id="totalCount" class="font-bold">0</span>건
+      </p>
+    </div>
+    <button onclick="loadData()" class="inline-flex items-center gap-1 px-3 py-2 bg-stone-100 hover:bg-stone-200 rounded-lg text-sm text-stone-700">
+      <span class="material-symbols-outlined text-[18px]">refresh</span>새로고침
+    </button>
+  </div>
+
+  <div class="flex gap-2 mb-4">
+    <button class="filter-btn active" data-status="all" onclick="setFilter(this, 'all')">전체</button>
+    <button class="filter-btn" data-status="new" onclick="setFilter(this, 'new')">미확인</button>
+    <button class="filter-btn" data-status="viewed" onclick="setFilter(this, 'viewed')">확인됨</button>
+  </div>
+
+  <div id="list" class="space-y-3">
+    <p class="text-sm text-stone-400 text-center py-10">불러오는 중...</p>
+  </div>
+</main>
+
+<script>
+  let _status = 'all';
+  function esc(s) {
+    return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function fmtDate(iso) {
+    if (!iso) return '';
+    return iso.replace('T',' ').slice(0,16).replace('+00:00','');
+  }
+  function setFilter(btn, st) {
+    _status = st;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    loadData();
+  }
+  async function loadData() {
+    try {
+      const res = await fetch(`/api/admin/feedback?status=${_status}`);
+      if (res.status === 401 || res.status === 403) { location.href = '/login?next=/admin/feedback'; return; }
+      const d = await res.json();
+      document.getElementById('newCount').textContent = d.new_count || 0;
+      document.getElementById('totalCount').textContent = d.total || 0;
+      const list = d.items || [];
+      const el = document.getElementById('list');
+      if (!list.length) {
+        el.innerHTML = '<p class="text-sm text-stone-400 text-center py-10">피드백이 없습니다.</p>';
+        return;
+      }
+      el.innerHTML = list.map(f => {
+        const isViewed = !!f.viewed_at;
+        const cardClass = isViewed
+          ? 'bg-stone-50 border-stone-200'
+          : 'bg-emerald-50/40 border-emerald-200';
+        return `
+          <div class="border ${cardClass} rounded-xl p-4">
+            <div class="flex items-start justify-between gap-2 mb-2 flex-wrap">
+              <div class="flex items-center gap-2 text-xs text-stone-500 flex-wrap">
+                ${!isViewed ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-700 text-white">NEW</span>' : ''}
+                <span class="font-semibold text-stone-700">${esc(f.clinic_name || ('clinic#' + (f.clinic_id || '?')))}</span>
+                <span>·</span>
+                <span>${esc(f.user_email || ('user#' + (f.user_id || '?')))}</span>
+                <span>·</span>
+                <span>${esc(f.page || '')}</span>
+              </div>
+              <span class="text-xs text-stone-400">${fmtDate(f.created_at)}</span>
+            </div>
+            <p class="text-sm text-stone-800 whitespace-pre-wrap break-words">${esc(f.message)}</p>
+            <div class="mt-3 flex items-center gap-2">
+              ${isViewed
+                ? `<button onclick="unview(${f.id})" class="text-xs px-3 py-1.5 bg-stone-100 hover:bg-stone-200 rounded-lg text-stone-700">미확인으로 되돌리기</button>
+                   <span class="text-[11px] text-stone-400">확인: ${fmtDate(f.viewed_at)}</span>`
+                : `<button onclick="markView(${f.id})" class="text-xs px-3 py-1.5 bg-emerald-900 hover:bg-emerald-800 text-white rounded-lg font-semibold">확인 처리</button>`}
+            </div>
+          </div>`;
+      }).join('');
+    } catch (e) {
+      document.getElementById('list').innerHTML =
+        '<p class="text-sm text-red-500 text-center py-10">불러오지 못했습니다.</p>';
+    }
+  }
+  async function markView(id) {
+    await fetch(`/api/admin/feedback/${id}/viewed`, { method: 'POST' });
+    loadData();
+  }
+  async function unview(id) {
+    await fetch(`/api/admin/feedback/${id}/unview`, { method: 'POST' });
+    loadData();
+  }
+  loadData();
+</script>
+</body>
+</html>

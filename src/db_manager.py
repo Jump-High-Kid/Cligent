@@ -121,7 +121,43 @@ def init_db() -> None:
             );
             CREATE INDEX IF NOT EXISTS idx_beta_applicants_status ON beta_applicants(status);
             CREATE INDEX IF NOT EXISTS idx_beta_applicants_email  ON beta_applicants(email);
+
+            -- 공지사항 게시판
+            CREATE TABLE IF NOT EXISTS announcements (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                title       TEXT    NOT NULL,
+                body_md     TEXT    NOT NULL,
+                category    TEXT    NOT NULL DEFAULT 'general',  -- 'update' / 'maintenance' / 'general'
+                is_pinned   INTEGER NOT NULL DEFAULT 0,
+                author      TEXT    NOT NULL DEFAULT 'Cligent',
+                created_at  TEXT    NOT NULL DEFAULT (datetime('now', 'utc')),
+                updated_at  TEXT    NOT NULL DEFAULT (datetime('now', 'utc'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_announcements_pinned_created
+                ON announcements(is_pinned DESC, created_at DESC);
+
+            -- 사용자별 읽음 추적 (안 읽은 공지 뱃지용)
+            CREATE TABLE IF NOT EXISTS announcement_reads (
+                user_id          INTEGER NOT NULL REFERENCES users(id),
+                announcement_id  INTEGER NOT NULL REFERENCES announcements(id) ON DELETE CASCADE,
+                read_at          TEXT    NOT NULL DEFAULT (datetime('now', 'utc')),
+                PRIMARY KEY (user_id, announcement_id)
+            );
+
+            -- 공지 첨부 이미지 (admin 업로드)
+            CREATE TABLE IF NOT EXISTS announcement_attachments (
+                id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                announcement_id  INTEGER REFERENCES announcements(id) ON DELETE CASCADE,
+                filename         TEXT    NOT NULL,
+                url              TEXT    NOT NULL,
+                created_at       TEXT    NOT NULL DEFAULT (datetime('now', 'utc'))
+            );
         """)
+        # feedback 컬럼 마이그레이션 (admin 뷰어 — viewed_at)
+        existing_fb = {row[1] for row in conn.execute("PRAGMA table_info(feedback)")}
+        if "viewed_at" not in existing_fb:
+            conn.execute("ALTER TABLE feedback ADD COLUMN viewed_at TEXT")
+
         # clinics 컬럼 마이그레이션 (기존 DB 대응)
         existing = {row[1] for row in conn.execute("PRAGMA table_info(clinics)")}
         for col, definition in [
@@ -233,6 +269,38 @@ def seed_demo_clinic(name: str = "데모 한의원", max_slots: int = 10) -> int
             (name, max_slots),
         )
         return cur.lastrowid
+
+
+_FIRST_ANNOUNCEMENT_TITLE = "Cligent 업데이트 — 블로그·이미지 품질 개선"
+_FIRST_ANNOUNCEMENT_BODY = """안녕하세요, Cligent입니다.
+
+이번 업데이트에서는 블로그·이미지 품질과 모바일 사용성을 개선했습니다.
+
+## 주요 개선
+
+- **블로그 글 품질 향상** — 도입부 다양화, 한의학 참고 문헌 자동 인용
+- **이미지 프롬프트 정확도 향상** — 한의 진료실 분위기, 해부학 정확성 강화
+- **네이버 발행 확인** — 글 발행 후 검색 노출 자동 알림
+- **모바일 사용성 개선** — 하단 메뉴 정리, 안내 배너 개선
+- **공지사항 게시판 신설** — 업데이트 소식을 한곳에서 확인
+
+---
+
+문의·피드백은 페이지 상단 피드백 바를 이용해주세요.
+"""
+
+
+def seed_first_announcement() -> None:
+    """공지 테이블이 비어 있을 때 첫 업데이트 노트 1건 삽입."""
+    with get_db() as conn:
+        cnt = conn.execute("SELECT COUNT(*) FROM announcements").fetchone()[0]
+        if cnt > 0:
+            return
+        conn.execute(
+            "INSERT INTO announcements (title, body_md, category, is_pinned, author) "
+            "VALUES (?, ?, 'update', 1, '원장')",
+            (_FIRST_ANNOUNCEMENT_TITLE, _FIRST_ANNOUNCEMENT_BODY),
+        )
 
 
 def seed_demo_owner(

@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Cligent - 공지 상세</title>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet"/>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries,typography"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+<script>
+  tailwind.config = { theme: { extend: { fontFamily: { sans: ['Pretendard', 'sans-serif'] } } } };
+</script>
+<style>
+  body { font-family: 'Pretendard', sans-serif; background: #fafaf9; }
+  .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24; }
+  .cat-update      { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+  .cat-maintenance { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
+  .cat-general     { background: #f5f5f4; color: #44403c; border: 1px solid #e7e5e4; }
+  .markdown { color: #1c1917; line-height: 1.75; }
+  .markdown h1 { font-size: 1.5rem; font-weight: 700; margin: 1.5rem 0 0.75rem; color: #064e3b; }
+  .markdown h2 { font-size: 1.25rem; font-weight: 700; margin: 1.5rem 0 0.5rem; color: #064e3b; }
+  .markdown h3 { font-size: 1.1rem; font-weight: 700; margin: 1.25rem 0 0.5rem; }
+  .markdown p { margin: 0.5rem 0; }
+  .markdown ul, .markdown ol { padding-left: 1.5rem; margin: 0.5rem 0; }
+  .markdown ul { list-style: disc; }
+  .markdown ol { list-style: decimal; }
+  .markdown li { margin: 0.25rem 0; }
+  .markdown strong { font-weight: 700; color: #064e3b; }
+  .markdown a { color: #047857; text-decoration: underline; }
+  .markdown img { max-width: 100%; height: auto; border-radius: 0.5rem; margin: 1rem 0; }
+  .markdown code { background: #f5f5f4; padding: 0.1rem 0.3rem; border-radius: 0.25rem; font-size: 0.9em; }
+  .markdown pre { background: #1c1917; color: #f5f5f4; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; }
+  .markdown pre code { background: transparent; color: inherit; padding: 0; }
+  .markdown hr { border: 0; border-top: 1px solid #e7e5e4; margin: 1.5rem 0; }
+  .markdown blockquote { border-left: 3px solid #a7f3d0; padding-left: 1rem; color: #44403c; margin: 0.75rem 0; }
+</style>
+</head>
+<body class="text-stone-800">
+
+<main class="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
+  <a href="/announcements"
+    class="inline-flex items-center gap-1 text-sm text-stone-500 hover:text-stone-800 mb-4">
+    <span class="material-symbols-outlined text-[18px]">arrow_back</span>
+    <span>공지사항 목록</span>
+  </a>
+
+  <article id="article" class="bg-white border border-stone-200 rounded-2xl px-5 sm:px-8 py-6 sm:py-8">
+    <div class="text-sm text-stone-400 text-center py-12">불러오는 중...</div>
+  </article>
+
+  <div id="adminActions" style="display:none;" class="mt-4 flex gap-2">
+    <a id="editLink" href="#" class="inline-flex items-center gap-1.5 px-3 py-2 bg-stone-100 text-stone-700 rounded-xl text-xs font-semibold hover:bg-stone-200 transition-colors">
+      <span class="material-symbols-outlined text-[18px]">edit</span>
+      <span>수정</span>
+    </a>
+    <button onclick="deleteAnn()" class="inline-flex items-center gap-1.5 px-3 py-2 bg-red-50 text-red-700 rounded-xl text-xs font-semibold hover:bg-red-100 transition-colors">
+      <span class="material-symbols-outlined text-[18px]">delete</span>
+      <span>삭제</span>
+    </button>
+  </div>
+</main>
+
+<script>
+  const CAT_LABEL = { update: '업데이트', maintenance: '점검 안내', general: '일반 공지' };
+  const CAT_CLASS = { update: 'cat-update', maintenance: 'cat-maintenance', general: 'cat-general' };
+
+  function getId() {
+    const m = location.pathname.match(/\/announcements\/(\d+)/);
+    return m ? parseInt(m[1], 10) : null;
+  }
+  function fmtDate(iso) {
+    if (!iso) return '';
+    const d = new Date(iso.endsWith('Z') || iso.includes('+') ? iso : iso + 'Z');
+    return d.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
+  }
+  function escapeHtml(s) {
+    return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  const annId = getId();
+
+  async function load() {
+    if (!annId) return;
+    try {
+      const [meRes, detailRes] = await Promise.all([
+        fetch('/api/auth/me'),
+        fetch(`/api/announcements/${annId}`),
+      ]);
+      if (!meRes.ok) { window.location.href = '/login'; return; }
+      const me = await meRes.json();
+      if (!detailRes.ok) {
+        document.getElementById('article').innerHTML =
+          '<div class="text-sm text-red-500 text-center py-8">공지를 찾을 수 없습니다.</div>';
+        return;
+      }
+      const a = await detailRes.json();
+
+      // 관리자 액션 표시
+      if (me.is_admin) {
+        document.getElementById('adminActions').style.display = 'flex';
+        document.getElementById('editLink').href = `/announcements/${a.id}/edit`;
+      }
+
+      // 본문 렌더
+      const html = DOMPurify.sanitize(marked.parse(a.body_md || ''));
+      document.getElementById('article').innerHTML = `
+        <div class="flex items-start gap-3 flex-wrap mb-3">
+          ${a.is_pinned ? `<span class="material-symbols-outlined text-emerald-700 text-[20px]" title="상단 고정">push_pin</span>` : ''}
+          <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${CAT_CLASS[a.category] || 'cat-general'}">${CAT_LABEL[a.category] || '일반'}</span>
+        </div>
+        <h1 class="text-xl sm:text-2xl font-bold text-stone-900 mb-2 break-keep">${escapeHtml(a.title)}</h1>
+        <div class="text-xs text-stone-400 flex items-center gap-2 flex-wrap mb-6">
+          <span>${escapeHtml(a.author || '원장')}</span>
+          <span>·</span>
+          <span>${fmtDate(a.created_at)}</span>
+        </div>
+        <div class="markdown">${html}</div>
+      `;
+
+      // 읽음 처리 (실패 무시)
+      fetch(`/api/announcements/${annId}/read`, { method: 'POST' }).catch(() => {});
+    } catch (err) {
+      document.getElementById('article').innerHTML =
+        '<div class="text-sm text-red-500 text-center py-8">불러오지 못했습니다.</div>';
+    }
+  }
+
+  async function deleteAnn() {
+    if (!confirm('정말 삭제하시겠습니까? 되돌릴 수 없습니다.')) return;
+    const res = await fetch(`/api/announcements/${annId}`, { method: 'DELETE' });
+    if (res.ok) {
+      window.location.href = '/announcements';
+    } else {
+      alert('삭제에 실패했습니다.');
+    }
+  }
+
+  load();
+</script>
+</body>
+</html>

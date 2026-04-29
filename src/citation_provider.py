@@ -102,17 +102,23 @@ def build_citation_block(
     dynamic = get_dynamic_citations(keyword, diversity_config)
 
     lines: list[str] = ["---", "**참고 문헌**"]
-    for cit in static_citations:
-        lines.append(f"- {cit['label']}")
-    for cit in dynamic:
-        if cit["url"]:
-            lines.append(f"- [{cit['label']}]({cit['url']})")
+    if static_citations:
+        lines.append("")
+        lines.append("**원전 / 가이드라인**")
+        for cit in static_citations:
+            lines.append(f"- {cit['label']}")
+    if dynamic:
+        lines.append("")
+        lines.append("**추가 검색 링크 — 클릭하여 직접 확인하세요**")
+        for cit in dynamic:
+            if cit["url"]:
+                lines.append(f"- [{cit['label']}]({cit['url']})")
 
     if len(lines) <= 2:
         return ""
 
     lines.append(
-        "\n*위 자료는 관련 학술 정보 탐색을 위한 안내이며, "
-        "특정 치료 효과를 보장하지 않습니다.*"
+        "\n*위 자료는 관련 학술 정보 탐색을 위한 안내입니다. "
+        "특정 치료 효과를 보장하지 않으며, 본문의 사실 주장은 본문 내 [번호] 참고 문헌으로 검증해주세요.*"
     )
     return "\n".join(lines)

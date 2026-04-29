@@ -366,15 +366,21 @@ def search_all_academic(keyword: str) -> list[dict]:
 
 
 def build_rag_context_for_prompt(results: list[dict]) -> str:
-    """검색 결과 → 시스템 프롬프트 주입용 텍스트."""
+    """검색 결과 → 시스템 프롬프트 주입용 텍스트.
+    검증 가능성을 최우선 — AI가 메타데이터를 변형·생성하지 않도록 강력 지시.
+    """
     if not results:
         return ""
 
     lines = [
-        "## 학술 참고 자료 (반드시 활용할 것)",
-        "아래 논문·자료의 핵심 내용을 블로그 본문에 자연스럽게 반영하고, 글 말미 **참고 문헌** 섹션에",
-        "각 자료의 제목·저자·핵심 인용구(1~2문장)·URL을 포함하세요.",
-        "인용구는 반드시 아래 초록 원문에서 선택하세요. 없으면 요약으로 대체하세요.\n",
+        "## 학술 참고 자료 (검증 가능 — 그대로 인용)",
+        "아래 자료는 실제 학술 검색 결과입니다. 다음 규칙을 반드시 준수하세요:",
+        "  1. 본문에서 사실 주장 시 [1], [2] 번호로 매핑 — **번호는 아래 [자료 N] 순서 그대로**",
+        "  2. 글 말미 '참고 문헌' 섹션에서 각 자료의 **제목·저자·학술지·URL을 그대로 복사** (변형·축약·번역 금지)",
+        "  3. **URL은 아래 제공된 것을 그대로 사용** — 검색 URL로 변환하거나 다른 URL로 대체하지 마세요",
+        "  4. 핵심 인용구가 필요하면 아래 초록 원문에서만 추출",
+        "  5. 아래 자료 외의 가상 논문·저자·학술지·연도 생성은 **절대 금지**",
+        "",
     ]
     for i, r in enumerate(results, 1):
         lines.append(f"[자료 {i}] 출처: {r['source']}")
@@ -385,6 +391,6 @@ def build_rag_context_for_prompt(results: list[dict]) -> str:
             lines.append(f"학술지: {r['journal']}")
         if r.get("abstract"):
             lines.append(f"초록: {r['abstract']}")
-        lines.append(f"URL: {r['url']}")
+        lines.append(f"URL (그대로 복사): {r['url']}")
         lines.append("")
     return "\n".join(lines)

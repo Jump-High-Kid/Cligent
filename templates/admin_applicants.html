@@ -199,16 +199,6 @@
 </head>
 <body>
 
-  <!-- 어드민 시크릿 입력 모달 -->
-  <div id="secret-modal">
-    <div class="secret-box">
-      <h2>어드민 인증</h2>
-      <p>관리자 시크릿을 입력하세요.</p>
-      <input type="password" id="secret-input" placeholder="Admin secret" autocomplete="off">
-      <button onclick="submitSecret()">확인</button>
-    </div>
-  </div>
-
   <header>
     <h1>Cligent 어드민</h1>
     <span>베타 신청자 관리</span>
@@ -286,10 +276,11 @@
 
     async function loadData() {
       try {
-        const res = await fetch('/api/admin/applicants', {
-          headers: { 'Authorization': `Bearer ${getSecret()}` },
-        });
-        if (res.status === 401) { location.href = '/login'; return; }
+        const res = await fetch('/api/admin/applicants');
+        if (res.status === 401 || res.status === 403) {
+          location.href = '/login?next=/admin/applicants';
+          return;
+        }
         const data = await res.json();
 
         allData = data.applicants || [];
@@ -306,22 +297,6 @@
         showToast('데이터 로드 실패: ' + e.message);
       }
     }
-
-    function getSecret() {
-      return sessionStorage.getItem('admin_secret') || '';
-    }
-
-    function submitSecret() {
-      const val = document.getElementById('secret-input').value.trim();
-      if (!val) return;
-      sessionStorage.setItem('admin_secret', val);
-      document.getElementById('secret-modal').classList.add('hidden');
-      loadData();
-    }
-
-    document.getElementById('secret-input').addEventListener('keydown', e => {
-      if (e.key === 'Enter') submitSecret();
-    });
 
     function renderTable() {
       const filtered = curFilter === 'all'
@@ -392,10 +367,7 @@
       try {
         const res = await fetch('/api/admin/invite-batch', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${getSecret()}`,
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ids }),
         });
         const data = await res.json();
@@ -432,13 +404,8 @@
         .replace(/"/g,'&quot;');
     }
 
-    // 시크릿이 이미 저장돼 있으면 모달 건너뛰고 바로 로드
-    if (sessionStorage.getItem('admin_secret')) {
-      document.getElementById('secret-modal').classList.add('hidden');
-      loadData();
-    } else {
-      document.getElementById('secret-input').focus();
-    }
+    // 세션 + is_admin 으로 자동 로드 (실패 시 /login 리다이렉트)
+    loadData();
   </script>
 </body>
 </html>

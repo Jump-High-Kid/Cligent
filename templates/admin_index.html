@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Cligent — 관리자</title>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet"/>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+  tailwind.config = { theme: { extend: { fontFamily: { sans: ['Pretendard', 'sans-serif'] } } } };
+</script>
+<style>
+  body { font-family: 'Pretendard', sans-serif; background: #fafaf9; }
+  .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24; }
+</style>
+</head>
+<body class="text-stone-800">
+
+<main class="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
+  <div class="flex items-center gap-2 mb-2">
+    <span class="material-symbols-outlined text-emerald-900">admin_panel_settings</span>
+    <h1 class="text-2xl sm:text-3xl font-bold text-stone-900">관리자 패널</h1>
+  </div>
+  <p class="text-sm text-stone-500 mb-6">
+    Cligent 운영용 페이지입니다. 베타 신청자 관리·시스템 설정 등 일반 사용자에게 노출되지 않는 기능이 있습니다.
+  </p>
+
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <a href="/admin/clinics"
+      class="block bg-white border border-stone-200 rounded-2xl p-5 hover:border-emerald-300 hover:shadow-sm transition-all">
+      <div class="flex items-center gap-3 mb-2">
+        <span class="material-symbols-outlined text-emerald-900">domain</span>
+        <h2 class="font-semibold text-stone-900">클리닉 / 사용자 목록</h2>
+      </div>
+      <p class="text-sm text-stone-500 leading-relaxed">
+        가입 클리닉 전체 — 플랜·trial 상태, API 키, 이번 달 사용량, 마지막 접속. trial 연장·플랜 변경.
+      </p>
+    </a>
+
+    <a href="/admin/usage"
+      class="block bg-white border border-stone-200 rounded-2xl p-5 hover:border-emerald-300 hover:shadow-sm transition-all">
+      <div class="flex items-center gap-3 mb-2">
+        <span class="material-symbols-outlined text-emerald-900">monitoring</span>
+        <h2 class="font-semibold text-stone-900">사용량 대시보드</h2>
+      </div>
+      <p class="text-sm text-stone-500 leading-relaxed">
+        전체 합산(이번 달 블로그·복사·에러) + 클리닉별 랭킹. ICP 신호 파악.
+      </p>
+    </a>
+
+    <a href="/admin/feedback"
+      class="block bg-white border border-stone-200 rounded-2xl p-5 hover:border-emerald-300 hover:shadow-sm transition-all">
+      <div class="flex items-center gap-3 mb-2">
+        <span class="material-symbols-outlined text-emerald-900">forum</span>
+        <h2 class="font-semibold text-stone-900">피드백 뷰어</h2>
+        <span id="fb-new-badge" class="hidden ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-500 text-white">0</span>
+      </div>
+      <p class="text-sm text-stone-500 leading-relaxed">
+        사용자 피드백 바로 입력된 메시지. 미확인/확인 토글, 페이지·클리닉 정보.
+      </p>
+    </a>
+
+    <a href="/admin/applicants"
+      class="block bg-white border border-stone-200 rounded-2xl p-5 hover:border-emerald-300 hover:shadow-sm transition-all">
+      <div class="flex items-center gap-3 mb-2">
+        <span class="material-symbols-outlined text-emerald-900">group</span>
+        <h2 class="font-semibold text-stone-900">베타 신청자 관리</h2>
+      </div>
+      <p class="text-sm text-stone-500 leading-relaxed">
+        신청 목록, 단계별 통계, 일괄 초대 발송.
+      </p>
+    </a>
+
+    <a href="/admin/settings"
+      class="block bg-white border border-stone-200 rounded-2xl p-5 hover:border-emerald-300 hover:shadow-sm transition-all">
+      <div class="flex items-center gap-3 mb-2">
+        <span class="material-symbols-outlined text-emerald-900">tune</span>
+        <h2 class="font-semibold text-stone-900">시스템 설정</h2>
+      </div>
+      <p class="text-sm text-stone-500 leading-relaxed">
+        네이버 검색 API 키 등 외부 서비스 연동.
+      </p>
+    </a>
+  </div>
+
+  <script>
+    // 미확인 피드백 뱃지
+    fetch('/api/admin/feedback?per_page=1').then(r => r.ok ? r.json() : null).then(d => {
+      if (!d) return;
+      const n = d.new_count || 0;
+      const el = document.getElementById('fb-new-badge');
+      if (n > 0 && el) {
+        el.textContent = n > 99 ? '99+' : String(n);
+        el.classList.remove('hidden');
+      }
+    }).catch(() => {});
+  </script>
+
+  <div class="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+    <div class="flex items-start gap-2">
+      <span class="material-symbols-outlined text-amber-700 text-[20px]">info</span>
+      <div class="text-xs text-amber-900 leading-relaxed">
+        이 페이지는 <strong>대표원장 + 관리자 클리닉</strong>에서만 접근 가능합니다.
+        CLI 스크립트(`scripts/create_clinic.py` 등)는 ADMIN_SECRET Bearer 토큰을 별도로 사용합니다.
+      </div>
+    </div>
+  </div>
+</main>
+
+</body>
+</html>

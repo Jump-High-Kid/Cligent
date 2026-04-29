@@ -772,18 +772,29 @@ def generate_blog_stream(
 
     user_message = f"{seo_prefix}블로그 주제: {keyword}{qa_text}{materials_text}"
 
-    # RAG: 정보형 블로그에서 학술 자료 병렬 검색 후 시스템 프롬프트에 주입
+    # RAG: 모든 모드에서 학술 자료 병렬 검색 후 시스템 프롬프트에 주입 (할루시네이션 인용 방지)
     rag_results: list[dict] = []
-    if mode in ("정보", "전문"):
-        yield f"data: {json.dumps({'status': '학술 자료를 검색하고 있습니다...'}, ensure_ascii=False)}\n\n"
-        try:
-            from academic_search import search_all_academic, build_rag_context_for_prompt
-            rag_results = search_all_academic(keyword)
-        except Exception:
-            rag_results = []
-        if rag_results:
-            yield f"data: {json.dumps({'status': f'{len(rag_results)}건의 학술 자료를 찾았습니다.'}, ensure_ascii=False)}\n\n"
-            system_prompt += "\n\n" + build_rag_context_for_prompt(rag_results)
+    yield f"data: {json.dumps({'status': '학술 자료를 검색하고 있습니다...'}, ensure_ascii=False)}\n\n"
+    try:
+        from academic_search import search_all_academic, build_rag_context_for_prompt
+        rag_results = search_all_academic(keyword)
+    except Exception:
+        rag_results = []
+    if rag_results:
+        yield f"data: {json.dumps({'status': f'{len(rag_results)}건의 학술 자료를 찾았습니다.'}, ensure_ascii=False)}\n\n"
+        system_prompt += "\n\n" + build_rag_context_for_prompt(rag_results)
+    else:
+        # 0건일 때도 명시적 안내 — AI가 RAG 부재 상황을 인지하고 가상 인용을 만들지 않도록
+        yield f"data: {json.dumps({'status': '학술 자료가 검색되지 않았습니다 (검색 링크로 대체).'}, ensure_ascii=False)}\n\n"
+        system_prompt += (
+            "\n\n## 학술 참고 자료 (검색 결과 없음)\n"
+            "이번 주제는 학술 검색 결과 0건입니다. 본문에서 **저자명·논문 제목·학술지·연도·권호·페이지**를\n"
+            "구체적으로 인용하지 마세요. 가상 논문 생성 절대 금지.\n"
+            "참고 문헌 섹션은 다음만 허용:\n"
+            "  - 한의학 고전 (동의보감·황제내경·동의수세보원 등) — 책 제목과 편명까지만\n"
+            "  - 정부·국제기관 통계 (건강보험심사평가원·WHO 등) — 보고서명과 기관 홈페이지 URL\n"
+            "  - 검색 링크 (RISS·KCI·Google Scholar·PubMed) — 시스템이 자동 추가하므로 본문에 포함하지 마세요.\n"
+        )
 
     client = anthropic.Anthropic(api_key=api_key)
 
@@ -809,9 +820,16 @@ def generate_blog_stream(
             fixed_text = _fix_keyword_counts(original_text, effective_keywords)
 
             # v0.3: citation block — RAG 결과 있으면 AI가 이미 작성했으므로 skip
+            # v0.4 fix: AI가 본문에 '## 참고 문헌' 등 섹션을 이미 작성한 경우에도 중복 방지
             if not rag_results:
                 citation_block = diversity.get("citation_block", "")
-                if citation_block:
+                import re as _re
+                ai_wrote_refs = bool(_re.search(
+                    r"^##\s*(참고\s*문헌|참고\s*자료|미주|출처|References)\b",
+                    fixed_text,
+                    _re.MULTILINE,
+                ))
+                if citation_block and not ai_wrote_refs:
                     fixed_text = fixed_text.rstrip() + "\n\n" + citation_block
 
             # 의료법 준수 고지문 — byline 바로 위 삽입

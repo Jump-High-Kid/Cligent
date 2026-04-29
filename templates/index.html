@@ -787,9 +787,7 @@
         <h3>이미지 프롬프트</h3>
         <div id="imagePromptTip">
           <strong>사용법</strong> — 각 프롬프트 옆 버튼으로 복사 후 이미지 AI 페이지로 이동하세요.<br>
-          실제 진료실 사진을 함께 업로드하면 품질이 향상됩니다. (Midjourney <code>--iw</code>, DALL-E 이미지 편집)<br>
-          <!-- #17 한국어 힌트 -->
-          <span style="color:#c0392b;font-size:0.82rem;">Midjourney · Ideogram · Leonardo AI는 <strong>영어 전용</strong>입니다. 복사 전 ChatGPT 또는 DeepL로 번역하여 사용하세요.</span>
+          실제 진료실 사진을 함께 업로드하면 품질이 향상됩니다. (Midjourney <code>--iw</code>, DALL-E 이미지 편집)
         </div>
 
         <!-- 옵션 패널 -->
@@ -1895,8 +1893,41 @@
       return card;
     }
 
+    // 프롬프트 + negative 결합 — target에 따라 포맷 분기
+    function composePrompt(p, target) {
+      const neg = (p.negative_prompt || '').trim();
+      if (target === 'midjourney') {
+        // Midjourney: --no 플래그로 negative 결합
+        let body = p.prompt;
+        if (neg) {
+          // 기존 --no 제거 후 깔끔히 재추가
+          body = body.replace(/\s*--no\s+[^\-]+?(?=\s--|$)/i, '').trim();
+          body = body + ' --no ' + neg;
+        }
+        return body;
+      }
+      if (target === 'chatgpt' || target === 'gemini') {
+        let body = 'Generate a single standalone image. Do not create a collage, grid, mosaic, or tiled image. 1:1 square crop. ' + stripMjParams(p.prompt);
+        if (neg) body += '\n\nAvoid (negative prompt): ' + neg;
+        return body;
+      }
+      // 일반(raw) — Negative 라벨 명시
+      let body = p.prompt;
+      if (neg) body += '\n\nNegative prompt: ' + neg;
+      return body;
+    }
+
+    function _findPromptByDomId(promptId) {
+      // promptId 형태: img-prompt-text-{number}
+      const m = (promptId || '').match(/(\d+)$/);
+      if (!m) return null;
+      const num = parseInt(m[1], 10);
+      return (allPrompts || []).find(p => p.number === num) || null;
+    }
+
     function copyPrompt(promptId, btn) {
-      const text = document.getElementById(promptId).textContent;
+      const p = _findPromptByDomId(promptId);
+      const text = p ? composePrompt(p, currentImgAi || 'midjourney') : document.getElementById(promptId).textContent;
       navigator.clipboard.writeText(text).then(() => {
         const orig = btn.textContent;
         btn.textContent = '복사됨!';
@@ -1926,11 +1957,11 @@
     // 프롬프트 복사 후 AI 플랫폼 새 탭으로 이동
     function copyOnAiClick(event, promptId, url) {
       event.preventDefault();
-      const raw = document.getElementById(promptId).textContent;
-      const needsTransform = url.includes('gemini.google.com') || url.includes('chatgpt.com');
-      const text = needsTransform
-        ? 'Generate a single standalone image. Do not create a collage, grid, or tiled image. 1:1 square crop. ' + stripMjParams(raw)
-        : raw;
+      const p = _findPromptByDomId(promptId);
+      let target = 'midjourney';
+      if (url.includes('gemini.google.com')) target = 'gemini';
+      else if (url.includes('chatgpt.com')) target = 'chatgpt';
+      const text = p ? composePrompt(p, target) : document.getElementById(promptId).textContent;
       const openTab = () => {
         const w = window.open(url, '_blank');
         // #37 팝업 차단 감지
@@ -1982,7 +2013,7 @@
     function copyAllForMidjourney(btn) {
       if (!allPrompts || !allPrompts.length) return;
       const texts = allPrompts.map((p, i) =>
-        `[${i + 1}] ${p.title_ko} (${p.placement})\n${p.prompt}`
+        `[${i + 1}] ${p.title_ko} (${p.placement})\n${composePrompt(p, 'midjourney')}`
       ).join('\n\n---\n\n');
       navigator.clipboard.writeText(texts).then(() => {
         const orig = btn.textContent;
@@ -1994,10 +2025,7 @@
     function copyPromptForAi(num) {
       const p = allPrompts[num - 1];
       if (!p) return;
-      const needsTransform = (currentImgAi === 'chatgpt' || currentImgAi === 'gemini');
-      const text = needsTransform
-        ? 'Generate a single standalone image. Do not create a collage, grid, mosaic, or tiled image. 1:1 square crop. ' + stripMjParams(p.prompt)
-        : p.prompt;
+      const text = composePrompt(p, currentImgAi || 'chatgpt');
       navigator.clipboard.writeText(text).then(() => showImgToast(num + '번 프롬프트 복사 — ' + (currentImgAi === 'chatgpt' ? 'ChatGPT' : 'Gemini') + '에 붙여넣으세요'));
     }
 

@@ -156,19 +156,8 @@
   </nav>
 </header>
 
-<!-- 인증 화면 -->
-<div id="authWall" class="show">
-  <div class="auth-card">
-    <h2>어드민 인증</h2>
-    <p>ADMIN_SECRET을 입력하세요</p>
-    <input id="secretInput" type="password" placeholder="Admin Secret" onkeydown="if(event.key==='Enter')doAuth()">
-    <button onclick="doAuth()">확인</button>
-    <p id="authError" class="auth-error">인증에 실패했습니다.</p>
-  </div>
-</div>
-
-<!-- 메인 콘텐츠 -->
-<div id="mainContent">
+<!-- 메인 콘텐츠 (세션 + is_admin 으로 진입) -->
+<div id="mainContent" class="show">
   <div class="container">
 
     <div class="card">
@@ -198,22 +187,14 @@
 </div>
 
 <script>
-  let _adminSecret = '';
-
-  async function doAuth() {
-    const secret = document.getElementById('secretInput').value.trim();
-    if (!secret) return;
-    // 조회 시도로 인증 확인
-    const res = await fetch('/api/admin/naver-config', {
-      headers: { 'Authorization': `Bearer ${secret}` }
-    });
-    if (!res.ok) {
-      document.getElementById('authError').style.display = 'block';
+  // 세션 쿠키로 인증 (서버가 _require_admin_or_session으로 검증)
+  async function loadOnInit() {
+    const res = await fetch('/api/admin/naver-config');
+    if (res.status === 401 || res.status === 403) {
+      window.location.href = '/login?next=/admin/settings';
       return;
     }
-    _adminSecret = secret;
-    document.getElementById('authWall').classList.remove('show');
-    document.getElementById('mainContent').classList.add('show');
+    if (!res.ok) return;
     const data = await res.json();
     renderNaverStatus(data);
   }
@@ -241,10 +222,7 @@
     btn.disabled = true;
     const res = await fetch('/api/admin/naver-config', {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${_adminSecret}`,
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ naver_client_id: clientId, naver_client_secret: clientSecret }),
     });
     btn.disabled = false;
@@ -259,6 +237,8 @@
       alert(d.detail || '저장 실패');
     }
   }
+
+  loadOnInit();
 </script>
 </body>
 </html>
