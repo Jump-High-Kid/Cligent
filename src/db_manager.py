@@ -185,6 +185,16 @@ def init_db() -> None:
                 url              TEXT    NOT NULL,
                 created_at       TEXT    NOT NULL DEFAULT (datetime('now', 'utc'))
             );
+
+            -- 서버 전역 비밀 (관리자 전용, Fernet 암호화)
+            -- 베타: BYOAI 비활성, 모든 사용자가 같은 OpenAI 키 사용
+            -- 미래 (Naver/Google 등) 서버 비밀도 같은 테이블 재사용
+            CREATE TABLE IF NOT EXISTS server_secrets (
+                name              TEXT    PRIMARY KEY,                 -- e.g., 'openai_api_key'
+                value_enc         TEXT    NOT NULL,                    -- Fernet 암호화 (SECRET_KEY 파생)
+                updated_at        TEXT    NOT NULL DEFAULT (datetime('now', 'utc')),
+                updated_by_user_id INTEGER REFERENCES users(id)
+            );
         """)
         # feedback 컬럼 마이그레이션 (admin 뷰어 — viewed_at)
         existing_fb = {row[1] for row in conn.execute("PRAGMA table_info(feedback)")}

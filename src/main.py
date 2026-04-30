@@ -3385,3 +3385,87 @@ async def api_announcement_upload_image(
             (fname, url),
         )
     return JSONResponse({"url": url})
+
+
+# ─────────────────────────────────────────────────────────────────
+# 관리자 OpenAI API 키 등록 (Phase 1, 2026-04-30)
+# 베타 단계: BYOAI 비활성, 모든 사용자가 이 키를 공유 사용.
+# 저장: server_secrets 테이블 + Fernet 암호화 (secret_manager 모듈)
+# 검증: OpenAI models.list() 호출로 즉시 키 유효성 확인.
+# ─────────────────────────────────────────────────────────────────
+
+def _resolve_user_id_from_session(request: Request) -> Optional[int]:
+    """세션 쿠키에서 user_id 추출 (감사 로그용). 실패 시 None."""
+    try:
+        token = request.cookies.get(COOKIE_NAME)
+        if not token:
+            return None
+        payload = decode_token(token)
+        if not payload:
+            return None
+        uid = payload.get("user_id") or payload.get("sub")
+        if isinstance(uid, str) and uid.isdigit():
+            return int(uid)
+        if isinstance(uid, int):
+            return uid
+    except Exception:
+        pass
+    return None
+
+
+@app.get("/api/admin/openai-key")
+def api_admin_get_openai_key(request: Request):
+    """현재 등록된 OpenAI 키 메타 (마스킹된 값 + 갱신일 + 갱신자). 미등록 시 secret=null."""
+    _require_admin_or_session(request)
+    from secret_manager import get_secret_meta
+    meta = get_secret_meta("openai_api_key")
+    return JSONResponse({"secret": meta})
+
+
+@app.post("/api/admin/openai-key")
+async def api_admin_set_openai_key(request: Request):
+    """
+    OpenAI 키 저장 + 즉시 유효성 검증.
+    Body: {"value": "sk-..."}
+    검증 실패 시 저장하지 않고 400 반환.
+    """
+    _require_admin_or_session(request)
+    body = await request.json()
+    value = (body.get("value") or "").strip()
+    if not value:
+        raise HTTPException(status_code=400, detail="키 값이 비어 있습니다.")
+    if not value.startswith("sk-"):
+        raise HTTPException(status_code=400, detail="OpenAI 키는 'sk-'로 시작해야 합니다.")
+
+    # OpenAI에 가벼운 호출로 키 검증
+    try:
+        import openai
+        client = openai.OpenAI(api_key=value, timeout=10.0)
+        client.models.list()  # 200 → 유효
+    except openai.AuthenticationError:
+        raise HTTPException(status_code=400, detail="유효하지 않은 OpenAI 키입니다.")
+    except openai.APIConnectionError:
+        raise HTTPException(status_code=503, detail="OpenAI 연결 실패. 잠시 후 다시 시도하세요.")
+    except openai.RateLimitError:
+        raise HTTPException(status_code=429, detail="OpenAI 요청 한도 도달. 잠시 후 다시 시도하세요.")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        _error_logger.exception("OpenAI 키 검증 중 예외")
+        raise HTTPException(status_code=500, detail=f"검증 중 오류: {type(exc).__name__}")
+
+    # 검증 성공 → 저장 (감사용 user_id 동봉)
+    user_id = _resolve_user_id_from_session(request)
+    from secret_manager import set_server_secret, get_secret_meta
+    set_server_secret("openai_api_key", value, user_id=user_id)
+    meta = get_secret_meta("openai_api_key")
+    return JSONResponse({"ok": True, "secret": meta})
+
+
+@app.delete("/api/admin/openai-key")
+def api_admin_delete_openai_key(request: Request):
+    """OpenAI 키 삭제 (테스트·키 회전용)."""
+    _require_admin_or_session(request)
+    from secret_manager import delete_server_secret
+    deleted = delete_server_secret("openai_api_key")
+    return JSONResponse({"ok": True, "deleted": deleted})

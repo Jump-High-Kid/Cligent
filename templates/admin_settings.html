@@ -161,6 +161,29 @@
   <div class="container">
 
     <div class="card">
+      <div class="card-title">OpenAI API 키 (서버 공유)</div>
+      <div class="card-desc">
+        베타 단계: 모든 사용자가 이 키를 공유 사용합니다. 이미지 생성(gpt-image-2) + 검증을 즉시 수행합니다.<br>
+        발급 경로: <strong>platform.openai.com</strong> → API keys → Create new secret key
+      </div>
+      <div id="openaiStatus" class="status-badge none">미설정</div>
+      <div class="form-group">
+        <label>OpenAI 키</label>
+        <input id="openaiKeyInput" type="password" placeholder="sk-... (새 값 입력 시에만, 현재 값 유지하려면 빈칸)">
+        <div class="hint">보안상 현재 저장된 값은 마스킹 표시만 됩니다. 갱신은 즉시 반영됩니다 (캐시 invalidate).</div>
+      </div>
+      <div class="form-group">
+        <label>현재 등록 정보</label>
+        <div id="openaiMeta" class="hint" style="font-family:ui-monospace,monospace;">로딩 중...</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button class="btn-save" id="saveOpenaiBtn" onclick="saveOpenaiKey()">저장 + 검증</button>
+        <button class="btn-save" id="deleteOpenaiBtn" onclick="deleteOpenaiKey()" style="background:#fee2e2;color:#991b1b;">삭제</button>
+        <span class="save-msg" id="openaiSaveMsg">저장되었습니다</span>
+      </div>
+    </div>
+
+    <div class="card">
       <div class="card-title">네이버 검색 API</div>
       <div class="card-desc">
         블로그 발행 확인 자동화에 사용됩니다. 네이버 개발자 센터에서 앱을 등록하고 검색 API를 활성화한 후 발급받은 키를 입력하세요.<br>
@@ -238,7 +261,72 @@
     }
   }
 
+  // ── OpenAI 키 관리 ──────────────────────────────────────────
+  async function loadOpenaiKey() {
+    const res = await fetch('/api/admin/openai-key');
+    if (!res.ok) return;
+    const data = await res.json();
+    renderOpenaiStatus(data.secret);
+  }
+
+  function renderOpenaiStatus(meta) {
+    const badge = document.getElementById('openaiStatus');
+    const metaDiv = document.getElementById('openaiMeta');
+    if (meta) {
+      badge.className = 'status-badge ok';
+      badge.textContent = '✓ 설정 완료';
+      const dateStr = meta.updated_at ? meta.updated_at.replace('T', ' ').slice(0, 19) : '—';
+      const byEmail = meta.updated_by_email || '—';
+      metaDiv.textContent = `${meta.masked} · 갱신 ${dateStr} · by ${byEmail}`;
+    } else {
+      badge.className = 'status-badge none';
+      badge.textContent = '미설정';
+      metaDiv.textContent = '등록된 키가 없습니다.';
+    }
+  }
+
+  async function saveOpenaiKey() {
+    const value = document.getElementById('openaiKeyInput').value.trim();
+    if (!value) { alert('새 OpenAI 키를 입력하세요.'); return; }
+    if (!value.startsWith('sk-')) { alert("OpenAI 키는 'sk-'로 시작해야 합니다."); return; }
+
+    const btn = document.getElementById('saveOpenaiBtn');
+    btn.disabled = true;
+    btn.textContent = '검증 중...';
+    try {
+      const res = await fetch('/api/admin/openai-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        document.getElementById('openaiKeyInput').value = '';
+        document.getElementById('openaiSaveMsg').classList.add('show');
+        renderOpenaiStatus(data.secret);
+        setTimeout(() => document.getElementById('openaiSaveMsg').classList.remove('show'), 2500);
+      } else {
+        const d = await res.json().catch(() => ({}));
+        alert(d.detail || '저장 실패');
+      }
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '저장 + 검증';
+    }
+  }
+
+  async function deleteOpenaiKey() {
+    if (!confirm('OpenAI 키를 삭제하시겠습니까? 이미지 생성 기능이 즉시 중단됩니다.')) return;
+    const res = await fetch('/api/admin/openai-key', { method: 'DELETE' });
+    if (res.ok) {
+      renderOpenaiStatus(null);
+    } else {
+      alert('삭제 실패');
+    }
+  }
+
   loadOnInit();
+  loadOpenaiKey();
 </script>
 </body>
 </html>
