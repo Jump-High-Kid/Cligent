@@ -780,6 +780,45 @@ brew services info caddy      # 상태 확인
 cat /opt/homebrew/etc/Caddyfile  # 설정 확인
 ```
 
+## 가격·이미지 구조 v7 결정 (2026-04-30 — CEO 모드 토론)
+
+상세는 메모리 참조: `~/.claude/projects/-Users-jhzmac/memory/project_cligent_pricing_v7.md` + `project_image_strategy.md`
+
+### 핵심 결정
+
+- **BYOAI 위자드 베타 비활성** (M3+ Lite로 단계 재도입). 베타는 All-in 정액제 단일.
+- **가격**: Standard 14.9만(30건) / Pro 27.9만(80건+종량제) — 쏙AI(19.9만/90건) 대비 위·아래 협공
+- **3개월 코호트**: 5인 무료 → 25인 1만원 → 50인 15% 할인 → 정식 M3+
+- **이미지 모델**: gpt-image-2 단일 (mini는 의료 일러스트 품질 미달)
+  - Standard 1024×1024 medium ($0.053/장)
+  - Pro 1536×1024 high ($0.165/장)
+- **Pro 출시 조건부**: 해부학 DB Phase 2 (100 부위) + 평균 재생성 1.5회 이하 + 만족도 80%
+- **Hybrid AI 모델**: 글 본문 Sonnet 4.6 / 메타(제목·태그·요약) Haiku 4.5 (즉시 도입)
+- **edit endpoint 우선** 워크플로 (재생성 대신 부분 수정으로 세션 총비용 35% ↓)
+
+### 해부학·경혈 DB가 사업 성패 lever
+
+- 비용 1/3 절감 + Pro 가격 정당성 + visual moat (다른 SaaS 흉내 못 함)
+- 자료 출처: Servier Medical Art (CC-BY 3.0), BodyParts3D, Wikimedia, WHO 표준 경혈
+- Phase 1 (M0~M2) 30 부위 + 240 경혈 좌표 = **원장님 도메인 작업, critical path**
+
+### 1주 인프라 작업 (사용자 OK 신호 대기)
+
+| Day | 작업 |
+|-----|------|
+| 1 | 관리자 OpenAI API 키 등록 시스템 |
+| 2~3 | image2 generations + edits 통합, 비율·해상도 UI |
+| 4 | prompt caching + Haiku 메타 |
+| 5 | 자동 다운로드 4종 + 재생성 5회 무료 + 측정 모드 |
+| 6 | Free Trial 30명 + 어뷰징 1차 방어 |
+| 7 | KPI 측정 인프라 + Cohort 1 초대 |
+
+### 미해결 토론
+
+- **기타2 SEO 중복 콘텐츠 방어**: 같은 주제·부위 이미지·글 반복 → 네이버·구글 demote 위험. 다음 conversation에서 재개. 보존 위치: `project_seo_duplication_pending.md`
+- **Pro 종량제 단가**: 베타 1개월 후 실데이터로 산정 (예상 2,500~5,000원/세트)
+- **영상 SaaS**: M6+ 별도 베타 (`project_video_deferred.md`)
+
 ## 주의사항
 
 - 환자 식별 정보(이름, 주민번호, 연락처)는 로그에 출력 금지
