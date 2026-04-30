@@ -85,12 +85,15 @@ def client():
             raise HTTPException(status_code=400, detail="OpenAI 키는 'sk-'로 시작해야 합니다.")
 
         # OpenAI 검증 (모킹 가능)
+        # Restricted 키는 models.list() 권한이 없어 PermissionDeniedError 발생 → 통과 처리
         import openai
         try:
             cli = openai.OpenAI(api_key=value, timeout=10.0)
             cli.models.list()
         except openai.AuthenticationError:
             raise HTTPException(status_code=400, detail="유효하지 않은 OpenAI 키입니다.")
+        except openai.PermissionDeniedError:
+            pass  # Restricted 키 — 인증 통과로 간주, 저장 진행
 
         from secret_manager import set_server_secret, get_secret_meta
         set_server_secret("openai_api_key", value, user_id=None)
@@ -156,6 +159,41 @@ def test_openai_auth_error_rejected(client, monkeypatch):
     # 저장 안 됐는지 확인
     res_get = client.get("/api/admin/openai-key", headers=_admin_headers())
     assert res_get.json()["secret"] is None
+
+
+def test_restricted_key_accepted(client, monkeypatch):
+    """Restricted(이미지 전용) 키 → models.list() 403 → 저장 통과."""
+    import openai
+
+    fake_response = MagicMock(status_code=403, request=MagicMock())
+
+    class FakeOpenAI:
+        def __init__(self, api_key=None, timeout=None, **kw):
+            self.api_key = api_key
+
+        @property
+        def models(self):
+            mock = MagicMock()
+            mock.list.side_effect = openai.PermissionDeniedError(
+                message="Insufficient permissions for the requested resource",
+                response=fake_response,
+                body={},
+            )
+            return mock
+
+    monkeypatch.setattr(openai, "OpenAI", FakeOpenAI)
+
+    res = client.post(
+        "/api/admin/openai-key",
+        json={"value": "sk-proj-restricted-image-only-key"},
+        headers=_admin_headers(),
+    )
+    assert res.status_code == 200
+    assert res.json()["ok"] is True
+
+    # 저장 확인
+    res_get = client.get("/api/admin/openai-key", headers=_admin_headers())
+    assert res_get.json()["secret"] is not None
 
 
 def test_valid_key_saved_and_masked(client, monkeypatch):

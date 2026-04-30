@@ -3438,12 +3438,19 @@ async def api_admin_set_openai_key(request: Request):
         raise HTTPException(status_code=400, detail="OpenAI 키는 'sk-'로 시작해야 합니다.")
 
     # OpenAI에 가벼운 호출로 키 검증
+    # Restricted(이미지 전용) 키는 models.list() 권한이 없어 PermissionDeniedError 발생.
+    # 401 AuthenticationError = 키 자체가 무효 → 거부
+    # 403 PermissionDeniedError = 키는 유효하지만 Models 스코프만 없음 → 통과
+    #   (이미지 스코프는 첫 실호출 시 ai_client에서 검증됨)
     try:
         import openai
         client = openai.OpenAI(api_key=value, timeout=10.0)
         client.models.list()  # 200 → 유효
     except openai.AuthenticationError:
         raise HTTPException(status_code=400, detail="유효하지 않은 OpenAI 키입니다.")
+    except openai.PermissionDeniedError:
+        # Restricted 키 (이미지 전용 등) — 인증은 통과한 상태이므로 저장 허용
+        _error_logger.info("OpenAI 키 검증: PermissionDenied — Restricted 키로 간주하고 저장")
     except openai.APIConnectionError:
         raise HTTPException(status_code=503, detail="OpenAI 연결 실패. 잠시 후 다시 시도하세요.")
     except openai.RateLimitError:
