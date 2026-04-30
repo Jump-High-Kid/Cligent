@@ -803,10 +803,18 @@ def generate_blog_stream(
         input_tokens = 0
         output_tokens = 0
 
+        # Anthropic prompt caching — system 프롬프트는 매 호출 동일 구조이므로 ephemeral 캐시.
+        # 두 번째 호출부터 cache_read_input_tokens로 변환되어 ~75~90% 비용 절감.
         with client.messages.stream(
             model="claude-sonnet-4-6",
             max_tokens=8000,
-            system=system_prompt,
+            system=[
+                {
+                    "type": "text",
+                    "text": system_prompt,
+                    "cache_control": {"type": "ephemeral"},
+                }
+            ],
             messages=[{"role": "user", "content": user_message}],
         ) as stream:
             for text_chunk in stream.text_stream:
@@ -841,14 +849,25 @@ def generate_blog_stream(
                 fixed_text = original_text
 
             # 2단계: 토큰 사용량 (실패해도 done은 전송)
+            cache_read_tokens = 0
+            cache_create_tokens = 0
             try:
                 final = stream.get_final_message()
                 input_tokens = final.usage.input_tokens
                 output_tokens = final.usage.output_tokens
+                # prompt caching 추적 — 캐시 hit 시 input_tokens는 0에 가깝고 cache_read에 잡힘
+                cache_read_tokens = getattr(final.usage, "cache_read_input_tokens", 0) or 0
+                cache_create_tokens = getattr(final.usage, "cache_creation_input_tokens", 0) or 0
             except Exception:
                 pass
 
-        cost_usd = (input_tokens * PRICE_INPUT_PER_M + output_tokens * PRICE_OUTPUT_PER_M) / 1_000_000
+        # 비용 산정: cache_read는 일반 input의 10%, cache_create는 125%로 과금.
+        effective_input = (
+            input_tokens
+            + int(cache_create_tokens * 1.25)
+            + int(cache_read_tokens * 0.10)
+        )
+        cost_usd = (effective_input * PRICE_INPUT_PER_M + output_tokens * PRICE_OUTPUT_PER_M) / 1_000_000
         cost_krw = int(cost_usd * KRW_PER_USD)
 
         # 3단계: 시리즈 추천 (실패해도 done은 전송)
