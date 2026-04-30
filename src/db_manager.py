@@ -195,6 +195,25 @@ def init_db() -> None:
                 updated_at        TEXT    NOT NULL DEFAULT (datetime('now', 'utc')),
                 updated_by_user_id INTEGER REFERENCES users(id)
             );
+
+            -- 이미지 세션 (Phase 4, 2026-04-30)
+            -- 1편 블로그당 1세션. initial 5장 생성 시 만들어지고, regen/edit 횟수를 카운트.
+            -- 플랜별 무료 한도(Standard 1+2 / Pro 2+4)는 image_generator 모듈에서 검사.
+            CREATE TABLE IF NOT EXISTS image_sessions (
+                session_id        TEXT    PRIMARY KEY,                 -- UUID4
+                clinic_id         INTEGER NOT NULL,
+                user_id           INTEGER,
+                blog_keyword      TEXT,
+                plan_id_at_start  TEXT,                                -- 세션 생성 시점 플랜 (기록용)
+                regen_count       INTEGER NOT NULL DEFAULT 0,
+                edit_count        INTEGER NOT NULL DEFAULT 0,
+                created_at        TEXT    NOT NULL DEFAULT (datetime('now', 'utc')),
+                last_active_at    TEXT    NOT NULL DEFAULT (datetime('now', 'utc'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_image_sessions_clinic
+              ON image_sessions(clinic_id);
+            CREATE INDEX IF NOT EXISTS idx_image_sessions_created
+              ON image_sessions(created_at);
         """)
         # feedback 컬럼 마이그레이션 (admin 뷰어 — viewed_at)
         existing_fb = {row[1] for row in conn.execute("PRAGMA table_info(feedback)")}

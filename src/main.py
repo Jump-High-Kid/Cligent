@@ -3476,3 +3476,269 @@ def api_admin_delete_openai_key(request: Request):
     from secret_manager import delete_server_secret
     deleted = delete_server_secret("openai_api_key")
     return JSONResponse({"ok": True, "deleted": deleted})
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 이미지 생성 (Phase 4, 2026-04-30)
+# ═══════════════════════════════════════════════════════════════════
+#
+# 설계:
+#   - initial: 블로그 1편당 5장 (한도 없음, 세션 생성)
+#   - regenerate: 5장 재생성 (Standard 1회 / Pro 2회 무료)
+#   - edit: 1장 부분 수정 (Standard 2회 / Pro 4회 무료)
+#
+# 응답 정책:
+#   - 401 = 로그인 필요
+#   - 403 = 다른 클리닉 세션 접근 시도
+#   - 404 = 세션 없음
+#   - 429 = 무료 한도 초과 (종량제 안내)
+#   - 502 = OpenAI auth/server 오류 (관리자 키 점검 필요)
+# ═══════════════════════════════════════════════════════════════════
+
+
+def _ai_error_to_http(exc) -> HTTPException:
+    """ai_client.AIClientError → HTTPException 변환."""
+    kind_to_status = {
+        "auth": 502,           # 관리자 키 문제
+        "rate_limit": 429,     # OpenAI rate limit
+        "bad_request": 400,
+        "timeout": 504,
+        "server": 502,
+        "unknown": 500,
+    }
+    status_code = kind_to_status.get(exc.kind, 500)
+    return HTTPException(
+        status_code=status_code,
+        detail={"kind": exc.kind, "message": exc.message},
+    )
+
+
+@app.post("/api/image/generate-initial")
+async def api_image_generate_initial(
+    request: Request,
+    user: dict = Depends(get_current_user),
+):
+    """블로그 1편당 첫 5장 생성 + 세션 생성.
+
+    Body: {"prompt": str, "keyword": str (선택)}
+    Response: {"session_id": str, "images": [b64...], "size": str, "quality": str,
+               "quota": {regen: {...}, edit: {...}}}
+    """
+    body = await request.json()
+    prompt = (body.get("prompt") or "").strip()
+    keyword = (body.get("keyword") or "").strip()
+    if not prompt:
+        raise HTTPException(status_code=400, detail="이미지 프롬프트가 비어 있습니다.")
+
+    from plan_guard import get_effective_plan
+    from image_generator import generate_initial_set, get_quota_status, AIClientError as IGError  # noqa: F401
+    from ai_client import AIClientError
+    from image_session_manager import create_session
+
+    plan = get_effective_plan(user["clinic_id"])
+    plan_id = plan.get("plan_id", "free")
+
+    try:
+        result = generate_initial_set(prompt=prompt, plan_id=plan_id)
+    except AIClientError as exc:
+        raise _ai_error_to_http(exc)
+
+    session_id = create_session(
+        clinic_id=user["clinic_id"],
+        user_id=user["id"],
+        blog_keyword=keyword,
+        plan_id_at_start=plan_id,
+    )
+
+    return JSONResponse({
+        "session_id": session_id,
+        "images": result.images,
+        "size": result.size,
+        "quality": result.quality,
+        "plan_id": result.plan_id,
+        "quota": get_quota_status(plan_id, regen_used=0, edit_used=0),
+    })
+
+
+@app.post("/api/image/regenerate")
+async def api_image_regenerate(
+    request: Request,
+    user: dict = Depends(get_current_user),
+):
+    """같은 프롬프트로 5장 재생성. plan별 무료 한도 적용.
+
+    Body: {"session_id": str, "prompt": str}
+    """
+    body = await request.json()
+    session_id = (body.get("session_id") or "").strip()
+    prompt = (body.get("prompt") or "").strip()
+    if not session_id:
+        raise HTTPException(status_code=400, detail="session_id가 필요합니다.")
+    if not prompt:
+        raise HTTPException(status_code=400, detail="이미지 프롬프트가 비어 있습니다.")
+
+    from image_session_manager import get_session, increment_regen
+    from image_generator import (
+        regenerate_set,
+        get_quota_status,
+        ImageQuotaExceeded,
+    )
+    from ai_client import AIClientError
+
+    sess = get_session(session_id)
+    if sess is None:
+        raise HTTPException(status_code=404, detail="이미지 세션을 찾을 수 없습니다.")
+    if sess["clinic_id"] != user["clinic_id"]:
+        raise HTTPException(status_code=403, detail="다른 한의원의 세션입니다.")
+
+    plan_id = sess["plan_id_at_start"] or "free"
+    regen_used = sess["regen_count"]
+    edit_used = sess["edit_count"]
+
+    try:
+        result = regenerate_set(prompt=prompt, plan_id=plan_id, regen_used=regen_used)
+    except ImageQuotaExceeded as exc:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "kind": "quota_exceeded",
+                "type": "regen",
+                "plan_id": exc.plan_id,
+                "used": exc.used,
+                "limit": exc.limit,
+                "message": (
+                    f"{exc.plan_id} 플랜 재생성 무료 한도({exc.limit}회)에 도달했습니다. "
+                    "초과 분은 정식 출시 후 종량제로 제공됩니다."
+                ),
+            },
+        )
+    except AIClientError as exc:
+        raise _ai_error_to_http(exc)
+
+    new_regen_count = increment_regen(session_id, user["clinic_id"])
+
+    return JSONResponse({
+        "session_id": session_id,
+        "images": result.images,
+        "size": result.size,
+        "quality": result.quality,
+        "plan_id": result.plan_id,
+        "quota": get_quota_status(
+            plan_id, regen_used=new_regen_count, edit_used=edit_used
+        ),
+    })
+
+
+@app.post("/api/image/edit")
+async def api_image_edit(
+    request: Request,
+    user: dict = Depends(get_current_user),
+):
+    """1장 부분 수정. multipart/form-data — image (file) + prompt + session_id + mask(선택).
+
+    Form fields:
+      - session_id: str
+      - prompt: str
+      - image: file (PNG bytes)
+      - mask: file (선택, alpha channel PNG)
+    """
+    form = await request.form()
+    session_id = (form.get("session_id") or "").strip()
+    prompt = (form.get("prompt") or "").strip()
+    image_file = form.get("image")
+    mask_file = form.get("mask")
+
+    if not session_id:
+        raise HTTPException(status_code=400, detail="session_id가 필요합니다.")
+    if not prompt:
+        raise HTTPException(status_code=400, detail="수정 프롬프트가 비어 있습니다.")
+    if image_file is None or not hasattr(image_file, "read"):
+        raise HTTPException(status_code=400, detail="image 파일이 필요합니다.")
+
+    image_bytes = await image_file.read()
+    mask_bytes = await mask_file.read() if mask_file is not None and hasattr(mask_file, "read") else None
+
+    from image_session_manager import get_session, increment_edit
+    from image_generator import edit_image, get_quota_status, ImageQuotaExceeded
+    from ai_client import AIClientError
+
+    sess = get_session(session_id)
+    if sess is None:
+        raise HTTPException(status_code=404, detail="이미지 세션을 찾을 수 없습니다.")
+    if sess["clinic_id"] != user["clinic_id"]:
+        raise HTTPException(status_code=403, detail="다른 한의원의 세션입니다.")
+
+    plan_id = sess["plan_id_at_start"] or "free"
+    regen_used = sess["regen_count"]
+    edit_used = sess["edit_count"]
+
+    try:
+        result = edit_image(
+            image_bytes=image_bytes,
+            prompt=prompt,
+            plan_id=plan_id,
+            edit_used=edit_used,
+            mask_bytes=mask_bytes,
+        )
+    except ImageQuotaExceeded as exc:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "kind": "quota_exceeded",
+                "type": "edit",
+                "plan_id": exc.plan_id,
+                "used": exc.used,
+                "limit": exc.limit,
+                "message": (
+                    f"{exc.plan_id} 플랜 수정 무료 한도({exc.limit}회)에 도달했습니다. "
+                    "초과 분은 정식 출시 후 종량제로 제공됩니다."
+                ),
+            },
+        )
+    except AIClientError as exc:
+        raise _ai_error_to_http(exc)
+
+    new_edit_count = increment_edit(session_id, user["clinic_id"])
+
+    return JSONResponse({
+        "session_id": session_id,
+        "images": result.images,
+        "size": result.size,
+        "quality": result.quality,
+        "plan_id": result.plan_id,
+        "quota": get_quota_status(
+            plan_id, regen_used=regen_used, edit_used=new_edit_count
+        ),
+    })
+
+
+@app.get("/api/image/session/{session_id}")
+async def api_image_session_status(
+    session_id: str,
+    user: dict = Depends(get_current_user),
+):
+    """세션 상태·한도 조회 (UI 카운터 동기화용)."""
+    from image_session_manager import get_session
+    from image_generator import get_quota_status
+
+    sess = get_session(session_id)
+    if sess is None:
+        raise HTTPException(status_code=404, detail="이미지 세션을 찾을 수 없습니다.")
+    if sess["clinic_id"] != user["clinic_id"]:
+        raise HTTPException(status_code=403, detail="다른 한의원의 세션입니다.")
+
+    plan_id = sess["plan_id_at_start"] or "free"
+    return JSONResponse({
+        "session_id": session_id,
+        "plan_id": plan_id,
+        "blog_keyword": sess["blog_keyword"],
+        "regen_count": sess["regen_count"],
+        "edit_count": sess["edit_count"],
+        "created_at": sess["created_at"],
+        "last_active_at": sess["last_active_at"],
+        "quota": get_quota_status(
+            plan_id,
+            regen_used=sess["regen_count"],
+            edit_used=sess["edit_count"],
+        ),
+    })
