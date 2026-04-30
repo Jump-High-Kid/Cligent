@@ -24,6 +24,67 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 현재 구현 상태 (2026-04-30 기준)
 
+### Phase 2~4 — 이미지 인프라 (2026-04-30 후반)
+
+**Phase 2: ai_client + image_generator (2026-04-30 커밋 f6eea8a)**
+- `src/ai_client.py`: Anthropic + OpenAI 통합 래퍼
+  - `call_anthropic_messages(model, system, user, cache_system=True)` — prompt caching 지원
+  - `call_openai_image_generate(prompt, size, quality, n)` — gpt-image-2 generations
+  - `call_openai_image_edit(image_bytes, prompt, mask_bytes=None, n)` — img2img/inpainting
+  - 표준 `AIClientError` (auth/rate_limit/bad_request/timeout/server/unknown)
+  - `asyncio.Semaphore(3)` OpenAI Tier1 rate limit 대응
+  - OpenAI 키는 `secret_manager.get_server_secret("openai_api_key")`에서 lookup
+- `src/image_generator.py`: 비즈니스 로직
+  - 플랜별 한도: Standard 1+2 / Pro 2+4 / trial=Standard / free 0
+  - 플랜별 해상도: Standard 1024×1024 medium / Pro 1536×1024 high
+  - `generate_initial_set(prompt, plan_id)` — 5장 (한도 없음)
+  - `regenerate_set(prompt, plan_id, regen_used)` — 한도 체크 후 5장
+  - `edit_image(image_bytes, prompt, plan_id, edit_used, mask_bytes)` — 1장
+  - `ImageQuotaExceeded` 예외 (plan_id, kind, used, limit 포함)
+  - `get_quota_status(plan_id, regen_used, edit_used)` UI용 응답 dict
+
+**Phase 3: prompt caching + Haiku 메타 (2026-04-30 커밋 5b6ee1c)**
+- `src/blog_generator.py`: system 프롬프트에 `cache_control: ephemeral` 추가
+  - 두 번째 호출부터 cache_read 변환 → 75~90% input 비용 절감
+  - 토큰 사용량에 cache_read/cache_create 분리 추적
+  - 비용 산정: cache_read는 input의 10%, cache_create는 125% 적용
+- `src/metadata_generator.py`: 신규 — Haiku 4.5로 메타 4종 추출
+  - `generate_metadata(blog_text, keyword, seo_keywords)` → BlogMetadata
+  - `generate_metadata_safe(...)` fail-soft 버전 (None 반환)
+  - title (40자) / tags (5개) / summary (150자) / og_description (120자)
+  - 5000자 초과 본문은 앞 4000 + 끝 1000으로 압축
+  - JSON 파싱 (코드펜스/서론 노이즈 제거) + 길이 가드
+  - 비용: Sonnet 메타 ₩30~50 → Haiku 메타 ₩2~5 (-85%)
+
+**Phase 4: 이미지 세션 + API 라우트 (2026-04-30 커밋 7294c47)**
+- DB: `image_sessions` 테이블 (session_id UUID4, clinic_id, plan_id_at_start, regen_count, edit_count, created_at, last_active_at)
+- `src/image_session_manager.py`: DB 레이어
+  - `create_session(clinic_id, user_id, blog_keyword, plan_id_at_start)` → session_id
+  - `get_session(session_id)` / `increment_regen` / `increment_edit`
+  - `get_clinic_image_stats(clinic_id)` — total_sessions, avg_regen_per_session 등 KPI
+  - PermissionError로 다른 클리닉 세션 접근 차단
+- `src/main.py`: API 라우트 4종
+  - `POST /api/image/generate-initial` — 5장 + 세션 발급
+  - `POST /api/image/regenerate` — Standard 1회/Pro 2회 무료
+  - `POST /api/image/edit` — multipart 업로드, Standard 2회/Pro 4회 무료
+  - `GET /api/image/session/{id}` — 상태·한도 조회
+  - 429 응답에 `{kind: "quota_exceeded", type, plan_id, used, limit, message}` 포함
+
+**관리자 OpenAI 키 등록 (Phase 1, 2026-04-30)**
+- `/admin/settings` OpenAI API 키 카드
+- 검증: `client.models.list()` 호출 → 401 거부, 403 PermissionDenied(Restricted 키)는 통과 (이미지 스코프는 첫 실호출 시 검증)
+- 저장: Fernet 암호화 (SECRET_KEY 파생)
+
+**테스트 합계**: 156/156 (Phase 1+2+3+4 신규 113건 + 핵심 회귀 43건)
+
+**남은 Phase 4 항목 (사용자 검증 후 재개)**:
+- 자동 다운로드 4종 + UI 카운터 (templates/index.html)
+- Free Trial 30명 한도 + 이메일 인증
+- 베타 KPI 집계 페이지 + Cohort 1 초대
+
+---
+
+
 ### 사상체질 임상진료지침 1차 출처 격상 (2026-04-30 후반)
 
 **`prompts/references/sasang.txt`** 보강 (93→177줄):
