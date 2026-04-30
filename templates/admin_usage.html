@@ -44,6 +44,29 @@
     </div>
   </section>
 
+  <!-- 데일리 리포트 즉시 트리거 -->
+  <section class="bg-white border border-stone-200 rounded-2xl p-5 sm:p-6 mb-6">
+    <div class="flex items-center justify-between gap-3 flex-wrap">
+      <div>
+        <h2 class="font-semibold text-stone-900">데일리 리포트</h2>
+        <p class="text-xs text-stone-500 mt-1">
+          하루치 5xx 에러 + 사용자 피드백을 Claude Haiku로 요약 →
+          <span class="font-mono">~/obsidian-vault/Cligent/버그리포트/</span>
+        </p>
+      </div>
+      <div class="flex items-center gap-2">
+        <input type="date" id="dr-date"
+          class="border border-stone-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700">
+        <button id="dr-btn" onclick="runDailyReport()"
+          class="inline-flex items-center gap-1 px-4 py-1.5 bg-emerald-900 hover:bg-emerald-800 text-white rounded-lg text-sm font-medium transition-colors">
+          <span class="material-symbols-outlined text-[16px]">summarize</span>
+          즉시 생성
+        </button>
+      </div>
+    </div>
+    <p id="dr-status" class="text-sm mt-3"></p>
+  </section>
+
   <!-- 클리닉별 랭킹 -->
   <section class="bg-white border border-stone-200 rounded-2xl p-5 sm:p-6">
     <div class="flex items-center justify-between mb-4">
@@ -105,6 +128,48 @@
     }
   }
   loadData();
+
+  // 데일리 리포트 — 기본 날짜 = 오늘
+  (function () {
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    document.getElementById('dr-date').value = `${yyyy}-${mm}-${dd}`;
+  })();
+
+  async function runDailyReport() {
+    const btn    = document.getElementById('dr-btn');
+    const status = document.getElementById('dr-status');
+    const date   = document.getElementById('dr-date').value;
+    if (!date) { status.innerHTML = '<span class="text-red-600">날짜를 선택해 주세요.</span>'; return; }
+
+    btn.disabled = true;
+    btn.classList.add('opacity-50', 'cursor-not-allowed');
+    status.innerHTML = '<span class="text-stone-500">생성 중… (Haiku 요약, 5~30초 소요)</span>';
+
+    try {
+      const res = await fetch('/api/admin/daily-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        status.innerHTML = `<span class="text-red-600">실패: ${esc(data.detail || res.status)}</span>`;
+      } else {
+        status.innerHTML = `
+          <span class="text-emerald-700">✓ 생성 완료 (${esc(data.date)})</span>
+          <span class="text-stone-500 ml-2 font-mono text-xs">${esc(data.path || '')}</span>
+        `;
+      }
+    } catch (e) {
+      status.innerHTML = `<span class="text-red-600">오류: ${esc(e.message)}</span>`;
+    } finally {
+      btn.disabled = false;
+      btn.classList.remove('opacity-50', 'cursor-not-allowed');
+    }
+  }
 </script>
 </body>
 </html>

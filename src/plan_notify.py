@@ -127,18 +127,54 @@ def _get_usage_info(clinic_id: int) -> Optional[dict]:
         return None
 
 
-def _send_smtp(to: str, subject: str, html_body: str) -> bool:
+def _record_applicant_email(
+    applicant_id: Optional[int],
+    email_type: Optional[str],
+    success: bool,
+    error_msg: Optional[str],
+) -> None:
+    """applicant_emails 테이블에 발송 이력 1건 기록. 실패해도 본 흐름에 영향 없음."""
+    if applicant_id is None or not email_type:
+        return
+    try:
+        from db_manager import get_db
+        with get_db() as conn:
+            conn.execute(
+                "INSERT INTO applicant_emails (applicant_id, email_type, success, error_msg) "
+                "VALUES (?, ?, ?, ?)",
+                (applicant_id, email_type, 1 if success else 0, error_msg),
+            )
+    except Exception as exc:
+        logger.warning("plan_notify: applicant_emails 기록 실패: %s", exc)
+
+
+def _send_smtp(
+    to: str,
+    subject: str,
+    html_body: str,
+    applicant_id: Optional[int] = None,
+    email_type: Optional[str] = None,
+) -> bool:
     """
     공통 SMTP 발송 헬퍼. 성공 True, 실패/미설정 False.
     SMTP 미설정 시 로그만 남기고 False 반환 (fail-soft).
+
+    applicant_id + email_type가 주어지면 applicant_emails에 결과 자동 기록.
     """
+    success = False
+    error_msg: Optional[str] = None
+
     if not _EMAIL_RE.match(to):
         logger.warning("plan_notify: 유효하지 않은 수신자 이메일: %s", to)
+        error_msg = "invalid_email"
+        _record_applicant_email(applicant_id, email_type, success, error_msg)
         return False
 
     smtp_host = os.getenv("SMTP_HOST", "")
     if not smtp_host:
         logger.info("plan_notify: SMTP 미설정, 이메일 미발송 (to=%s, subject=%s)", to, subject)
+        error_msg = "smtp_not_configured"
+        _record_applicant_email(applicant_id, email_type, success, error_msg)
         return False
 
     smtp_port = int(os.getenv("SMTP_PORT", "587"))
@@ -161,10 +197,13 @@ def _send_smtp(to: str, subject: str, html_body: str) -> bool:
             server.sendmail(from_addr, [to], msg.as_string())
 
         logger.info("plan_notify: 이메일 발송 완료 (to=%s)", to)
-        return True
+        success = True
     except Exception as exc:
         logger.warning("plan_notify: 이메일 발송 실패 (to=%s): %s", to, exc)
-        return False
+        error_msg = f"{type(exc).__name__}: {str(exc)[:200]}"
+
+    _record_applicant_email(applicant_id, email_type, success, error_msg)
+    return success
 
 
 def _send_email(to_email: str, clinic_id: int, used: int, limit: int) -> None:
@@ -197,7 +236,7 @@ def _send_email(to_email: str, clinic_id: int, used: int, limit: int) -> None:
 
 # ── 베타 모집 이메일 (E1 / E2 / E4) ──────────────────────────────────
 
-def send_beta_apply_confirm(to_email: str, name: str) -> None:
+def send_beta_apply_confirm(to_email: str, name: str, applicant_id: Optional[int] = None) -> bool:
     """E1: 신청자에게 접수 확인 이메일 발송."""
     subject = "[Cligent] 베타 신청이 접수되었습니다"
     body_html = f"""
@@ -219,15 +258,18 @@ def send_beta_apply_confirm(to_email: str, name: str) -> None:
 </body>
 </html>
 """
-    _send_smtp(to_email, subject, body_html)
+    return _send_smtp(to_email, subject, body_html, applicant_id, "apply_confirm")
 
 
-def send_beta_admin_notify(name: str, clinic_name: str, email: str, note: str) -> None:
+def send_beta_admin_notify(
+    name: str, clinic_name: str, email: str, note: str,
+    applicant_id: Optional[int] = None,
+) -> bool:
     """E2: 관리자(ADMIN_NOTIFY_EMAIL)에게 신규 베타 신청 알림 발송."""
     admin_email = os.getenv("ADMIN_NOTIFY_EMAIL", "")
     if not admin_email:
         logger.info("plan_notify: ADMIN_NOTIFY_EMAIL 미설정, 관리자 알림 생략")
-        return
+        return False
 
     subject = f"[Cligent] 베타 신청 접수 — {name} ({clinic_name})"
     body_html = f"""
@@ -251,10 +293,13 @@ def send_beta_admin_notify(name: str, clinic_name: str, email: str, note: str) -
 </body>
 </html>
 """
-    _send_smtp(admin_email, subject, body_html)
+    return _send_smtp(admin_email, subject, body_html, applicant_id, "admin_notify")
 
 
-def send_beta_invite_email(to_email: str, name: str, invite_url: str) -> None:
+def send_beta_invite_email(
+    to_email: str, name: str, invite_url: str,
+    applicant_id: Optional[int] = None,
+) -> bool:
     """E3: 신청자에게 초대 링크 발송 (invite-batch 시 호출)."""
     subject = "[Cligent] Cligent 베타 초대장이 도착했습니다"
     body_html = f"""
@@ -279,10 +324,13 @@ def send_beta_invite_email(to_email: str, name: str, invite_url: str) -> None:
 </body>
 </html>
 """
-    _send_smtp(to_email, subject, body_html)
+    return _send_smtp(to_email, subject, body_html, applicant_id, "invite")
 
 
-def send_beta_reminder(to_email: str, name: str, invite_url: str) -> None:
+def send_beta_reminder(
+    to_email: str, name: str, invite_url: str,
+    applicant_id: Optional[int] = None,
+) -> bool:
     """E4: 72h 미클릭 리마인더 이메일."""
     subject = "[Cligent] 초대 링크가 곧 만료됩니다"
     body_html = f"""
@@ -307,7 +355,7 @@ def send_beta_reminder(to_email: str, name: str, invite_url: str) -> None:
 </body>
 </html>
 """
-    _send_smtp(to_email, subject, body_html)
+    return _send_smtp(to_email, subject, body_html, applicant_id, "reminder")
 
 
 def send_naver_found_email(to_email: str, title: str, url: str) -> None:

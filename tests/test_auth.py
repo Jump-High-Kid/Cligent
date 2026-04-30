@@ -173,19 +173,25 @@ class TestInvite:
 class TestAuthenticateUser:
     def test_correct_credentials(self, mem_db):
         from auth_manager import authenticate_user
-        user = authenticate_user("owner@test.com", "pass1234")
+        user, reason = authenticate_user("owner@test.com", "pass1234")
         assert user is not None
+        assert reason is None
         assert user["role"] == "chief_director"
 
     def test_wrong_password(self, mem_db):
         from auth_manager import authenticate_user
-        assert authenticate_user("owner@test.com", "wrongpass") is None
+        user, reason = authenticate_user("owner@test.com", "wrongpass")
+        assert user is None
+        assert reason == "invalid_credentials"
 
     def test_unknown_email(self, mem_db):
         from auth_manager import authenticate_user
-        assert authenticate_user("nobody@test.com", "anything") is None
+        user, reason = authenticate_user("nobody@test.com", "anything")
+        assert user is None
+        assert reason == "user_not_found"
 
     def test_case_insensitive_email(self, mem_db):
         from auth_manager import authenticate_user
-        user = authenticate_user("OWNER@TEST.COM", "pass1234")
+        user, reason = authenticate_user("OWNER@TEST.COM", "pass1234")
         assert user is not None
+        assert reason is None

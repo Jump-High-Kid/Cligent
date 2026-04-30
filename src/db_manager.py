@@ -105,22 +105,55 @@ def init_db() -> None:
                 created_at  TEXT    NOT NULL DEFAULT (datetime('now', 'utc'))
             );
 
-            -- 베타 신청자 (베타 모집 시스템)
+            -- 베타/일반 신청자 (모집 시스템)
+            -- status 값: pending / invited / registered / rejected / expired
             CREATE TABLE IF NOT EXISTS beta_applicants (
                 id           INTEGER PRIMARY KEY AUTOINCREMENT,
                 name         TEXT    NOT NULL,
                 clinic_name  TEXT    NOT NULL,
                 phone        TEXT,
                 email        TEXT    NOT NULL,
-                note         TEXT,
+                note         TEXT,                                 -- 신청자 본인이 쓴 메시지
                 applied_at   TEXT    NOT NULL DEFAULT (datetime('now', 'utc')),
                 invited_at   TEXT,
                 clicked_at   TEXT,
-                invite_token TEXT    UNIQUE,           -- invites.token 연결 (E5 clicked_at 추적용)
-                status       TEXT    NOT NULL DEFAULT 'pending'  -- pending / invited / registered
+                invite_token TEXT    UNIQUE,                       -- invites.token 연결 (E5 clicked_at 추적용)
+                status       TEXT    NOT NULL DEFAULT 'pending'
             );
             CREATE INDEX IF NOT EXISTS idx_beta_applicants_status ON beta_applicants(status);
             CREATE INDEX IF NOT EXISTS idx_beta_applicants_email  ON beta_applicants(email);
+
+            -- 로그인 이력 (PIPA 90일 보존, 통신비밀보호법 권고 기준)
+            -- 성공/실패 모두 기록 → brute force 감지·계정 탈취 추적
+            CREATE TABLE IF NOT EXISTS login_history (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id         INTEGER REFERENCES users(id),    -- 실패 시 NULL 가능 (이메일 매칭 실패)
+                email           TEXT,                            -- 시도된 이메일 (raw, 90일 후 자동 삭제)
+                clinic_id       INTEGER REFERENCES clinics(id),  -- 성공 시
+                ip              TEXT,
+                user_agent      TEXT,
+                success         INTEGER NOT NULL DEFAULT 0,
+                failure_reason  TEXT,                            -- user_not_found / invalid_credentials / disabled / password_not_set / other
+                created_at      TEXT    NOT NULL DEFAULT (datetime('now', 'utc'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_login_history_user_at
+                ON login_history(user_id, created_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_login_history_at
+                ON login_history(created_at);
+            CREATE INDEX IF NOT EXISTS idx_login_history_ip_at
+                ON login_history(ip, created_at);
+
+            -- 신청자 이메일 발송 이력 (E1~E4, 거절 등 모든 발송 기록)
+            CREATE TABLE IF NOT EXISTS applicant_emails (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                applicant_id INTEGER NOT NULL REFERENCES beta_applicants(id) ON DELETE CASCADE,
+                email_type   TEXT    NOT NULL,                     -- apply_confirm / admin_notify / invite / reminder / rejection
+                sent_at      TEXT    NOT NULL DEFAULT (datetime('now', 'utc')),
+                success      INTEGER NOT NULL DEFAULT 0,
+                error_msg    TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_applicant_emails_applicant
+                ON applicant_emails(applicant_id, sent_at DESC);
 
             -- 공지사항 게시판
             CREATE TABLE IF NOT EXISTS announcements (
@@ -157,6 +190,27 @@ def init_db() -> None:
         existing_fb = {row[1] for row in conn.execute("PRAGMA table_info(feedback)")}
         if "viewed_at" not in existing_fb:
             conn.execute("ALTER TABLE feedback ADD COLUMN viewed_at TEXT")
+
+        # beta_applicants 컬럼 마이그레이션 (라이프사이클 강화 2026-04-29)
+        existing_ba = {row[1] for row in conn.execute("PRAGMA table_info(beta_applicants)")}
+        for col, definition in [
+            ("application_type",        "TEXT DEFAULT 'beta'"),
+            ("marketing_consent",       "INTEGER DEFAULT 0"),
+            ("consented_terms_version", "TEXT"),
+            ("ip_address",              "TEXT"),
+            ("user_agent",              "TEXT"),
+            ("rejection_reason",        "TEXT"),
+            ("admin_notes",             "TEXT"),
+            ("admin_tags",              "TEXT"),
+            ("expires_at",              "TEXT"),
+        ]:
+            if col not in existing_ba:
+                conn.execute(f"ALTER TABLE beta_applicants ADD COLUMN {col} {definition}")
+        # 기존 행 expires_at 백필 (applied_at + 30일)
+        conn.execute(
+            "UPDATE beta_applicants SET expires_at = datetime(applied_at, '+30 days') "
+            "WHERE expires_at IS NULL"
+        )
 
         # clinics 컬럼 마이그레이션 (기존 DB 대응)
         existing = {row[1] for row in conn.execute("PRAGMA table_info(clinics)")}

@@ -118,6 +118,44 @@
       text-align: center;
     }
 
+    /* 동의 체크박스 */
+    .consent {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 12px 14px;
+      border: 1.5px solid #e7e5e4;
+      border-radius: 10px;
+      margin-bottom: 12px;
+      background: #fafaf9;
+      cursor: pointer;
+    }
+    .consent input[type="checkbox"] {
+      width: 18px; height: 18px;
+      margin-top: 2px;
+      flex-shrink: 0;
+      accent-color: #064e3b;
+      cursor: pointer;
+    }
+    .consent .consent-text {
+      font-size: 13px;
+      color: #44403c;
+      line-height: 1.55;
+    }
+    .consent .consent-text strong { color: #064e3b; font-weight: 700; }
+    .consent .consent-text a {
+      color: #064e3b;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .consent .consent-note {
+      display: block;
+      font-size: 11.5px;
+      color: #78716c;
+      margin-top: 4px;
+      line-height: 1.5;
+    }
+
     /* 상태 메시지 */
     .msg {
       display: none;
@@ -193,10 +231,31 @@
         <textarea id="f-note" placeholder="자유롭게 적어주세요"></textarea>
       </div>
 
+      <label class="consent" for="f-terms">
+        <input type="checkbox" id="f-terms">
+        <span class="consent-text">
+          <strong>[필수]</strong> 개인정보 수집·이용에 동의합니다.
+          (수집 항목: 이름·한의원명·이메일·연락처·메모, 보유: 미가입 시 30일,
+          가입 시 회원 탈퇴 시까지) — 자세한 내용은
+          <a href="/privacy" target="_blank">개인정보처리방침</a> 참조
+        </span>
+      </label>
+
+      <label class="consent" for="f-marketing">
+        <input type="checkbox" id="f-marketing">
+        <span class="consent-text">
+          <strong>[선택]</strong> 마케팅 정보 수신에 동의합니다.
+          <span class="consent-note">
+            현재 마케팅 활용 계획은 없으나 향후 광고·제휴 등 변경 가능성을 대비해
+            사전 동의를 받습니다. 동의하지 않으셔도 서비스 이용에 제한 없습니다.
+          </span>
+        </span>
+      </label>
+
       <button class="btn-submit" id="btn-submit" onclick="submitApply()">신청하기</button>
 
       <p class="notice">
-        입력하신 정보는 베타 초대 발송 목적으로만 사용되며,<br>
+        입력하신 정보는 신청 검토 및 초대 발송 목적으로만 사용되며,<br>
         별도 동의 없이 제3자에게 제공되지 않습니다.
       </p>
     </div>
@@ -219,6 +278,8 @@
       const email      = document.getElementById('f-email').value.trim();
       const phone      = document.getElementById('f-phone').value.trim();
       const note       = document.getElementById('f-note').value.trim();
+      const termsConsent     = document.getElementById('f-terms').checked;
+      const marketingConsent = document.getElementById('f-marketing').checked;
 
       errMsg.style.display = 'none';
 
@@ -230,6 +291,10 @@
         showErr('유효한 이메일 주소를 입력해 주세요.');
         return;
       }
+      if (!termsConsent) {
+        showErr('개인정보 수집·이용에 동의해 주세요.');
+        return;
+      }
 
       btn.disabled = true;
       btn.textContent = '신청 중…';
@@ -238,7 +303,11 @@
         const res = await fetch('/api/beta/apply', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, clinic_name: clinicName, email, phone, note }),
+          body: JSON.stringify({
+            name, clinic_name: clinicName, email, phone, note,
+            terms_consent: termsConsent,
+            marketing_consent: marketingConsent,
+          }),
         });
 
         const data = await res.json();

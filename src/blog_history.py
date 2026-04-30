@@ -26,8 +26,10 @@ def save_blog_entry(
     cost_krw: int,
     seo_keywords: Optional[List[str]] = None,
     blog_text: str = "",
+    clinic_id: Optional[int] = None,
 ) -> int:
-    """블로그 생성 완료 시 통계와 전문을 분리 저장. 생성된 entry_id 반환."""
+    """블로그 생성 완료 시 통계와 전문을 분리 저장. 생성된 entry_id 반환.
+    clinic_id가 None이면 어드민 통합 조회에서 '미상'으로 표시(하위 호환)."""
     now = datetime.now()
     entry_id = _next_id()
 
@@ -36,6 +38,7 @@ def save_blog_entry(
     title = _extract_title(blog_text) if blog_text else keyword
     stats.append({
         "id": entry_id,
+        "clinic_id": clinic_id,
         "keyword": keyword,
         "title": title,
         "tone": tone,

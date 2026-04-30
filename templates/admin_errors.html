@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cligent 어드민 — 에러 로그</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet"/>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" rel="stylesheet"/>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Pretendard', -apple-system, sans-serif;
+      background: #f5f5f4; color: #1c1917; min-height: 100dvh;
+    }
+    header {
+      background: #064e3b; padding: 16px 32px;
+      display: flex; align-items: center; gap: 12px;
+    }
+    header h1 { color: #fff; font-size: 18px; font-weight: 700; }
+    header span { color: #6ee7b7; font-size: 13px; }
+    header nav { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+    header nav a {
+      color: #6ee7b7; font-size: 13px; text-decoration: none;
+      padding: 6px 14px; border-radius: 8px;
+      border: 1px solid rgba(110, 231, 183, 0.4);
+    }
+    header nav a.active { background: rgba(110, 231, 183, 0.15); }
+
+    .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      gap: 20px;
+    }
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+    }
+
+    /* 좌측 사이드 — 날짜 픽커 */
+    .sidebar {
+      background: #fff;
+      border: 1px solid #e7e5e4;
+      border-radius: 14px;
+      padding: 14px;
+      max-height: calc(100vh - 140px);
+      overflow-y: auto;
+    }
+    .sidebar h3 {
+      font-size: 11.5px; color: #78716c;
+      font-weight: 700; letter-spacing: 0.04em;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+    }
+    .date-list {
+      display: flex; flex-direction: column; gap: 4px;
+    }
+    .date-item {
+      padding: 8px 10px;
+      font-size: 12.5px;
+      color: #44403c;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex; justify-content: space-between; align-items: center;
+      transition: background 0.1s;
+    }
+    .date-item:hover { background: #fafaf9; }
+    .date-item.active { background: #064e3b; color: #fff; }
+    .date-item .size { font-size: 10.5px; opacity: 0.7; }
+    .empty-side { font-size: 12px; color: #a8a29e; padding: 20px 0; text-align: center; }
+
+    /* 통계 + 필터 + 테이블 */
+    .main { min-width: 0; }
+
+    .banner {
+      background: #f0fdf4; border: 1px solid #a7f3d0;
+      border-radius: 12px; padding: 11px 16px;
+      font-size: 12.5px; color: #065f46;
+      margin-bottom: 16px;
+    }
+    .banner b { font-weight: 700; }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    @media (max-width: 720px) { .stats { grid-template-columns: 1fr; } }
+    .stat-card {
+      background: #fff; border: 1.5px solid #e7e5e4;
+      border-radius: 14px; padding: 14px 16px;
+    }
+    .stat-card .label {
+      font-size: 11.5px; color: #78716c; font-weight: 600;
+      letter-spacing: 0.02em; margin-bottom: 4px;
+    }
+    .stat-card .value {
+      font-size: 26px; font-weight: 800; color: #991b1b;
+      line-height: 1.1;
+    }
+    .stat-card.green .value { color: #065f46; }
+    .stat-card.amber .value { color: #b45309; }
+    .stat-card.list-card .value { font-size: 14px; line-height: 1.5; color: #1c1917; }
+    .stat-card.list-card .value .row {
+      display: flex; justify-content: space-between;
+      font-size: 12.5px; padding: 1px 0;
+    }
+    .stat-card.list-card .value .row .key {
+      max-width: 70%; overflow: hidden; text-overflow: ellipsis;
+      white-space: nowrap; color: #44403c;
+    }
+    .stat-card.list-card .value .row .cnt {
+      color: #b45309; font-weight: 700;
+    }
+
+    /* 미니 차트 */
+    .chart {
+      background: #fff; border: 1.5px solid #e7e5e4;
+      border-radius: 14px; padding: 14px 16px;
+      margin-bottom: 16px;
+    }
+    .chart h4 {
+      font-size: 11.5px; color: #78716c; font-weight: 700;
+      letter-spacing: 0.02em; margin-bottom: 8px;
+    }
+    .bars {
+      display: flex; align-items: flex-end;
+      gap: 3px; height: 60px;
+    }
+    .bar {
+      flex: 1; min-width: 0;
+      background: #e7e5e4; border-radius: 3px 3px 0 0;
+      position: relative;
+      transition: background 0.15s;
+    }
+    .bar.has-data { background: #fca5a5; }
+    .bar.has-data:hover { background: #ef4444; }
+    .bar:hover .tip { display: block; }
+    .tip {
+      display: none;
+      position: absolute; bottom: calc(100% + 4px); left: 50%;
+      transform: translateX(-50%);
+      background: #1c1917; color: #fff;
+      padding: 4px 8px; border-radius: 6px;
+      font-size: 10.5px; white-space: nowrap;
+      z-index: 10;
+    }
+
+    /* 필터 */
+    .toolbar {
+      display: flex; align-items: center;
+      gap: 10px; flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    .toolbar input, .toolbar select {
+      padding: 7px 12px;
+      border: 1.5px solid #e7e5e4;
+      border-radius: 10px;
+      font-size: 12.5px; font-family: inherit;
+      background: #fff; outline: none;
+    }
+    .toolbar input:focus, .toolbar select:focus { border-color: #064e3b; }
+    .toolbar input[type=text] { width: 200px; }
+    .toolbar .glabel { font-size: 12px; color: #78716c; }
+    .btn-primary {
+      padding: 7px 14px;
+      background: #064e3b; color: #fff;
+      border: none; border-radius: 10px;
+      font-size: 12.5px; font-weight: 600;
+      cursor: pointer; font-family: inherit;
+    }
+    .btn-ghost {
+      padding: 7px 12px;
+      background: #fff; color: #44403c;
+      border: 1.5px solid #e7e5e4; border-radius: 10px;
+      font-size: 12.5px; cursor: pointer; font-family: inherit;
+    }
+    .btn-ghost:hover { border-color: #064e3b; }
+
+    /* 테이블 */
+    .table-wrap {
+      background: #fff; border-radius: 14px;
+      border: 1px solid #e7e5e4; overflow: hidden;
+    }
+    table { width: 100%; border-collapse: collapse; }
+    thead th {
+      padding: 10px 14px;
+      font-size: 11.5px; font-weight: 600;
+      color: #78716c; text-align: left;
+      border-bottom: 1px solid #f0efee;
+      background: #fafaf9;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+    }
+    thead th:first-child { padding-left: 16px; }
+    tbody td {
+      padding: 10px 14px;
+      font-size: 12.5px;
+      border-bottom: 1px solid #f5f5f4;
+      vertical-align: middle;
+    }
+    tbody td:first-child { padding-left: 16px; }
+    tbody tr { cursor: pointer; transition: background 0.1s; }
+    tbody tr:hover { background: #fafaf9; }
+    tbody tr.expanded { background: #fef2f2; }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 14px;
+      font-size: 10.5px; font-weight: 700;
+    }
+    .b500 { background: #fee2e2; color: #991b1b; }
+    .b502 { background: #fef3c7; color: #92400e; }
+    .b503 { background: #fef3c7; color: #92400e; }
+    .b504 { background: #fef3c7; color: #92400e; }
+    .mono { font-family: ui-monospace, SF Mono, monospace; font-size: 11.5px; }
+    .msg-preview {
+      max-width: 360px;
+      overflow: hidden; text-overflow: ellipsis;
+      white-space: nowrap;
+      color: #57534e;
+    }
+
+    /* 펼친 행 */
+    .expand-row td {
+      background: #fef2f2; padding: 14px 24px;
+    }
+    .expand-content {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    @media (max-width: 720px) {
+      .expand-content { grid-template-columns: 1fr; }
+    }
+    .expand-section h4 {
+      font-size: 11px; color: #991b1b; font-weight: 700;
+      letter-spacing: 0.04em;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+    }
+    .field-list {
+      font-size: 12px; color: #44403c;
+      line-height: 1.7;
+    }
+    .field-list b { color: #1c1917; font-weight: 600; }
+    .err-msg-full {
+      background: #fff;
+      border: 1px solid #fca5a5;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-family: ui-monospace, SF Mono, monospace;
+      font-size: 11.5px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: #1c1917;
+      max-height: 240px;
+      overflow-y: auto;
+    }
+
+    .empty {
+      text-align: center; padding: 48px 0;
+      color: #a8a29e; font-size: 14px;
+    }
+
+    .footer-note {
+      font-size: 11.5px; color: #78716c;
+      margin-top: 12px; text-align: right;
+    }
+    .footer-note .truncated { color: #b45309; font-weight: 600; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Cligent 어드민</h1>
+    <span>에러 로그</span>
+    <nav>
+      <a href="/admin">← 어드민</a>
+      <a href="/admin/applicants">신청자</a>
+      <a href="/admin/clinics">한의원</a>
+      <a href="/admin/usage">사용량</a>
+      <a href="/admin/feedback">피드백</a>
+      <a href="/admin/login-history">로그인 이력</a>
+      <a href="/admin/errors" class="active">에러</a>
+      <a href="/admin/blogs">블로그</a>
+      <a href="/admin/settings">설정</a>
+    </nav>
+  </header>
+
+  <div class="container">
+    <div class="banner">
+      5xx 에러 자동 기록 · <b>90일 보존</b> · PII 마스킹 적용 (user_id 해시, 민감 키 REDACTED)
+    </div>
+
+    <div class="layout">
+      <!-- 좌측 사이드 — 날짜 픽커 -->
+      <aside class="sidebar">
+        <h3>가용 일자</h3>
+        <div class="date-list" id="date-list">
+          <div class="empty-side">불러오는 중…</div>
+        </div>
+      </aside>
+
+      <!-- 본문 -->
+      <main class="main">
+        <!-- 통계 -->
+        <div class="stats">
+          <div class="stat-card">
+            <div class="label">최근 7일 5xx</div>
+            <div class="value" id="s-total">—</div>
+          </div>
+          <div class="stat-card list-card">
+            <div class="label">Top 에러 타입</div>
+            <div class="value" id="s-types">—</div>
+          </div>
+          <div class="stat-card list-card">
+            <div class="label">Top 경로</div>
+            <div class="value" id="s-paths">—</div>
+          </div>
+        </div>
+
+        <!-- 일자별 미니 차트 -->
+        <div class="chart">
+          <h4>최근 7일 발생 추이</h4>
+          <div class="bars" id="bars"></div>
+        </div>
+
+        <!-- 필터 -->
+        <div class="toolbar">
+          <span class="glabel">상태</span>
+          <select id="f-status" onchange="reload()">
+            <option value="">전체</option>
+            <option value="500">500</option>
+            <option value="502">502</option>
+            <option value="503">503</option>
+            <option value="504">504</option>
+          </select>
+          <span class="glabel">에러 타입</span>
+          <input type="text" id="f-error-type" placeholder="예: HTTP_5XX, ValueError"
+            onkeypress="if(event.key==='Enter')reload()">
+          <span class="glabel">경로</span>
+          <input type="text" id="f-path" placeholder="/api/blog/..."
+            onkeypress="if(event.key==='Enter')reload()">
+          <button class="btn-primary" onclick="reload()">조회</button>
+          <button class="btn-ghost" onclick="resetFilters()">초기화</button>
+        </div>
+
+        <!-- 테이블 -->
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>시각</th>
+                <th>상태</th>
+                <th>메서드</th>
+                <th>경로</th>
+                <th>에러 타입</th>
+                <th>메시지</th>
+              </tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+          </table>
+          <div class="empty" id="empty-msg" style="display:none;">선택한 조건의 로그가 없습니다.</div>
+        </div>
+
+        <div class="footer-note" id="footer-note"></div>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    let curDate    = null;
+    let expandedId = null;   // 인덱스로 추적
+    let lastRows   = [];
+
+    async function init() {
+      // 1) 가용 일자 + 통계 동시 로드
+      try {
+        const [datesRes, sumRes] = await Promise.all([
+          fetch('/api/admin/errors/dates'),
+          fetch('/api/admin/errors/summary?days=7'),
+        ]);
+        if (datesRes.status === 401 || datesRes.status === 403) {
+          location.href = '/login?next=/admin/errors';
+          return;
+        }
+        const datesJ = await datesRes.json();
+        const sumJ   = await sumRes.json();
+
+        renderDates(datesJ.dates || []);
+        renderSummary(sumJ);
+
+        // 기본 선택: 가장 최신 일자 (없으면 오늘)
+        const defaultDate = (datesJ.dates && datesJ.dates[0])
+          ? datesJ.dates[0].date
+          : new Date().toISOString().slice(0, 10);
+        selectDate(defaultDate);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    function renderDates(dates) {
+      const el = document.getElementById('date-list');
+      if (!dates.length) {
+        el.innerHTML = '<div class="empty-side">기록된 에러 없음</div>';
+        // 그래도 오늘 날짜 클릭 가능하도록 한 줄 추가
+        const today = new Date().toISOString().slice(0, 10);
+        el.innerHTML = `
+          <div class="date-item" data-date="${today}" onclick="selectDate('${today}')">
+            <span>${today}</span>
+            <span class="size">없음</span>
+          </div>
+        `;
+        return;
+      }
+      el.innerHTML = dates.map(d => `
+        <div class="date-item" data-date="${d.date}" onclick="selectDate('${d.date}')">
+          <span>${d.date}</span>
+          <span class="size">${fmtSize(d.size)}</span>
+        </div>
+      `).join('');
+    }
+
+    function fmtSize(n) {
+      if (!n) return '0';
+      if (n < 1024) return n + 'B';
+      if (n < 1024 * 1024) return (n / 1024).toFixed(1) + 'KB';
+      return (n / 1024 / 1024).toFixed(1) + 'MB';
+    }
+
+    function renderSummary(s) {
+      document.getElementById('s-total').textContent = s.total ?? 0;
+
+      const types = s.top_error_types || [];
+      document.getElementById('s-types').innerHTML = types.length
+        ? types.slice(0, 5).map(t => `
+            <div class="row"><span class="key">${esc(t.type)}</span><span class="cnt">${t.count}</span></div>
+          `).join('')
+        : '<span style="color:#a8a29e;">없음</span>';
+
+      const paths = s.top_paths || [];
+      document.getElementById('s-paths').innerHTML = paths.length
+        ? paths.slice(0, 5).map(p => `
+            <div class="row"><span class="key">${esc(p.path)}</span><span class="cnt">${p.count}</span></div>
+          `).join('')
+        : '<span style="color:#a8a29e;">없음</span>';
+
+      // 차트
+      const bars = s.daily_counts || [];
+      const max = Math.max(1, ...bars.map(b => b.count));
+      document.getElementById('bars').innerHTML = bars.map(b => {
+        const h = Math.max(2, Math.round((b.count / max) * 60));
+        const cls = b.count > 0 ? 'has-data' : '';
+        return `
+          <div class="bar ${cls}" style="height:${h}px;">
+            <div class="tip">${b.date} · ${b.count}건</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function selectDate(date) {
+      curDate = date;
+      expandedId = null;
+      // 활성 표시
+      document.querySelectorAll('.date-item').forEach(el => {
+        el.classList.toggle('active', el.dataset.date === date);
+      });
+      reload();
+    }
+
+    async function reload() {
+      if (!curDate) return;
+      const params = new URLSearchParams();
+      params.set('date', curDate);
+      const status     = document.getElementById('f-status').value;
+      const errorType  = document.getElementById('f-error-type').value.trim();
+      const pathQ      = document.getElementById('f-path').value.trim();
+      if (status)    params.set('status', status);
+      if (errorType) params.set('error_type', errorType);
+      if (pathQ)     params.set('path_q', pathQ);
+
+      try {
+        const res = await fetch('/api/admin/errors?' + params.toString());
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          showFooter(`<span style="color:#991b1b;">조회 실패: ${esc(j.detail || res.status)}</span>`);
+          return;
+        }
+        const data = await res.json();
+        lastRows = data.rows || [];
+        renderRows(data);
+      } catch (e) {
+        showFooter(`<span style="color:#991b1b;">조회 실패: ${esc(e.message)}</span>`);
+      }
+    }
+
+    function renderRows(data) {
+      const tbody = document.getElementById('tbody');
+      const empty = document.getElementById('empty-msg');
+      if (!lastRows.length) {
+        tbody.innerHTML = '';
+        empty.style.display = 'block';
+      } else {
+        empty.style.display = 'none';
+        tbody.innerHTML = lastRows.map((r, i) => {
+          const html = `
+            <tr data-i="${i}" onclick="toggleExpand(${i})">
+              <td><span class="mono">${fmtTs(r.ts)}</span></td>
+              <td><span class="badge b${r.status}">${r.status}</span></td>
+              <td><span class="mono">${esc(r.method)}</span></td>
+              <td><span class="mono">${esc(r.path || '')}</span></td>
+              <td>${esc(r.error_type || '—')}</td>
+              <td><span class="msg-preview" title="${esc(r.error_msg || '')}">${esc((r.error_msg || '').slice(0, 60))}</span></td>
+            </tr>
+          `;
+          if (expandedId === i) {
+            return html + buildExpand(r);
+          }
+          return html;
+        }).join('');
+      }
+
+      const note = `${data.matched ?? 0}건 매칭 (파일 전체 ${data.total_in_file ?? 0}건)` +
+                   (data.truncated ? ` · <span class="truncated">상위 ${data.limit}건만 표시</span>` : '');
+      showFooter(note);
+    }
+
+    function buildExpand(r) {
+      return `
+        <tr class="expand-row">
+          <td colspan="6">
+            <div class="expand-content">
+              <div class="expand-section">
+                <h4>요청 메타</h4>
+                <div class="field-list">
+                  <div><b>request_id:</b> <span class="mono">${esc(r.request_id || '—')}</span></div>
+                  <div><b>user_hash:</b> <span class="mono">${esc(r.user_hash || '—')}</span></div>
+                  <div><b>clinic_id:</b> <span class="mono">${esc(String(r.clinic_id ?? '—'))}</span></div>
+                  <div><b>method · path:</b> <span class="mono">${esc(r.method)} ${esc(r.path)}</span></div>
+                  <div><b>status:</b> ${r.status}</div>
+                  <div><b>ts:</b> <span class="mono">${esc(r.ts || '—')}</span></div>
+                </div>
+              </div>
+              <div class="expand-section">
+                <h4>에러 메시지 (${esc(r.error_type || 'Unknown')})</h4>
+                <div class="err-msg-full">${esc(r.error_msg || '(메시지 없음)')}</div>
+              </div>
+            </div>
+          </td>
+        </tr>
+      `;
+    }
+
+    function toggleExpand(i) {
+      expandedId = (expandedId === i) ? null : i;
+      // 재렌더 (lastRows 그대로)
+      renderRows({ matched: lastRows.length, total_in_file: lastRows.length, truncated: false, limit: 0 });
+    }
+
+    function resetFilters() {
+      document.getElementById('f-status').value = '';
+      document.getElementById('f-error-type').value = '';
+      document.getElementById('f-path').value = '';
+      reload();
+    }
+
+    function fmtTs(iso) {
+      if (!iso) return '—';
+      return iso.replace('T', ' ').slice(11, 19);
+    }
+    function showFooter(html) {
+      document.getElementById('footer-note').innerHTML = html;
+    }
+    function esc(s) {
+      return String(s ?? '')
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+
+    init();
+  </script>
+</body>
+</html>

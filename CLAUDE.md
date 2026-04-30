@@ -22,7 +22,80 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **의학 정보**: 검증되지 않은 치료 효과는 사실로 제시 금지 — 항상 불확실성 명시
 - **처방 데이터**: 약재명은 KCD 또는 표준 한의학 용어 사용
 
-## 현재 구현 상태 (2026-04-29 기준)
+## 현재 구현 상태 (2026-04-30 기준)
+
+### 어드민 패널 P2 5종 완료 (2026-04-30)
+
+**1. 신청자 라이프사이클 강화 (`/admin/applicants` 전면 재작성)**
+- `beta_applicants` 9 컬럼 추가: `application_type`(beta/general), `marketing_consent`, `consented_terms_version`(`v1.0-2026-04-29`), `ip_address`, `user_agent`, `rejection_reason`, `admin_notes`, `admin_tags`, `expires_at`
+- 신규 테이블 `applicant_emails`(applicant_id, email_type, sent_at, success, error_msg) — 모든 발송 결과 자동 ledger
+- status enum 확장: pending / invited / registered / **rejected** / **expired**
+- `_send_smtp(..., applicant_id, email_type)` 옵션 인자 → 자동 ledger
+- `/api/beta/apply` 강화: IP/UA 자동 기록, 약관 동의 체크박스(필수: 개인정보 / 선택: 마케팅), `expires_at = now + 30일`
+- `templates/join.html` 동의 UI + 안내 문구
+- lifespan `_applicant_expiry_scheduler` 24h 주기 — 30일 미가입 자동 expired
+- 어드민 API 5종: `GET /api/admin/applicants?type=&status=`(퍼널 stats) / `GET .../{id}/emails` / `PATCH .../{id}`(notes/tags) / `POST .../{id}/reject` / `POST .../{id}/resend`(apply_confirm/admin_notify/invite/reminder)
+- UI: 6 퍼널 카드(클릭 필터), 유형 필터, 행 펼침 timeline, admin_notes/tags 인라인 편집(debounce 700ms), 거절 모달, 재발송 드롭다운
+
+**2. 로그인 이력 PIPA 90일 (`/admin/login-history` + 사용자 본인)**
+- 신규 테이블 `login_history`(user_id/email raw/clinic_id/ip/user_agent/success/failure_reason/created_at) + 인덱스 3종
+- `auth_manager.authenticate_user` 시그니처 → `(user, failure_reason)` 튜플 (user_not_found / invalid_credentials / password_not_set / disabled)
+- `record_login_attempt()` 헬퍼 — 모든 예외 흡수 fail-soft
+- `/api/auth/login`에서 성공·실패 모두 IP/UA 추출 자동 기록
+- lifespan `_login_history_purge_scheduler` 24h, 90일 초과 자동 삭제
+- 어드민: `GET /api/admin/login-history?days=&success=&email=&ip=` — stats + **의심 IP 자동 감지**(1시간 내 동일 IP 5회 이상 실패)
+- 사용자 본인: `GET /api/auth/login-history` (최근 90일 50건) → `templates/settings.html` 시스템 & 보안 > 보안 서브탭 인라인
+- **SQLite native datetime 비교** 필수: `datetime(created_at) >= datetime('now', ?)` — 형식 차이(공백 vs T) 회피
+- tests/test_auth.py 4건 시그니처 호환 업데이트(20/20 통과)
+
+**3. 에러 로그 뷰어 (`/admin/errors`)**
+- 기존 자산 활용 — `data/error_logs/{date}.jsonl`, `observability.py:_write_error_log` 자동 기록 (PII 마스킹 적용)
+- API 3종: `GET /api/admin/errors/dates`(가용 일자+크기) / `GET .../summary?days=7`(일자별/top types/top paths) / `GET /api/admin/errors?date=&status=&error_type=&path_q=&limit=`(최대 1000)
+- 손상된 jsonl 줄 skip, 잘못된 date → 400
+- lifespan `_error_logs_purge_scheduler` 24h, 90일 초과 파일 unlink
+- UI: 좌 사이드 일자 픽커 + 우 통계 3카드 + 미니 막대차트 + 필터 + 행 펼침 상세
+- main.py에 `import re as _re` 모듈 레벨 추가
+
+**4. 데일리 리포트 즉시 트리거 (`/admin/usage`)**
+- 기존 `POST /api/admin/daily-report`(Bearer-only) → `_require_admin_or_session`로 확장 (CLI Bearer 호환)
+- `_DATE_RE` 검증 추가
+- `templates/admin_usage.html` 상단 카드: 날짜 선택(기본 오늘) + "즉시 생성" 버튼 + 결과 path 표시
+
+**5. 전체 블로그 이력 (`/admin/blogs`)**
+- `blog_history.save_blog_entry(..., clinic_id=None)` 옵션 인자 추가 → blog_stats.json에 `clinic_id` 필드 (기존 row=None 하위 호환)
+- main.py `_stream_and_save` 호출 시 user clinic_id 전달
+- `GET /api/admin/blogs?clinic_id=&q=&publish_status=&date_from=&date_to=&page=&per_page=` — blog_stats + clinics name + naver_checker pending_checks **통합**
+- 발행 상태 4단계 종합: none / pending / found / missing (naver_url 우선, pending_checks 보조)
+- UI: 5 status 카드(클릭 필터), 클리닉 select·기간·키워드 검색, Top 클리닉 카드, 페이지네이션
+
+### 어드민 nav 통일 (8링크)
+모든 어드민 페이지 헤더 nav: 어드민 / 신청자 / 한의원 / 사용량 / 피드백 / 로그인 이력 / 에러 / 블로그 / 설정
+
+### lifespan 스케줄러 6종 (모두 24h 주기, 신규 3종 추가)
+- 데일리 리포트(자정 직후 자동 생성) — 기존
+- E4 베타 리마인더(72h 미클릭) — 기존
+- 네이버 발행 확인 — 기존
+- **신청자 30일 만료** — 신규
+- **로그인 이력 90일 정리 (PIPA)** — 신규
+- **에러 로그 90일 정리** — 신규
+
+### 보안 헤더 (Caddyfile, 2026-04-29)
+`/opt/homebrew/etc/Caddyfile` cligent.kr/cligent.co.kr 블록에 추가:
+```
+header {
+    Strict-Transport-Security "max-age=300"
+    X-Content-Type-Options "nosniff"
+    Referrer-Policy "strict-origin-when-cross-origin"
+    X-Frame-Options "SAMEORIGIN"
+}
+```
+- includeSubDomains·preload 미사용 (점진 적용)
+- 1주 후 max-age=86400, 1개월 후 31536000으로 단계 상향 예정
+
+### OG 이미지 (1200×630, 2026-04-29)
+- 위치: `static/og-image.png` (180KB)
+- 디자인: emerald(#064e3b) 배경 + 흰 글씨, 흰 박스 + emerald C 글리프 + AI 스파클(favicon SVG 그대로 인라인) + Cligent 워드마크 168px, 카피 "원장님의 시간을 돌려드립니다." (시간 sage underline) + "Medical AI Agent, Cligent"
+- 생성 방법: `/tmp/og.html` HTML+CSS → Chrome headless `--window-size=1200,630 --force-device-scale-factor=1 --virtual-time-budget=10000`
 
 ### 랜딩 리뉴얼 1·2단계 + SEO 인프라 (2026-04-29)
 

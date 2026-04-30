@@ -138,10 +138,12 @@ def require_role(*roles: str):
 
 # ── 로그인 ───────────────────────────────────────────────────────
 
-def authenticate_user(email: str, password: str) -> Optional[dict]:
+def authenticate_user(email: str, password: str) -> tuple[Optional[dict], Optional[str]]:
     """
     이메일 + 비밀번호 검증.
-    성공 시 user dict, 실패 시 None.
+    반환: (user_dict_or_None, failure_reason_or_None)
+      - 성공: (user, None)
+      - 실패: (None, "user_not_found" | "password_not_set" | "invalid_credentials" | "disabled")
     """
     with get_db() as conn:
         user = conn.execute(
@@ -151,15 +153,49 @@ def authenticate_user(email: str, password: str) -> Optional[dict]:
         ).fetchone()
 
     if not user:
-        return None
+        return None, "user_not_found"
     if not user["hashed_password"]:
-        return None
+        return None, "password_not_set"
     if not verify_password(password, user["hashed_password"]):
-        return None
+        return None, "invalid_credentials"
     if not user["is_active"]:
-        return None
+        return None, "disabled"
 
-    return dict(user)
+    return dict(user), None
+
+
+def record_login_attempt(
+    *,
+    user_id: Optional[int],
+    email: str,
+    clinic_id: Optional[int],
+    ip: Optional[str],
+    user_agent: Optional[str],
+    success: bool,
+    failure_reason: Optional[str] = None,
+) -> None:
+    """
+    로그인 시도 1건을 login_history에 기록. PIPA 90일 자동 정리 대상.
+    실패가 본 흐름에 영향 미치지 않도록 모든 예외를 내부에서 흡수.
+    """
+    try:
+        with get_db() as conn:
+            conn.execute(
+                "INSERT INTO login_history "
+                "(user_id, email, clinic_id, ip, user_agent, success, failure_reason) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    user_id,
+                    (email or "")[:200] or None,
+                    clinic_id,
+                    (ip or "")[:64] or None,
+                    (user_agent or "")[:500] or None,
+                    1 if success else 0,
+                    failure_reason,
+                ),
+            )
+    except Exception:
+        pass
 
 
 # ── 초대 토큰 ─────────────────────────────────────────────────────

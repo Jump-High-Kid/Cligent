@@ -66,10 +66,43 @@
       class="block bg-white border border-stone-200 rounded-2xl p-5 hover:border-emerald-300 hover:shadow-sm transition-all">
       <div class="flex items-center gap-3 mb-2">
         <span class="material-symbols-outlined text-emerald-900">group</span>
-        <h2 class="font-semibold text-stone-900">베타 신청자 관리</h2>
+        <h2 class="font-semibold text-stone-900">신청자 관리</h2>
       </div>
       <p class="text-sm text-stone-500 leading-relaxed">
-        신청 목록, 단계별 통계, 일괄 초대 발송.
+        퍼널 통계, 발송 이력, 메모·태그, 거절·재발송 — 베타·일반 통합.
+      </p>
+    </a>
+
+    <a href="/admin/login-history"
+      class="block bg-white border border-stone-200 rounded-2xl p-5 hover:border-emerald-300 hover:shadow-sm transition-all">
+      <div class="flex items-center gap-3 mb-2">
+        <span class="material-symbols-outlined text-emerald-900">shield_lock</span>
+        <h2 class="font-semibold text-stone-900">로그인 이력</h2>
+      </div>
+      <p class="text-sm text-stone-500 leading-relaxed">
+        PIPA 90일 보존. 의심 IP 자동 감지(1시간 내 5회 이상 실패).
+      </p>
+    </a>
+
+    <a href="/admin/errors"
+      class="block bg-white border border-stone-200 rounded-2xl p-5 hover:border-emerald-300 hover:shadow-sm transition-all">
+      <div class="flex items-center gap-3 mb-2">
+        <span class="material-symbols-outlined text-emerald-900">bug_report</span>
+        <h2 class="font-semibold text-stone-900">에러 로그</h2>
+      </div>
+      <p class="text-sm text-stone-500 leading-relaxed">
+        5xx 에러 일자별 조회. Top 에러 타입·경로, 90일 보존.
+      </p>
+    </a>
+
+    <a href="/admin/blogs"
+      class="block bg-white border border-stone-200 rounded-2xl p-5 hover:border-emerald-300 hover:shadow-sm transition-all">
+      <div class="flex items-center gap-3 mb-2">
+        <span class="material-symbols-outlined text-emerald-900">article</span>
+        <h2 class="font-semibold text-stone-900">블로그 이력</h2>
+      </div>
+      <p class="text-sm text-stone-500 leading-relaxed">
+        모든 클리닉 통합. 발행 상태 4단계, 클리닉별 Top 10, 검색·필터.
       </p>
     </a>
 

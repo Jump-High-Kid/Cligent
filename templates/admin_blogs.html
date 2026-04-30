@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cligent 어드민 — 블로그 이력</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet"/>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" rel="stylesheet"/>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Pretendard', -apple-system, sans-serif;
+      background: #f5f5f4; color: #1c1917; min-height: 100dvh;
+    }
+    header {
+      background: #064e3b; padding: 16px 32px;
+      display: flex; align-items: center; gap: 12px;
+    }
+    header h1 { color: #fff; font-size: 18px; font-weight: 700; }
+    header span { color: #6ee7b7; font-size: 13px; }
+    header nav { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+    header nav a {
+      color: #6ee7b7; font-size: 13px; text-decoration: none;
+      padding: 6px 14px; border-radius: 8px;
+      border: 1px solid rgba(110, 231, 183, 0.4);
+    }
+    header nav a.active { background: rgba(110, 231, 183, 0.15); }
+
+    .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+
+    .banner {
+      background: #f0fdf4; border: 1px solid #a7f3d0;
+      border-radius: 12px; padding: 11px 16px;
+      font-size: 12.5px; color: #065f46;
+      margin-bottom: 16px;
+    }
+    .banner b { font-weight: 700; }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    @media (max-width: 800px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+    .stat-card {
+      background: #fff; border: 1.5px solid #e7e5e4;
+      border-radius: 12px; padding: 12px 14px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .stat-card:hover { border-color: #a8b5a0; transform: translateY(-1px); }
+    .stat-card.active { border-color: #064e3b; background: #f0fdf4; }
+    .stat-card .label {
+      font-size: 11px; color: #78716c; font-weight: 600;
+      letter-spacing: 0.02em; margin-bottom: 4px;
+    }
+    .stat-card .value {
+      font-size: 22px; font-weight: 800; color: #1c1917;
+      line-height: 1.1;
+    }
+    .stat-card.color-amber .value { color: #b45309; }
+    .stat-card.color-blue .value { color: #1e40af; }
+    .stat-card.color-green .value { color: #065f46; }
+    .stat-card.color-red .value { color: #991b1b; }
+
+    .toolbar {
+      display: flex; align-items: center;
+      gap: 10px; flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    .toolbar input, .toolbar select {
+      padding: 7px 12px;
+      border: 1.5px solid #e7e5e4;
+      border-radius: 10px;
+      font-size: 12.5px; font-family: inherit;
+      background: #fff; outline: none;
+    }
+    .toolbar input:focus, .toolbar select:focus { border-color: #064e3b; }
+    .toolbar input[type=text] { min-width: 160px; }
+    .toolbar .glabel { font-size: 12px; color: #78716c; }
+    .btn-primary {
+      padding: 7px 14px;
+      background: #064e3b; color: #fff;
+      border: none; border-radius: 10px;
+      font-size: 12.5px; font-weight: 600;
+      cursor: pointer; font-family: inherit;
+    }
+    .btn-ghost {
+      padding: 7px 12px;
+      background: #fff; color: #44403c;
+      border: 1.5px solid #e7e5e4; border-radius: 10px;
+      font-size: 12.5px; cursor: pointer; font-family: inherit;
+    }
+    .btn-ghost:hover { border-color: #064e3b; }
+
+    .table-wrap {
+      background: #fff; border-radius: 14px;
+      border: 1px solid #e7e5e4; overflow: hidden;
+    }
+    table { width: 100%; border-collapse: collapse; }
+    thead th {
+      padding: 10px 14px;
+      font-size: 11.5px; font-weight: 600;
+      color: #78716c; text-align: left;
+      border-bottom: 1px solid #f0efee;
+      background: #fafaf9;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+    }
+    thead th:first-child { padding-left: 16px; }
+    tbody td {
+      padding: 11px 14px;
+      font-size: 12.5px;
+      border-bottom: 1px solid #f5f5f4;
+      vertical-align: middle;
+    }
+    tbody td:first-child { padding-left: 16px; }
+    tbody tr:hover { background: #fafaf9; }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 14px;
+      font-size: 10.5px; font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+    .ps-none    { background: #e7e5e4; color: #57534e; }
+    .ps-pending { background: #dbeafe; color: #1e40af; }
+    .ps-found   { background: #d1fae5; color: #065f46; }
+    .ps-missing { background: #fef3c7; color: #92400e; }
+
+    .title-cell {
+      max-width: 320px;
+      overflow: hidden; text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .title-cell strong { color: #1c1917; }
+    .keyword-tag {
+      display: inline-block;
+      font-size: 11px;
+      padding: 1px 7px;
+      border-radius: 10px;
+      background: #eef1ea; color: #064e3b;
+      margin-right: 4px;
+    }
+
+    .pagination {
+      display: flex; justify-content: center; align-items: center;
+      gap: 8px; margin-top: 16px;
+      font-size: 12.5px;
+    }
+    .pagination button {
+      padding: 5px 10px;
+      border: 1px solid #e7e5e4; background: #fff;
+      border-radius: 8px; cursor: pointer;
+      font-size: 12px; font-family: inherit;
+    }
+    .pagination button:disabled {
+      opacity: 0.4; cursor: not-allowed;
+    }
+    .pagination .info { color: #78716c; }
+
+    .empty {
+      text-align: center; padding: 48px 0;
+      color: #a8a29e; font-size: 14px;
+    }
+
+    .top-clinics {
+      background: #fff; border: 1.5px solid #e7e5e4;
+      border-radius: 12px; padding: 12px 14px;
+      margin-bottom: 16px;
+    }
+    .top-clinics h4 {
+      font-size: 11.5px; color: #78716c; font-weight: 700;
+      letter-spacing: 0.02em; margin-bottom: 8px;
+    }
+    .top-clinics .row {
+      display: flex; align-items: center; gap: 12px;
+      font-size: 12.5px; padding: 3px 0;
+    }
+    .top-clinics .row .name { color: #44403c; flex: 1; }
+    .top-clinics .row .count { color: #064e3b; font-weight: 700; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Cligent 어드민</h1>
+    <span>블로그 이력</span>
+    <nav>
+      <a href="/admin">← 어드민</a>
+      <a href="/admin/applicants">신청자</a>
+      <a href="/admin/clinics">한의원</a>
+      <a href="/admin/usage">사용량</a>
+      <a href="/admin/feedback">피드백</a>
+      <a href="/admin/login-history">로그인 이력</a>
+      <a href="/admin/errors">에러</a>
+      <a href="/admin/blogs" class="active">블로그</a>
+      <a href="/admin/settings">설정</a>
+    </nav>
+  </header>
+
+  <div class="container">
+    <div class="banner">
+      모든 클리닉 블로그 통합 조회 · 발행 상태 4단계(미등록·대기·확인·누락) · 클릭 시 필터링
+    </div>
+
+    <!-- 발행 상태별 통계 (클릭 시 필터) -->
+    <div class="stats">
+      <div class="stat-card active" data-ps=""        onclick="setStatus('', this)">
+        <div class="label">전체</div>
+        <div class="value" id="s-total">—</div>
+      </div>
+      <div class="stat-card color-amber" data-ps="none"    onclick="setStatus('none', this)">
+        <div class="label">미등록</div>
+        <div class="value" id="s-none">—</div>
+      </div>
+      <div class="stat-card color-blue" data-ps="pending" onclick="setStatus('pending', this)">
+        <div class="label">대기 중</div>
+        <div class="value" id="s-pending">—</div>
+      </div>
+      <div class="stat-card color-green" data-ps="found"   onclick="setStatus('found', this)">
+        <div class="label">발행 확인됨</div>
+        <div class="value" id="s-found">—</div>
+      </div>
+      <div class="stat-card color-red" data-ps="missing" onclick="setStatus('missing', this)">
+        <div class="label">누락</div>
+        <div class="value" id="s-missing">—</div>
+      </div>
+    </div>
+
+    <div class="top-clinics" id="top-clinics-card" style="display:none;">
+      <h4>상위 클리닉 (Top 10)</h4>
+      <div id="top-clinics"></div>
+    </div>
+
+    <!-- 필터 -->
+    <div class="toolbar">
+      <span class="glabel">클리닉</span>
+      <select id="f-clinic" onchange="reload()">
+        <option value="">전체</option>
+      </select>
+      <span class="glabel">기간</span>
+      <input type="date" id="f-from" onchange="reload()">
+      <span class="glabel">~</span>
+      <input type="date" id="f-to" onchange="reload()">
+      <input type="text" id="f-q" placeholder="제목/키워드 검색"
+        onkeypress="if(event.key==='Enter')reload()">
+      <button class="btn-primary" onclick="reload()">조회</button>
+      <button class="btn-ghost" onclick="resetFilters()">초기화</button>
+    </div>
+
+    <!-- 테이블 -->
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>일시</th>
+            <th>클리닉</th>
+            <th>제목 / 키워드</th>
+            <th>글자수</th>
+            <th>비용</th>
+            <th>발행 상태</th>
+            <th>액션</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div class="empty" id="empty-msg" style="display:none;">조건에 맞는 글이 없습니다.</div>
+    </div>
+
+    <div class="pagination" id="pagination"></div>
+  </div>
+
+  <script>
+    let curStatus = '';
+    let curPage   = 1;
+    const PER_PAGE = 50;
+
+    async function init() {
+      // 클리닉 목록 + 첫 조회 (한 호출에서 받음)
+      await reload();
+    }
+
+    function setStatus(ps, card) {
+      curStatus = ps;
+      document.querySelectorAll('.stat-card').forEach(c => c.classList.remove('active'));
+      card.classList.add('active');
+      curPage = 1;
+      reload();
+    }
+
+    async function reload() {
+      const params = new URLSearchParams();
+      if (curStatus) params.set('publish_status', curStatus);
+      const cid = document.getElementById('f-clinic').value;
+      if (cid) params.set('clinic_id', cid);
+      const df = document.getElementById('f-from').value;
+      if (df) params.set('date_from', df);
+      const dt = document.getElementById('f-to').value;
+      if (dt) params.set('date_to', dt);
+      const q = document.getElementById('f-q').value.trim();
+      if (q) params.set('q', q);
+      params.set('page', String(curPage));
+      params.set('per_page', String(PER_PAGE));
+
+      try {
+        const res = await fetch('/api/admin/blogs?' + params.toString());
+        if (res.status === 401 || res.status === 403) {
+          location.href = '/login?next=/admin/blogs';
+          return;
+        }
+        const data = await res.json();
+        renderClinicSelect(data.clinics || []);
+        renderStats(data);
+        renderTopClinics(data.stats?.top_clinics || []);
+        renderRows(data.items || []);
+        renderPagination(data.total, data.page, data.per_page);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    function renderClinicSelect(clinics) {
+      const sel = document.getElementById('f-clinic');
+      // 기존 옵션 유지(첫 회만 채움)
+      if (sel.dataset.filled === '1') return;
+      sel.dataset.filled = '1';
+      const cur = sel.value;
+      sel.innerHTML = '<option value="">전체</option>' +
+        clinics.map(c => `<option value="${c.id}">${esc(c.name)} (#${c.id})</option>`).join('');
+      sel.value = cur;
+    }
+
+    function renderStats(data) {
+      const by = data.stats?.by_status || {};
+      document.getElementById('s-total').textContent   = data.total ?? 0;
+      document.getElementById('s-none').textContent    = by.none    ?? 0;
+      document.getElementById('s-pending').textContent = by.pending ?? 0;
+      document.getElementById('s-found').textContent   = by.found   ?? 0;
+      document.getElementById('s-missing').textContent = by.missing ?? 0;
+    }
+
+    function renderTopClinics(top) {
+      const card = document.getElementById('top-clinics-card');
+      const el = document.getElementById('top-clinics');
+      if (!top.length) { card.style.display = 'none'; return; }
+      card.style.display = 'block';
+      el.innerHTML = top.map(t => `
+        <div class="row">
+          <span class="name">${esc(t.name)}</span>
+          <span class="count">${t.count}</span>
+        </div>
+      `).join('');
+    }
+
+    function renderRows(items) {
+      const tbody = document.getElementById('tbody');
+      const empty = document.getElementById('empty-msg');
+      if (!items.length) {
+        tbody.innerHTML = '';
+        empty.style.display = 'block';
+        return;
+      }
+      empty.style.display = 'none';
+      tbody.innerHTML = items.map(r => {
+        const psLabel = ({
+          none: '미등록', pending: '대기 중',
+          found: '✓ 발행 확인됨', missing: '! 누락'
+        })[r.publish_status] || r.publish_status;
+        return `
+          <tr>
+            <td>${fmtDate(r.created_at)}</td>
+            <td><strong>${esc(r.clinic_name)}</strong>
+                <span style="color:#a8a29e;font-size:11px;">${r.clinic_id ? '#' + r.clinic_id : ''}</span></td>
+            <td class="title-cell" title="${esc(r.title || r.keyword || '')}">
+              <strong>${esc(r.title || r.keyword || '')}</strong>
+              ${r.keyword && r.keyword !== r.title
+                ? `<span class="keyword-tag">${esc(r.keyword)}</span>` : ''}
+            </td>
+            <td>${(r.char_count ?? 0).toLocaleString()}자</td>
+            <td>₩${(r.cost_krw ?? 0).toLocaleString()}</td>
+            <td><span class="badge ps-${r.publish_status}">${psLabel}</span></td>
+            <td>
+              ${r.naver_url
+                ? `<a href="${esc(r.naver_url)}" target="_blank" style="color:#064e3b;">네이버 ↗</a>`
+                : '<span style="color:#a8a29e;">—</span>'}
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function renderPagination(total, page, per) {
+      const max = Math.max(1, Math.ceil(total / per));
+      const el = document.getElementById('pagination');
+      if (max <= 1) { el.innerHTML = ''; return; }
+      el.innerHTML = `
+        <button onclick="goto(1)"        ${page === 1   ? 'disabled' : ''}>«</button>
+        <button onclick="goto(${page-1})" ${page === 1   ? 'disabled' : ''}>‹</button>
+        <span class="info">${page} / ${max} (총 ${total}건)</span>
+        <button onclick="goto(${page+1})" ${page === max ? 'disabled' : ''}>›</button>
+        <button onclick="goto(${max})"   ${page === max ? 'disabled' : ''}>»</button>
+      `;
+    }
+    function goto(p) { curPage = p; reload(); }
+
+    function resetFilters() {
+      document.getElementById('f-clinic').value = '';
+      document.getElementById('f-from').value = '';
+      document.getElementById('f-to').value = '';
+      document.getElementById('f-q').value = '';
+      curStatus = '';
+      curPage = 1;
+      document.querySelectorAll('.stat-card').forEach(c => c.classList.remove('active'));
+      document.querySelector('.stat-card[data-ps=""]').classList.add('active');
+      reload();
+    }
+
+    function fmtDate(iso) {
+      if (!iso) return '—';
+      return iso.replace('T', ' ').slice(0, 16);
+    }
+    function esc(s) {
+      return String(s ?? '')
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+
+    init();
+  </script>
+</body>
+</html>

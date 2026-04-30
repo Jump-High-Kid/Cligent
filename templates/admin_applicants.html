@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cligent 어드민 — 베타 신청자</title>
+  <title>Cligent 어드민 — 신청자 관리</title>
   <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet"/>
   <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" rel="stylesheet"/>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
@@ -21,231 +21,368 @@
     header {
       background: #064e3b;
       padding: 16px 32px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
+      display: flex; align-items: center; gap: 12px;
     }
-
     header h1 { color: #fff; font-size: 18px; font-weight: 700; }
     header span { color: #6ee7b7; font-size: 13px; }
+    header nav { margin-left: auto; display: flex; gap: 8px; }
+    header nav a {
+      color: #6ee7b7; font-size: 13px; text-decoration: none;
+      padding: 6px 14px; border-radius: 8px;
+      border: 1px solid rgba(110, 231, 183, 0.4);
+    }
+    header nav a.active { background: rgba(110, 231, 183, 0.15); }
 
-    .container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+    .container { max-width: 1280px; margin: 0 auto; padding: 28px 24px; }
 
-    /* 통계 카드 */
-    .stats-row {
+    /* 안내 배너 */
+    .banner {
+      background: #f0fdf4;
+      border: 1px solid #a7f3d0;
+      border-radius: 12px;
+      padding: 12px 18px;
+      font-size: 13px; color: #065f46;
+      margin-bottom: 20px;
+      line-height: 1.6;
+    }
+    .banner b { font-weight: 700; }
+
+    /* 퍼널 카드 */
+    .funnel {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-      gap: 16px;
-      margin-bottom: 28px;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
     }
-
-    .stat-card {
+    @media (max-width: 900px) {
+      .funnel { grid-template-columns: repeat(3, 1fr); }
+    }
+    .funnel-card {
       background: #fff;
+      border: 1.5px solid #e7e5e4;
       border-radius: 14px;
-      padding: 18px 20px;
-      border: 1px solid #e7e5e4;
+      padding: 14px 16px;
+      cursor: pointer;
+      transition: all 0.15s;
+      position: relative;
     }
-
-    .stat-card .label { font-size: 12px; color: #78716c; margin-bottom: 6px; }
-    .stat-card .value { font-size: 28px; font-weight: 700; color: #064e3b; }
+    .funnel-card:hover { border-color: #a8b5a0; transform: translateY(-1px); }
+    .funnel-card.active { border-color: #064e3b; background: #f0fdf4; }
+    .funnel-card .label {
+      font-size: 11px; color: #78716c;
+      font-weight: 600; letter-spacing: 0.02em;
+      margin-bottom: 4px;
+    }
+    .funnel-card .value {
+      font-size: 26px; font-weight: 800; color: #1c1917;
+      line-height: 1.1;
+    }
+    .funnel-card.color-amber .value   { color: #92400e; }
+    .funnel-card.color-blue .value    { color: #1e40af; }
+    .funnel-card.color-violet .value  { color: #7c3aed; }
+    .funnel-card.color-emerald .value { color: #065f46; }
+    .funnel-card.color-red .value     { color: #991b1b; }
 
     /* 필터 + 액션 */
     .toolbar {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      flex-wrap: wrap;
-      margin-bottom: 16px;
+      display: flex; align-items: center;
+      gap: 16px; flex-wrap: wrap;
+      margin-bottom: 14px;
     }
-
+    .filter-group {
+      display: flex; gap: 6px; align-items: center;
+    }
+    .filter-group .glabel {
+      font-size: 12px; color: #78716c;
+      margin-right: 4px;
+    }
     .filter-btn {
-      padding: 7px 16px;
+      padding: 6px 14px;
       border: 1.5px solid #e7e5e4;
-      border-radius: 20px;
+      border-radius: 18px;
       background: #fff;
-      font-size: 13px;
-      font-family: inherit;
+      font-size: 12.5px; font-family: inherit;
       cursor: pointer;
       transition: all 0.15s;
       color: #44403c;
     }
-
-    .filter-btn.active {
-      background: #064e3b;
-      color: #fff;
-      border-color: #064e3b;
-    }
+    .filter-btn:hover { border-color: #a8b5a0; }
+    .filter-btn.active { background: #064e3b; color: #fff; border-color: #064e3b; }
 
     .spacer { flex: 1; }
 
-    .btn-invite {
+    .btn-primary {
       padding: 9px 20px;
-      background: #064e3b;
-      color: #fff;
-      border: none;
-      border-radius: 10px;
-      font-size: 14px;
-      font-weight: 600;
+      background: #064e3b; color: #fff;
+      border: none; border-radius: 10px;
+      font-size: 13.5px; font-weight: 600;
       font-family: inherit;
       cursor: pointer;
       transition: opacity 0.15s;
     }
-
-    .btn-invite:hover { opacity: 0.85; }
-    .btn-invite:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn-primary:hover { opacity: 0.85; }
+    .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
 
     /* 테이블 */
     .table-wrap {
       background: #fff;
       border-radius: 16px;
       border: 1px solid #e7e5e4;
-      overflow: auto;
+      overflow: hidden;
     }
-
     table { width: 100%; border-collapse: collapse; }
-
     thead th {
-      padding: 13px 16px;
-      font-size: 12px;
-      font-weight: 600;
+      padding: 12px 14px;
+      font-size: 11.5px; font-weight: 600;
       color: #78716c;
       text-align: left;
       border-bottom: 1px solid #f0efee;
+      background: #fafaf9;
       white-space: nowrap;
+      letter-spacing: 0.02em;
     }
-
-    thead th:first-child { width: 40px; }
-
-    tbody tr { transition: background 0.1s; }
+    thead th:first-child { width: 36px; padding-left: 16px; }
+    tbody tr { transition: background 0.1s; cursor: pointer; }
     tbody tr:hover { background: #fafaf9; }
-
+    tbody tr.expanded { background: #f0fdf4; }
     tbody td {
-      padding: 12px 16px;
+      padding: 11px 14px;
       font-size: 13px;
       color: #1c1917;
       border-bottom: 1px solid #f5f5f4;
       vertical-align: middle;
     }
+    tbody td:first-child { padding-left: 16px; }
 
     .status-badge {
       display: inline-block;
       padding: 3px 10px;
-      border-radius: 20px;
-      font-size: 11px;
-      font-weight: 600;
+      border-radius: 18px;
+      font-size: 10.5px; font-weight: 700;
+      letter-spacing: 0.02em;
     }
-
     .s-pending    { background: #fef3c7; color: #92400e; }
     .s-invited    { background: #dbeafe; color: #1e40af; }
     .s-registered { background: #d1fae5; color: #065f46; }
+    .s-rejected   { background: #fee2e2; color: #991b1b; }
+    .s-expired    { background: #e7e5e4; color: #57534e; }
+
+    .type-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 14px;
+      font-size: 10.5px; font-weight: 700;
+      background: #eef1ea; color: #064e3b;
+    }
+    .type-badge.general { background: #dbeafe; color: #1e40af; }
 
     .sub-text { color: #a8a29e; font-size: 11px; }
+    .email-count { font-size: 11px; color: #78716c; }
+    .email-count .failed { color: #b45309; font-weight: 600; }
 
-    /* 알림 토스트 */
+    /* 인라인 편집 */
+    .inline-input {
+      width: 100%;
+      padding: 5px 8px;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      font-size: 12px; font-family: inherit;
+      background: transparent;
+      color: #1c1917;
+    }
+    .inline-input:hover { border-color: #e7e5e4; background: #fff; }
+    .inline-input:focus { outline: none; border-color: #064e3b; background: #fff; }
+    .inline-input.saving { background: #fef3c7; }
+    .inline-input.saved  { background: #d1fae5; }
+
+    /* 펼친 행 */
+    .expand-row td { background: #f0fdf4; padding: 16px 24px; }
+    .expand-content {
+      display: flex; gap: 24px; flex-wrap: wrap;
+    }
+    .expand-section { flex: 1; min-width: 280px; }
+    .expand-section h4 {
+      font-size: 11.5px; color: #064e3b; font-weight: 700;
+      margin-bottom: 10px; letter-spacing: 0.02em;
+    }
+    .timeline {
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .timeline-item {
+      display: flex; align-items: flex-start; gap: 8px;
+      padding: 7px 10px; background: #fff;
+      border: 1px solid #e7e5e4; border-radius: 8px;
+      font-size: 12px;
+    }
+    .timeline-item.success { border-left: 3px solid #10b981; }
+    .timeline-item.fail    { border-left: 3px solid #ef4444; }
+    .timeline-item .icon { font-weight: 700; flex-shrink: 0; }
+    .timeline-item .icon.s { color: #10b981; }
+    .timeline-item .icon.f { color: #ef4444; }
+    .timeline-item .info { flex: 1; }
+    .timeline-item .info .type { font-weight: 600; color: #1c1917; }
+    .timeline-item .info .meta { color: #78716c; font-size: 11px; margin-top: 2px; }
+
+    .action-row {
+      display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px;
+    }
+    .btn-ghost {
+      padding: 6px 12px;
+      background: #fff;
+      border: 1.5px solid #e7e5e4;
+      border-radius: 8px;
+      font-size: 12px; font-family: inherit;
+      cursor: pointer; color: #44403c;
+      transition: all 0.15s;
+    }
+    .btn-ghost:hover { border-color: #064e3b; color: #064e3b; }
+    .btn-ghost.danger:hover { border-color: #ef4444; color: #ef4444; }
+
+    .resend-wrap { position: relative; display: inline-block; }
+    .resend-menu {
+      display: none;
+      position: absolute; top: calc(100% + 4px); left: 0;
+      background: #fff; border: 1.5px solid #e7e5e4;
+      border-radius: 10px; padding: 6px;
+      min-width: 180px; z-index: 50;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.08);
+    }
+    .resend-menu.open { display: block; }
+    .resend-menu button {
+      display: block; width: 100%;
+      padding: 8px 12px; border: none; background: transparent;
+      font-size: 12px; text-align: left; font-family: inherit;
+      cursor: pointer; border-radius: 6px;
+      color: #1c1917;
+    }
+    .resend-menu button:hover { background: #f0fdf4; color: #064e3b; }
+    .resend-menu .divider { height: 1px; background: #f0efee; margin: 4px 0; }
+
+    .meta-block {
+      font-size: 11.5px; color: #78716c;
+      line-height: 1.7;
+    }
+    .meta-block b { color: #1c1917; font-weight: 600; }
+    .meta-block .mono { font-family: ui-monospace, SF Mono, monospace; font-size: 10.5px; }
+
+    .empty {
+      text-align: center; padding: 48px 0;
+      color: #a8a29e; font-size: 14px;
+    }
+
+    /* 토스트 */
     #toast {
-      position: fixed;
-      bottom: 24px;
-      right: 24px;
-      background: #1c1917;
-      color: #fff;
-      padding: 12px 20px;
-      border-radius: 12px;
-      font-size: 14px;
-      opacity: 0;
-      transition: opacity 0.3s;
-      pointer-events: none;
+      position: fixed; bottom: 24px; right: 24px;
+      background: #1c1917; color: #fff;
+      padding: 12px 20px; border-radius: 12px;
+      font-size: 14px; opacity: 0;
+      transition: opacity 0.3s; pointer-events: none;
       z-index: 9999;
     }
-
     #toast.show { opacity: 1; }
+    #toast.error { background: #991b1b; }
 
-    /* 빈 상태 */
-    .empty { text-align: center; padding: 48px 0; color: #a8a29e; font-size: 14px; }
-
-    /* 시크릿 모달 */
-    #secret-modal {
-      display: flex;
-      position: fixed; inset: 0;
-      background: rgba(0,0,0,0.5);
+    /* 거절 모달 */
+    .modal-backdrop {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.45); z-index: 10000;
       align-items: center; justify-content: center;
-      z-index: 10000;
     }
-    #secret-modal.hidden { display: none; }
-    .secret-box {
-      background: #fff;
-      border-radius: 16px;
-      padding: 32px 28px;
-      width: 380px;
-      max-width: 90vw;
+    .modal-backdrop.open { display: flex; }
+    .modal {
+      background: #fff; border-radius: 16px;
+      padding: 28px 28px 24px;
+      width: 420px; max-width: 92vw;
       box-shadow: 0 20px 60px rgba(0,0,0,0.2);
     }
-    .secret-box h2 { font-size: 17px; font-weight: 700; margin-bottom: 8px; color: #1c1917; }
-    .secret-box p  { font-size: 13px; color: #78716c; margin-bottom: 20px; }
-    .secret-box input {
-      width: 100%; padding: 10px 14px;
-      border: 1.5px solid #d4d0cb; border-radius: 10px;
-      font-size: 14px; font-family: monospace;
-      margin-bottom: 16px; outline: none;
+    .modal h3 { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+    .modal p  { font-size: 13px; color: #78716c; margin-bottom: 16px; line-height: 1.6; }
+    .modal textarea {
+      width: 100%; padding: 11px 14px;
+      border: 1.5px solid #e7e5e4; border-radius: 10px;
+      font-size: 13.5px; font-family: inherit;
+      min-height: 80px; resize: vertical;
+      outline: none; transition: border-color 0.15s;
     }
-    .secret-box input:focus { border-color: #064e3b; }
-    .secret-box button {
-      width: 100%; padding: 11px;
-      background: #064e3b; color: #fff;
-      border: none; border-radius: 10px;
-      font-size: 14px; font-weight: 600; cursor: pointer;
+    .modal textarea:focus { border-color: #064e3b; }
+    .modal-actions {
+      display: flex; gap: 8px; margin-top: 16px;
+      justify-content: flex-end;
     }
-    .secret-box button:hover { background: #065f46; }
   </style>
 </head>
 <body>
 
   <header>
     <h1>Cligent 어드민</h1>
-    <span>베타 신청자 관리</span>
-    <nav style="margin-left:auto;display:flex;gap:8px;">
-      <a href="/admin/applicants" style="color:#6ee7b7;font-size:13px;text-decoration:none;padding:6px 14px;border-radius:8px;border:1px solid rgba(110,231,183,0.4);background:rgba(110,231,183,0.15);">베타 신청자</a>
-      <a href="/admin/settings" style="color:#6ee7b7;font-size:13px;text-decoration:none;padding:6px 14px;border-radius:8px;border:1px solid rgba(110,231,183,0.4);">시스템 설정</a>
+    <span>신청자 관리</span>
+    <nav>
+      <a href="/admin" >← 어드민</a>
+      <a href="/admin/applicants" class="active">신청자</a>
+      <a href="/admin/clinics">한의원</a>
+      <a href="/admin/usage">사용량</a>
+      <a href="/admin/feedback">피드백</a>
+      <a href="/admin/login-history">로그인 이력</a>
+      <a href="/admin/errors">에러</a>
+      <a href="/admin/blogs">블로그</a>
+      <a href="/admin/settings">설정</a>
     </nav>
   </header>
 
   <div class="container">
-    <!-- 통계 -->
-    <div class="stats-row">
-      <div class="stat-card">
+
+    <div class="banner">
+      신청 후 <b>30일 미가입</b> 시 자동 만료됩니다. 약관 버전 <b id="terms-ver">v1.0-2026-04-29</b> 적용 중.
+      행 클릭 시 발송 이력이 펼쳐집니다.
+    </div>
+
+    <!-- 퍼널 카드 -->
+    <div class="funnel">
+      <div class="funnel-card active" data-status="all"        onclick="setStatus('all', this)">
         <div class="label">전체 신청</div>
         <div class="value" id="s-total">—</div>
       </div>
-      <div class="stat-card">
-        <div class="label">대기 중</div>
-        <div class="value" id="s-pending" style="color:#92400e;">—</div>
+      <div class="funnel-card color-amber" data-status="pending"    onclick="setStatus('pending', this)">
+        <div class="label">대기</div>
+        <div class="value" id="s-pending">—</div>
       </div>
-      <div class="stat-card">
+      <div class="funnel-card color-blue" data-status="invited"     onclick="setStatus('invited', this)">
         <div class="label">초대 발송</div>
-        <div class="value" id="s-invited" style="color:#1e40af;">—</div>
+        <div class="value" id="s-invited">—</div>
       </div>
-      <div class="stat-card">
+      <div class="funnel-card color-violet"                          onclick="setStatus('all', this)">
         <div class="label">링크 클릭</div>
-        <div class="value" id="s-clicked" style="color:#7c3aed;">—</div>
+        <div class="value" id="s-clicked">—</div>
       </div>
-      <div class="stat-card">
+      <div class="funnel-card color-emerald" data-status="registered" onclick="setStatus('registered', this)">
         <div class="label">가입 완료</div>
-        <div class="value" id="s-registered" style="color:#065f46;">—</div>
+        <div class="value" id="s-registered">—</div>
+      </div>
+      <div class="funnel-card color-red" data-status="rejected"      onclick="setStatus('rejected', this)">
+        <div class="label">거절 / 만료</div>
+        <div class="value" id="s-rej-exp">—</div>
       </div>
     </div>
 
-    <!-- 필터 + 초대 버튼 -->
+    <!-- 필터 + 액션 -->
     <div class="toolbar">
-      <button class="filter-btn active" onclick="setFilter('all', this)">전체</button>
-      <button class="filter-btn" onclick="setFilter('pending', this)">대기</button>
-      <button class="filter-btn" onclick="setFilter('invited', this)">초대됨</button>
-      <button class="filter-btn" onclick="setFilter('registered', this)">가입완료</button>
+      <div class="filter-group">
+        <span class="glabel">유형</span>
+        <button class="filter-btn active" data-type="all"     onclick="setType('all', this)">전체</button>
+        <button class="filter-btn"        data-type="beta"    onclick="setType('beta', this)">베타</button>
+        <button class="filter-btn"        data-type="general" onclick="setType('general', this)">일반</button>
+      </div>
+      <div class="filter-group">
+        <span class="glabel">상태</span>
+        <button class="filter-btn"        data-status="expired"     onclick="setStatus('expired', this)">만료</button>
+      </div>
       <div class="spacer"></div>
-      <button class="btn-invite" id="btn-invite" onclick="inviteSelected()" disabled>
+      <button class="btn-primary" id="btn-invite" onclick="inviteSelected()" disabled>
         선택 항목 초대 발송
       </button>
     </div>
 
-    <!-- 신청자 테이블 -->
+    <!-- 테이블 -->
     <div class="table-wrap">
       <table>
         <thead>
@@ -254,12 +391,12 @@
             <th>이름</th>
             <th>한의원</th>
             <th>이메일</th>
-            <th>연락처</th>
+            <th>유형</th>
             <th>상태</th>
+            <th>이메일 이력</th>
             <th>신청일</th>
-            <th>초대일</th>
-            <th>클릭일</th>
             <th>메모</th>
+            <th>태그</th>
           </tr>
         </thead>
         <tbody id="tbody"></tbody>
@@ -270,13 +407,38 @@
 
   <div id="toast"></div>
 
-  <script>
-    let allData   = [];
-    let curFilter = 'all';
+  <!-- 거절 모달 -->
+  <div class="modal-backdrop" id="reject-modal" onclick="if(event.target===this) closeRejectModal()">
+    <div class="modal">
+      <h3>신청 거절</h3>
+      <p id="reject-target">대상: —</p>
+      <textarea id="reject-reason" placeholder="거절 사유를 입력해 주세요 (예: 의료기관이 아님, 중복 신청 등)"></textarea>
+      <div class="modal-actions">
+        <button class="btn-ghost" onclick="closeRejectModal()">취소</button>
+        <button class="btn-primary" style="background:#991b1b;" onclick="confirmReject()">거절 처리</button>
+      </div>
+    </div>
+  </div>
 
+  <script>
+    // ── 상태 ───────────────────────────────────────────────
+    let allData       = [];
+    let curStatus     = 'all';
+    let curType       = 'all';
+    let expandedId    = null;       // 펼친 행
+    let emailCache    = {};         // applicant_id → email rows
+    let openMenuId    = null;       // 열린 재발송 메뉴
+    let rejectTargetId = null;
+    const saveTimers  = {};         // id → debounce timer
+
+    // ── 데이터 로드 ────────────────────────────────────────
     async function loadData() {
       try {
-        const res = await fetch('/api/admin/applicants');
+        const params = new URLSearchParams();
+        if (curStatus !== 'all') params.set('status', curStatus);
+        if (curType   !== 'all') params.set('type',   curType);
+
+        const res = await fetch('/api/admin/applicants?' + params.toString());
         if (res.status === 401 || res.status === 403) {
           location.href = '/login?next=/admin/applicants';
           return;
@@ -284,86 +446,321 @@
         const data = await res.json();
 
         allData = data.applicants || [];
-        const s  = data.stats || {};
+        const s = data.stats || {};
 
-        document.getElementById('s-total').textContent     = s.total      ?? 0;
-        document.getElementById('s-pending').textContent   = s.pending    ?? 0;
-        document.getElementById('s-invited').textContent   = s.invited    ?? 0;
-        document.getElementById('s-clicked').textContent   = s.clicked    ?? 0;
+        document.getElementById('s-total').textContent      = s.total      ?? 0;
+        document.getElementById('s-pending').textContent    = s.pending    ?? 0;
+        document.getElementById('s-invited').textContent    = s.invited    ?? 0;
+        document.getElementById('s-clicked').textContent    = s.clicked    ?? 0;
         document.getElementById('s-registered').textContent = s.registered ?? 0;
+        document.getElementById('s-rej-exp').textContent    = (s.rejected ?? 0) + (s.expired ?? 0);
 
         renderTable();
       } catch (e) {
-        showToast('데이터 로드 실패: ' + e.message);
+        showToast('데이터 로드 실패: ' + e.message, true);
       }
     }
 
+    // ── 테이블 렌더 ────────────────────────────────────────
     function renderTable() {
-      const filtered = curFilter === 'all'
-        ? allData
-        : allData.filter(r => r.status === curFilter);
-
       const tbody = document.getElementById('tbody');
       tbody.innerHTML = '';
 
-      if (!filtered.length) {
+      if (!allData.length) {
         document.getElementById('empty-msg').style.display = 'block';
         return;
       }
       document.getElementById('empty-msg').style.display = 'none';
 
-      for (const r of filtered) {
+      for (const r of allData) {
         const tr = document.createElement('tr');
+        tr.dataset.id = r.id;
+        if (r.id === expandedId) tr.classList.add('expanded');
+        tr.onclick = (e) => {
+          if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON' ||
+              e.target.closest('button') || e.target.classList.contains('inline-input')) return;
+          toggleExpand(r.id);
+        };
+
         const canSelect = r.status === 'pending';
+        const failed = r.email_failed > 0
+          ? `<span class="failed">실패 ${r.email_failed}</span>`
+          : '';
+
         tr.innerHTML = `
-          <td><input type="checkbox" class="row-chk" value="${r.id}" ${canSelect ? '' : 'disabled'}
-              onchange="updateInviteBtn()"></td>
+          <td onclick="event.stopPropagation()">
+            <input type="checkbox" class="row-chk" value="${r.id}" ${canSelect ? '' : 'disabled'}
+              onchange="updateInviteBtn()">
+          </td>
           <td><strong>${esc(r.name)}</strong></td>
           <td>${esc(r.clinic_name)}</td>
           <td>${esc(r.email)}</td>
-          <td>${esc(r.phone || '—')}</td>
+          <td><span class="type-badge ${r.application_type === 'general' ? 'general' : ''}">${
+            r.application_type === 'general' ? '일반' : '베타'
+          }</span></td>
           <td><span class="status-badge s-${r.status}">${statusLabel(r.status)}</span></td>
+          <td><span class="email-count">총 ${r.email_count ?? 0}건 ${failed}</span></td>
           <td><span class="sub-text">${fmtDate(r.applied_at)}</span></td>
-          <td><span class="sub-text">${fmtDate(r.invited_at)}</span></td>
-          <td><span class="sub-text">${fmtDate(r.clicked_at)}</span></td>
-          <td style="max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-              title="${esc(r.note || '')}">${esc(r.note || '—')}</td>
+          <td onclick="event.stopPropagation()">
+            <input class="inline-input" data-field="admin_notes" data-id="${r.id}"
+              value="${esc(r.admin_notes || '')}" placeholder="메모…"
+              oninput="onInlineEdit(this)">
+          </td>
+          <td onclick="event.stopPropagation()">
+            <input class="inline-input" data-field="admin_tags" data-id="${r.id}"
+              value="${esc(r.admin_tags || '')}" placeholder="태그,쉼표"
+              oninput="onInlineEdit(this)">
+          </td>
         `;
         tbody.appendChild(tr);
+
+        // 펼친 행 추가
+        if (r.id === expandedId) {
+          tbody.appendChild(buildExpandRow(r));
+        }
       }
 
       updateInviteBtn();
     }
 
-    function setFilter(f, btn) {
-      curFilter = f;
-      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
+    // ── 펼침 ──────────────────────────────────────────────
+    function toggleExpand(id) {
+      if (expandedId === id) {
+        expandedId = null;
+        renderTable();
+        return;
+      }
+      expandedId = id;
       renderTable();
+      loadEmails(id);
     }
 
+    function buildExpandRow(r) {
+      const tr = document.createElement('tr');
+      tr.className = 'expand-row';
+      tr.onclick = (e) => e.stopPropagation();
+
+      const emails = emailCache[r.id];
+      const timelineHtml = emails === undefined
+        ? '<div class="sub-text">불러오는 중…</div>'
+        : (emails.length === 0
+            ? '<div class="sub-text">발송 이력 없음</div>'
+            : emails.map(e => `
+                <div class="timeline-item ${e.success ? 'success' : 'fail'}">
+                  <span class="icon ${e.success ? 's' : 'f'}">${e.success ? '✓' : '✗'}</span>
+                  <div class="info">
+                    <div class="type">${emailTypeLabel(e.email_type)}</div>
+                    <div class="meta">
+                      ${fmtDate(e.sent_at)}
+                      ${e.error_msg ? ` · <span style="color:#b45309;">${esc(e.error_msg)}</span>` : ''}
+                    </div>
+                  </div>
+                </div>
+              `).join('')
+        );
+
+      const canResendInvite = !!r.invite_token;
+      const canReject       = r.status !== 'registered' && r.status !== 'rejected';
+
+      tr.innerHTML = `
+        <td colspan="10">
+          <div class="expand-content">
+            <div class="expand-section">
+              <h4>이메일 발송 이력</h4>
+              <div class="timeline">${timelineHtml}</div>
+            </div>
+            <div class="expand-section">
+              <h4>메타 정보</h4>
+              <div class="meta-block">
+                <div><b>연락처:</b> ${esc(r.phone || '—')}</div>
+                <div><b>본인 메모:</b> ${esc(r.note || '—')}</div>
+                <div><b>약관 버전:</b> ${esc(r.consented_terms_version || '—')}</div>
+                <div><b>마케팅 동의:</b> ${r.marketing_consent ? '예' : '아니오'}</div>
+                <div><b>IP:</b> <span class="mono">${esc(r.ip_address || '—')}</span></div>
+                <div><b>UA:</b> <span class="mono" style="word-break:break-all;">${esc((r.user_agent || '—').slice(0, 80))}</span></div>
+                <div><b>만료 예정:</b> ${fmtDate(r.expires_at)}</div>
+                ${r.rejection_reason ? `<div><b style="color:#991b1b;">거절 사유:</b> ${esc(r.rejection_reason)}</div>` : ''}
+              </div>
+              <h4 style="margin-top:14px;">액션</h4>
+              <div class="action-row">
+                <div class="resend-wrap">
+                  <button class="btn-ghost" onclick="toggleResendMenu(${r.id})">재발송 ▾</button>
+                  <div class="resend-menu" id="rm-${r.id}">
+                    <button onclick="resend(${r.id}, 'apply_confirm')">접수 확인 메일</button>
+                    <button onclick="resend(${r.id}, 'admin_notify')">어드민 알림</button>
+                    ${canResendInvite ? `
+                      <div class="divider"></div>
+                      <button onclick="resend(${r.id}, 'invite')">초대 링크</button>
+                      <button onclick="resend(${r.id}, 'reminder')">리마인더</button>
+                    ` : ''}
+                  </div>
+                </div>
+                ${canReject
+                  ? `<button class="btn-ghost danger" onclick="openRejectModal(${r.id})">거절</button>`
+                  : ''}
+              </div>
+            </div>
+          </div>
+        </td>
+      `;
+      return tr;
+    }
+
+    async function loadEmails(id) {
+      try {
+        const res = await fetch(`/api/admin/applicants/${id}/emails`);
+        const data = await res.json();
+        emailCache[id] = data.emails || [];
+        if (expandedId === id) renderTable();
+      } catch (e) {
+        showToast('이메일 이력 로드 실패', true);
+      }
+    }
+
+    // ── 인라인 편집 ────────────────────────────────────────
+    function onInlineEdit(input) {
+      const id    = +input.dataset.id;
+      const field = input.dataset.field;
+      const value = input.value;
+      input.classList.remove('saved');
+      input.classList.add('saving');
+
+      clearTimeout(saveTimers[id + ':' + field]);
+      saveTimers[id + ':' + field] = setTimeout(async () => {
+        try {
+          const res = await fetch(`/api/admin/applicants/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ [field]: value }),
+          });
+          if (!res.ok) throw new Error(await res.text());
+          input.classList.remove('saving');
+          input.classList.add('saved');
+          // 로컬 캐시 갱신
+          const r = allData.find(x => x.id === id);
+          if (r) r[field] = value;
+          setTimeout(() => input.classList.remove('saved'), 1200);
+        } catch (e) {
+          input.classList.remove('saving');
+          showToast('저장 실패: ' + e.message, true);
+        }
+      }, 700);
+    }
+
+    // ── 재발송 ────────────────────────────────────────────
+    function toggleResendMenu(id) {
+      const menu = document.getElementById('rm-' + id);
+      if (openMenuId === id) {
+        menu.classList.remove('open');
+        openMenuId = null;
+      } else {
+        document.querySelectorAll('.resend-menu.open').forEach(m => m.classList.remove('open'));
+        menu.classList.add('open');
+        openMenuId = id;
+      }
+    }
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.resend-wrap') && openMenuId !== null) {
+        document.querySelectorAll('.resend-menu.open').forEach(m => m.classList.remove('open'));
+        openMenuId = null;
+      }
+    });
+
+    async function resend(id, emailType) {
+      document.querySelectorAll('.resend-menu.open').forEach(m => m.classList.remove('open'));
+      openMenuId = null;
+      try {
+        const res = await fetch(`/api/admin/applicants/${id}/resend`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email_type: emailType }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          showToast(data.detail || '재발송 실패', true);
+          return;
+        }
+        showToast(data.sent ? '재발송 완료' : '발송 시도(SMTP 미설정 가능)');
+        delete emailCache[id];
+        await loadData();
+        if (expandedId === id) await loadEmails(id);
+      } catch (e) {
+        showToast('재발송 실패: ' + e.message, true);
+      }
+    }
+
+    // ── 거절 모달 ─────────────────────────────────────────
+    function openRejectModal(id) {
+      rejectTargetId = id;
+      const r = allData.find(x => x.id === id);
+      document.getElementById('reject-target').textContent =
+        '대상: ' + (r ? `${r.name} (${r.clinic_name}) — ${r.email}` : '—');
+      document.getElementById('reject-reason').value = '';
+      document.getElementById('reject-modal').classList.add('open');
+      setTimeout(() => document.getElementById('reject-reason').focus(), 100);
+    }
+    function closeRejectModal() {
+      document.getElementById('reject-modal').classList.remove('open');
+      rejectTargetId = null;
+    }
+    async function confirmReject() {
+      const reason = document.getElementById('reject-reason').value.trim();
+      if (!reason) { showToast('거절 사유를 입력해 주세요.', true); return; }
+      try {
+        const res = await fetch(`/api/admin/applicants/${rejectTargetId}/reject`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reason }),
+        });
+        const data = await res.json();
+        if (!res.ok) { showToast(data.detail || '거절 실패', true); return; }
+        showToast('거절 처리 완료');
+        closeRejectModal();
+        await loadData();
+      } catch (e) {
+        showToast('거절 실패: ' + e.message, true);
+      }
+    }
+
+    // ── 필터 ──────────────────────────────────────────────
+    function setStatus(status, btn) {
+      curStatus = status;
+      document.querySelectorAll('.funnel-card').forEach(c => c.classList.remove('active'));
+      document.querySelectorAll('.filter-btn[data-status]').forEach(b => b.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+      else {
+        const def = document.querySelector(`.funnel-card[data-status="${status}"]`)
+                 || document.querySelector(`.funnel-card[data-status="all"]`);
+        if (def) def.classList.add('active');
+      }
+      expandedId = null;
+      loadData();
+    }
+    function setType(type, btn) {
+      curType = type;
+      document.querySelectorAll('.filter-btn[data-type]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      expandedId = null;
+      loadData();
+    }
+
+    // ── 일괄 초대 ─────────────────────────────────────────
     function toggleAll(master) {
-      document.querySelectorAll('.row-chk:not(:disabled)').forEach(c => {
-        c.checked = master.checked;
-      });
+      document.querySelectorAll('.row-chk:not(:disabled)').forEach(c => c.checked = master.checked);
       updateInviteBtn();
     }
-
     function updateInviteBtn() {
       const count = document.querySelectorAll('.row-chk:checked').length;
       const btn = document.getElementById('btn-invite');
       btn.disabled = count === 0;
       btn.textContent = count > 0 ? `선택 항목 초대 발송 (${count}명)` : '선택 항목 초대 발송';
     }
-
     async function inviteSelected() {
       const ids = [...document.querySelectorAll('.row-chk:checked')].map(c => +c.value);
       if (!ids.length) return;
-
       if (!confirm(`${ids.length}명에게 초대 이메일을 발송하시겠습니까?`)) return;
 
       document.getElementById('btn-invite').disabled = true;
-
       try {
         const res = await fetch('/api/admin/invite-batch', {
           method: 'POST',
@@ -371,40 +768,53 @@
           body: JSON.stringify({ ids }),
         });
         const data = await res.json();
-
         const ok  = data.invited?.length ?? 0;
         const bad = data.failed?.length ?? 0;
         showToast(`초대 완료: ${ok}명${bad ? ` / 실패: ${bad}명` : ''}`);
+        ids.forEach(id => delete emailCache[id]);
         await loadData();
       } catch (e) {
-        showToast('초대 발송 실패: ' + e.message);
-        document.getElementById('btn-invite').disabled = false;
+        showToast('초대 발송 실패: ' + e.message, true);
+        updateInviteBtn();
       }
     }
 
-    function showToast(msg) {
+    // ── 유틸 ──────────────────────────────────────────────
+    function showToast(msg, isError) {
       const t = document.getElementById('toast');
       t.textContent = msg;
+      t.classList.toggle('error', !!isError);
       t.classList.add('show');
       setTimeout(() => t.classList.remove('show'), 3000);
     }
-
     function statusLabel(s) {
-      return { pending: '대기', invited: '초대됨', registered: '가입완료' }[s] || s;
+      return ({
+        pending: '대기',
+        invited: '초대됨',
+        registered: '가입완료',
+        rejected: '거절',
+        expired: '만료',
+      })[s] || s;
     }
-
+    function emailTypeLabel(t) {
+      return ({
+        apply_confirm: '접수 확인',
+        admin_notify:  '어드민 알림',
+        invite:        '초대 링크',
+        reminder:      '리마인더',
+        rejection:     '거절 안내',
+      })[t] || t;
+    }
     function fmtDate(iso) {
       if (!iso) return '—';
-      return iso.replace('T', ' ').slice(0, 16).replace('+00:00','');
+      return iso.replace('T', ' ').slice(0, 16).replace('+00:00', '');
     }
-
     function esc(s) {
-      return String(s)
+      return String(s ?? '')
         .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
         .replace(/"/g,'&quot;');
     }
 
-    // 세션 + is_admin 으로 자동 로드 (실패 시 /login 리다이렉트)
     loadData();
   </script>
 </body>

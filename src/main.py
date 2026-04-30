@@ -43,6 +43,7 @@ import base64
 import json as _json
 import logging as _logging
 import os
+import re as _re
 import sys
 import traceback
 from contextlib import asynccontextmanager
@@ -142,6 +143,10 @@ from usage_tracker import log_usage
 
 agent_router = AgentRouter()
 agent_middleware = AgentMiddleware()
+
+# 신청 폼 약관 버전 (개인정보처리방침 변경 시 갱신, applicant 동의 시점 추적용)
+TERMS_VERSION = "v1.0-2026-04-29"
+APPLICANT_EXPIRY_DAYS = 30
 
 _error_logger = _logging.getLogger("cligent.errors")
 
@@ -313,6 +318,77 @@ async def _naver_check_scheduler() -> None:
             _error_logger.error("_naver_check_scheduler 오류: %s", e)
 
 
+async def _error_logs_purge_scheduler() -> None:
+    """24시간마다 90일 초과 error_logs/{date}.jsonl 파일 자동 삭제."""
+    while True:
+        await asyncio.sleep(24 * 3600)
+        try:
+            err_dir = ROOT / "data" / "error_logs"
+            if not err_dir.exists():
+                continue
+            cutoff = (datetime.now(timezone.utc).date() - timedelta(days=90))
+            removed = 0
+            for p in err_dir.glob("*.jsonl"):
+                if not _DATE_RE.match(p.stem):
+                    continue
+                try:
+                    file_date = datetime.fromisoformat(p.stem).date()
+                except Exception:
+                    continue
+                if file_date < cutoff:
+                    try:
+                        p.unlink()
+                        removed += 1
+                    except Exception:
+                        pass
+            if removed > 0:
+                _error_logger.info("error_logs: 90일 초과 %d개 파일 삭제", removed)
+        except Exception as e:
+            _error_logger.error("error_logs_purge_scheduler 오류: %s", e)
+
+
+async def _login_history_purge_scheduler() -> None:
+    """24시간마다 90일 초과 login_history 자동 삭제 (PIPA 준수)."""
+    while True:
+        await asyncio.sleep(24 * 3600)
+        try:
+            from db_manager import get_db as _get_db
+            with _get_db() as conn:
+                # SQLite native datetime 비교 — created_at 형식 차이(공백 vs T) 회피
+                cur = conn.execute(
+                    "DELETE FROM login_history "
+                    "WHERE datetime(created_at) < datetime('now', '-90 days')"
+                )
+                if cur.rowcount > 0:
+                    _error_logger.info("login_history: 90일 초과 %d건 삭제", cur.rowcount)
+        except Exception as e:
+            _error_logger.error("login_history_purge_scheduler 오류: %s", e)
+
+
+async def _applicant_expiry_scheduler() -> None:
+    """24시간마다 expires_at 지난 pending 신청자를 status='expired'로 자동 전환."""
+    while True:
+        await asyncio.sleep(24 * 3600)
+        try:
+            now_iso = datetime.now(timezone.utc).isoformat()
+            from db_manager import get_db as _get_db
+            with _get_db() as conn:
+                cur = conn.execute(
+                    """
+                    UPDATE beta_applicants
+                    SET status = 'expired'
+                    WHERE status = 'pending'
+                      AND expires_at IS NOT NULL
+                      AND expires_at < ?
+                    """,
+                    (now_iso,),
+                )
+                if cur.rowcount > 0:
+                    _error_logger.info("applicant_expiry: %d건 expired 처리", cur.rowcount)
+        except Exception as e:
+            _error_logger.error("applicant_expiry_scheduler 오류: %s", e)
+
+
 async def _beta_reminder_scheduler() -> None:
     """E4: 6시간마다 72h 이상 미클릭 초대 신청자에게 리마인더 이메일 발송"""
     while True:
@@ -337,7 +413,9 @@ async def _beta_reminder_scheduler() -> None:
             for row in rows:
                 invite_url = f"{base_url}/onboard?token={row['invite_token']}"
                 try:
-                    await asyncio.to_thread(send_beta_reminder, row["email"], row["name"], invite_url)
+                    await asyncio.to_thread(
+                        send_beta_reminder, row["email"], row["name"], invite_url, row["id"],
+                    )
                     _error_logger.info("beta E4 리마인더 발송: %s", row["email"])
                 except Exception as exc:
                     _error_logger.warning("beta E4 리마인더 실패 (id=%s): %s", row["id"], exc)
@@ -367,13 +445,22 @@ async def lifespan(application: FastAPI):
     _sched = asyncio.create_task(_midnight_scheduler())
     # E4 베타 리마인더 스케줄러 (6h 주기)
     _reminder_sched = asyncio.create_task(_beta_reminder_scheduler())
+    # 신청 30일 미가입 자동 만료 (24h 주기)
+    _expiry_sched = asyncio.create_task(_applicant_expiry_scheduler())
+    # 로그인 이력 90일 초과 자동 삭제 (PIPA, 24h 주기)
+    _login_purge_sched = asyncio.create_task(_login_history_purge_scheduler())
+    # 에러 로그 90일 초과 자동 삭제 (24h 주기)
+    _err_purge_sched = asyncio.create_task(_error_logs_purge_scheduler())
     # 네이버 발행 확인 스케줄러 (30분 주기)
     _naver_sched = asyncio.create_task(_naver_check_scheduler())
     yield
     _sched.cancel()
     _reminder_sched.cancel()
+    _expiry_sched.cancel()
+    _login_purge_sched.cancel()
+    _err_purge_sched.cancel()
     _naver_sched.cancel()
-    for task in (_sched, _reminder_sched, _naver_sched):
+    for task in (_sched, _reminder_sched, _expiry_sched, _login_purge_sched, _err_purge_sched, _naver_sched):
         try:
             await task
         except asyncio.CancelledError:
@@ -696,17 +783,34 @@ async def api_login(request: Request):
 
     요청: {"email": "...", "password": "..."}
     응답: {"ok": true, "must_change_pw": false}
+    로그인 시도(성공/실패) 모두 login_history에 기록 (PIPA 90일 보존).
     """
     body = await request.json()
     email = body.get("email", "").strip()
     password = body.get("password", "")
 
-    user = authenticate_user(email, password)
+    ip = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent")
+
+    user, reason = authenticate_user(email, password)
+
+    from auth_manager import record_login_attempt
     if not user:
+        record_login_attempt(
+            user_id=None, email=email, clinic_id=None,
+            ip=ip, user_agent=user_agent,
+            success=False, failure_reason=reason,
+        )
         return JSONResponse(
             {"detail": "이메일 또는 비밀번호가 올바르지 않습니다."},
             status_code=401,
         )
+
+    record_login_attempt(
+        user_id=user["id"], email=user["email"], clinic_id=user["clinic_id"],
+        ip=ip, user_agent=user_agent,
+        success=True,
+    )
 
     token = create_access_token(user["id"], user["clinic_id"], user["role"])
     response = JSONResponse({"ok": True, "must_change_pw": bool(user["must_change_pw"])})
@@ -769,6 +873,22 @@ async def api_me(user: dict = Depends(get_current_user)):
         "can_invite": _is_admin_clinic(user),
         "is_admin": is_admin,
     })
+
+
+@app.get("/api/auth/login-history")
+async def api_my_login_history(user: dict = Depends(get_current_user)):
+    """현재 사용자 본인의 로그인 이력 (PIPA 권리 행사). 최근 90일 최대 50건."""
+    from db_manager import get_db as _get_db
+    with _get_db() as conn:
+        rows = conn.execute(
+            "SELECT id, ip, user_agent, success, failure_reason, created_at "
+            "FROM login_history "
+            "WHERE user_id = ? "
+            "  AND datetime(created_at) >= datetime('now', '-90 days') "
+            "ORDER BY created_at DESC LIMIT 50",
+            (user["id"],),
+        ).fetchall()
+    return JSONResponse({"rows": [dict(r) for r in rows]})
 
 
 @app.post("/api/auth/change-password")
@@ -1498,18 +1618,11 @@ async def track_prompt_copy(user: dict = Depends(get_current_user)):
 @app.post("/api/admin/daily-report")
 async def admin_daily_report(request: Request):
     """
-    관리자 전용 — 데일리 리포트 수동 생성.
-
-    인증: Authorization: Bearer <ADMIN_SECRET> 헤더.
-    body(선택): { "date": "YYYY-MM-DD" }  — 생략 시 오늘 날짜
+    관리자 전용 — 데일리 리포트 즉시 생성.
+    인증: 세션(chief_director + ADMIN_CLINIC_ID) 또는 ADMIN_SECRET Bearer.
+    body(선택): { "date": "YYYY-MM-DD" } — 생략 시 오늘 날짜.
     """
-    admin_secret = os.getenv("ADMIN_SECRET", "")
-    if not admin_secret:
-        return JSONResponse({"detail": "관리자 기능이 비활성화되어 있습니다."}, status_code=403)
-
-    auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer ") or auth_header[7:] != admin_secret:
-        return JSONResponse({"detail": "인증 실패"}, status_code=401)
+    _require_admin_or_session(request)
 
     try:
         body = await request.json()
@@ -1520,10 +1633,13 @@ async def admin_daily_report(request: Request):
     if not date_str:
         date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
+    if not _DATE_RE.match(date_str):
+        return JSONResponse({"detail": "date 형식: YYYY-MM-DD"}, status_code=400)
+
     try:
         from daily_report import generate_daily_report
         out_path = await asyncio.to_thread(generate_daily_report, date_str)
-        return JSONResponse({"ok": True, "date": date_str, "path": out_path})
+        return JSONResponse({"ok": True, "date": date_str, "path": str(out_path)})
     except Exception as e:
         return JSONResponse({"detail": f"리포트 생성 실패: {e}"}, status_code=500)
 
@@ -1751,7 +1867,10 @@ def _stream_and_save(
                 blog_text = "".join(collected)
                 char_count = len(blog_text)
                 cost_krw = data.get("usage", {}).get("cost_krw", 0)
-                entry_id = save_blog_entry(keyword, tone, char_count, cost_krw, seo_keywords, blog_text)
+                entry_id = save_blog_entry(
+                    keyword, tone, char_count, cost_krw, seo_keywords, blog_text,
+                    clinic_id=clinic_id,
+                )
                 # done 직후 entry_id 이벤트를 별도로 발송 (프론트에서 발행 확인 버튼 활성화)
                 yield f"data: {_json.dumps({'entry_id': entry_id}, ensure_ascii=False)}\n\n"
                 # 첫 블로그 생성 완료 시각 기록 (COALESCE — 이후 호출은 무시)
@@ -2084,11 +2203,15 @@ async def join_page():
 @app.post("/api/beta/apply")
 async def beta_apply(request: Request):
     """
-    베타 신청 접수 (공개 엔드포인트).
+    베타/일반 신청 접수 (공개 엔드포인트).
 
-    요청: { "name", "clinic_name", "email", "phone"(선택), "note"(선택) }
-    응답: { "ok": true }
-    IP당 5분 창 3회 제한.
+    요청: {
+      "name", "clinic_name", "email", "phone"(선택), "note"(선택),
+      "terms_consent": true,        # 필수 — 개인정보 수집·이용 동의
+      "marketing_consent": false,   # 선택 — 마케팅 정보 수신 동의
+      "application_type": "beta"    # 기본 'beta', 향후 'general'
+    }
+    IP당 5분 창 3회 제한. 30일 미가입 시 자동 만료(status='expired').
     """
     import re as _re
     _EMAIL_RE = _re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
@@ -2107,13 +2230,26 @@ async def beta_apply(request: Request):
     email = (body.get("email") or "").strip().lower()
     phone = (body.get("phone") or "").strip()
     note = (body.get("note") or "").strip()
+    terms_consent = bool(body.get("terms_consent"))
+    marketing_consent = 1 if bool(body.get("marketing_consent")) else 0
+    application_type = (body.get("application_type") or "beta").strip().lower()
+    if application_type not in ("beta", "general"):
+        application_type = "beta"
 
     if not name or not clinic_name:
         return JSONResponse({"detail": "이름과 한의원명을 입력해 주세요."}, status_code=400)
     if not _EMAIL_RE.match(email):
         return JSONResponse({"detail": "유효한 이메일 주소를 입력해 주세요."}, status_code=400)
+    if not terms_consent:
+        return JSONResponse(
+            {"detail": "개인정보 수집·이용에 동의해 주세요."}, status_code=400,
+        )
 
-    now_iso = datetime.now(timezone.utc).isoformat()
+    user_agent = (request.headers.get("user-agent") or "")[:500]
+
+    now_dt = datetime.now(timezone.utc)
+    now_iso = now_dt.isoformat()
+    expires_iso = (now_dt + timedelta(days=APPLICANT_EXPIRY_DAYS)).isoformat()
 
     from db_manager import get_db as _get_db
     with _get_db() as conn:
@@ -2126,23 +2262,36 @@ async def beta_apply(request: Request):
         if existing and existing["status"] == "registered":
             return JSONResponse({"detail": "이미 가입된 이메일입니다."}, status_code=409)
 
-        conn.execute(
-            "INSERT INTO beta_applicants (name, clinic_name, phone, email, note, applied_at) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (name, clinic_name, phone, email, note, now_iso),
+        cur = conn.execute(
+            """
+            INSERT INTO beta_applicants (
+                name, clinic_name, phone, email, note, applied_at,
+                application_type, marketing_consent, consented_terms_version,
+                ip_address, user_agent, expires_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                name, clinic_name, phone, email, note, now_iso,
+                application_type, marketing_consent, TERMS_VERSION,
+                ip, user_agent, expires_iso,
+            ),
         )
+        applicant_id = cur.lastrowid
 
     # E1: 신청자 확인 이메일 (fail-soft)
     try:
         from plan_notify import send_beta_apply_confirm
-        await asyncio.to_thread(send_beta_apply_confirm, email, name)
+        await asyncio.to_thread(send_beta_apply_confirm, email, name, applicant_id)
     except Exception as exc:
         _logging.getLogger(__name__).warning("beta E1 이메일 실패: %s", exc)
 
     # E2: 관리자 알림 (fail-soft)
     try:
         from plan_notify import send_beta_admin_notify
-        await asyncio.to_thread(send_beta_admin_notify, name, clinic_name, email, note)
+        await asyncio.to_thread(
+            send_beta_admin_notify, name, clinic_name, email, note, applicant_id,
+        )
     except Exception as exc:
         _logging.getLogger(__name__).warning("beta E2 관리자 알림 실패: %s", exc)
 
@@ -2189,6 +2338,363 @@ async def admin_usage_page(request: Request):
 async def admin_feedback_page(request: Request):
     _require_admin_or_session(request)
     return FileResponse(ROOT / "templates" / "admin_feedback.html")
+
+
+@app.get("/admin/login-history")
+async def admin_login_history_page(request: Request):
+    _require_admin_or_session(request)
+    return FileResponse(ROOT / "templates" / "admin_login_history.html")
+
+
+@app.get("/api/admin/login-history")
+async def api_admin_login_history(request: Request):
+    """
+    로그인 이력 조회 + 의심 IP 감지.
+    쿼리: email=, user_id=, ip=, success=(0|1), days=(기본 7), limit=(기본 200, 최대 1000).
+    의심 IP 기준: 1시간 내 같은 IP에서 5회 이상 실패.
+    """
+    _require_admin_or_session(request)
+
+    qp = request.query_params
+    email      = (qp.get("email") or "").strip().lower() or None
+    user_id    = qp.get("user_id")
+    ip_filter  = (qp.get("ip") or "").strip() or None
+    success_q  = qp.get("success")
+    try:
+        days = max(1, min(int(qp.get("days") or "7"), 90))
+    except ValueError:
+        days = 7
+    try:
+        limit = max(1, min(int(qp.get("limit") or "200"), 1000))
+    except ValueError:
+        limit = 200
+
+    # cutoff는 SQLite native datetime 함수로 — created_at 문자열 형식 차이(공백 vs T) 회피
+    days_modifier = f"-{days} days"
+    sql = (
+        "SELECT id, user_id, email, clinic_id, ip, user_agent, success, failure_reason, created_at "
+        "FROM login_history "
+        "WHERE datetime(created_at) >= datetime('now', ?) "
+    )
+    params: list = [days_modifier]
+    if email:
+        sql += "AND lower(email) = ? "
+        params.append(email)
+    if user_id and user_id.isdigit():
+        sql += "AND user_id = ? "
+        params.append(int(user_id))
+    if ip_filter:
+        sql += "AND ip = ? "
+        params.append(ip_filter)
+    if success_q in ("0", "1"):
+        sql += "AND success = ? "
+        params.append(int(success_q))
+    sql += "ORDER BY created_at DESC LIMIT ?"
+    params.append(limit)
+
+    from db_manager import get_db as _get_db
+    with _get_db() as conn:
+        rows = conn.execute(sql, params).fetchall()
+        stats = conn.execute(
+            """
+            SELECT
+              COUNT(*)                                              AS total,
+              SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END)           AS ok,
+              SUM(CASE WHEN success = 0 THEN 1 ELSE 0 END)           AS fail
+            FROM login_history
+            WHERE datetime(created_at) >= datetime('now', ?)
+            """,
+            (days_modifier,),
+        ).fetchone()
+        # 의심 IP: 최근 1시간 내 같은 IP에서 5회 이상 실패
+        suspicious = conn.execute(
+            """
+            SELECT ip, COUNT(*) AS fails
+            FROM login_history
+            WHERE success = 0 AND ip IS NOT NULL
+              AND datetime(created_at) >= datetime('now', '-1 hour')
+            GROUP BY ip
+            HAVING COUNT(*) >= 5
+            ORDER BY fails DESC
+            LIMIT 20
+            """
+        ).fetchall()
+
+    return JSONResponse({
+        "rows": [dict(r) for r in rows],
+        "stats": dict(stats) if stats else {},
+        "suspicious_ips": [dict(r) for r in suspicious],
+        "days": days,
+        "limit": limit,
+    })
+
+
+@app.get("/admin/errors")
+async def admin_errors_page(request: Request):
+    _require_admin_or_session(request)
+    return FileResponse(ROOT / "templates" / "admin_errors.html")
+
+
+@app.get("/admin/blogs")
+async def admin_blogs_page(request: Request):
+    _require_admin_or_session(request)
+    return FileResponse(ROOT / "templates" / "admin_blogs.html")
+
+
+@app.get("/api/admin/blogs")
+async def api_admin_blogs(request: Request):
+    """전체 클리닉의 블로그 통합 조회 + 발행 상태 통합.
+    쿼리: clinic_id, q(keyword/title 부분일치), publish_status(none/pending/found/missing),
+          date_from, date_to, page=1, per_page=50(최대 200)."""
+    _require_admin_or_session(request)
+    qp = request.query_params
+    clinic_id_q = qp.get("clinic_id")
+    q           = (qp.get("q") or "").strip().lower() or None
+    pub_status  = (qp.get("publish_status") or "").strip() or None
+    date_from   = (qp.get("date_from") or "").strip() or None
+    date_to     = (qp.get("date_to") or "").strip() or None
+    try:
+        page = max(1, int(qp.get("page") or "1"))
+    except ValueError:
+        page = 1
+    try:
+        per_page = max(1, min(int(qp.get("per_page") or "50"), 200))
+    except ValueError:
+        per_page = 50
+
+    # 1) blog_stats 로드
+    from blog_history import _load_json as _bh_load_json, STATS_PATH as _STATS_PATH
+    stats: list = _bh_load_json(_STATS_PATH, default=[])
+
+    # 2) 클리닉명 매핑
+    clinic_map: dict = {}
+    from db_manager import get_db as _get_db
+    with _get_db() as conn:
+        for row in conn.execute("SELECT id, name FROM clinics").fetchall():
+            clinic_map[int(row["id"])] = row["name"]
+
+    # 3) 발행 상태 — pending_checks.json
+    from naver_checker import _load as _load_pending
+    pending_items = _load_pending()
+    publish_map: dict = {}
+    for it in pending_items:
+        publish_map[int(it.get("blog_stat_id", 0))] = {
+            "status": it.get("status"),
+            "found_url": it.get("found_url"),
+            "started_at": it.get("started_at"),
+            "check_count": it.get("check_count", 0),
+        }
+
+    # 4) 통합 + 필터
+    out = []
+    for e in stats:
+        cid = e.get("clinic_id")
+        cname = clinic_map.get(int(cid)) if cid else None
+        # 발행 상태 종합
+        pub = publish_map.get(int(e.get("id", -1)))
+        if e.get("naver_url"):
+            ps = "found"
+        elif pub and pub.get("status") == "found":
+            ps = "found"
+        elif pub and pub.get("status") == "missing":
+            ps = "missing"
+        elif pub:
+            ps = "pending"
+        else:
+            ps = "none"
+
+        # 필터
+        if clinic_id_q and clinic_id_q.isdigit() and (cid != int(clinic_id_q)):
+            continue
+        if pub_status and pub_status != ps:
+            continue
+        if date_from and (e.get("created_at") or "")[:10] < date_from:
+            continue
+        if date_to and (e.get("created_at") or "")[:10] > date_to:
+            continue
+        if q:
+            blob = (
+                (e.get("keyword") or "") + " " +
+                (e.get("title") or "")
+            ).lower()
+            if q not in blob:
+                continue
+
+        out.append({
+            "id": e.get("id"),
+            "clinic_id": cid,
+            "clinic_name": cname or "—",
+            "keyword": e.get("keyword"),
+            "title": e.get("title"),
+            "tone": e.get("tone"),
+            "char_count": e.get("char_count", 0),
+            "cost_krw": e.get("cost_krw", 0),
+            "naver_url": e.get("naver_url") or (pub.get("found_url") if pub else None),
+            "publish_status": ps,
+            "publish_check_count": pub.get("check_count") if pub else 0,
+            "created_at": e.get("created_at"),
+        })
+
+    # 최신순
+    out.sort(key=lambda r: r.get("created_at") or "", reverse=True)
+    total = len(out)
+    start = (page - 1) * per_page
+    items = out[start: start + per_page]
+
+    # 통계 (필터 적용 결과 기준)
+    by_status = {"none": 0, "pending": 0, "found": 0, "missing": 0}
+    by_clinic: dict = {}
+    for r in out:
+        by_status[r["publish_status"]] = by_status.get(r["publish_status"], 0) + 1
+        cn = r["clinic_name"]
+        by_clinic[cn] = by_clinic.get(cn, 0) + 1
+    top_clinics = sorted(by_clinic.items(), key=lambda x: -x[1])[:10]
+
+    return JSONResponse({
+        "items": items,
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "stats": {
+            "by_status": by_status,
+            "top_clinics": [{"name": n, "count": c} for n, c in top_clinics],
+        },
+        "clinics": [{"id": k, "name": v} for k, v in sorted(clinic_map.items())],
+    })
+
+
+# error_logs 디렉토리 (observability.py와 동일 위치)
+_ERROR_LOG_DIR = ROOT / "data" / "error_logs"
+_DATE_RE = _re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def _read_error_log_file(date_str: str) -> list:
+    """단일 일자 jsonl 파일 읽기 — 손상된 줄은 skip."""
+    if not _DATE_RE.match(date_str):
+        return []
+    path = _ERROR_LOG_DIR / f"{date_str}.jsonl"
+    if not path.exists():
+        return []
+    rows = []
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rows.append(_json.loads(line))
+                except Exception:
+                    continue
+    except Exception:
+        return []
+    return rows
+
+
+@app.get("/api/admin/errors/dates")
+async def api_admin_error_dates(request: Request):
+    """가용 일자 목록 (최신부터). 사이드바 날짜 픽커용."""
+    _require_admin_or_session(request)
+    if not _ERROR_LOG_DIR.exists():
+        return JSONResponse({"dates": []})
+    dates = []
+    for p in _ERROR_LOG_DIR.glob("*.jsonl"):
+        if _DATE_RE.match(p.stem):
+            try:
+                size = p.stat().st_size
+            except Exception:
+                size = 0
+            dates.append({"date": p.stem, "size": size})
+    dates.sort(key=lambda x: x["date"], reverse=True)
+    return JSONResponse({"dates": dates})
+
+
+@app.get("/api/admin/errors/summary")
+async def api_admin_error_summary(request: Request):
+    """최근 N일 통계: 일자별 카운트, top error_type, top path."""
+    _require_admin_or_session(request)
+    try:
+        days = max(1, min(int(request.query_params.get("days") or "7"), 90))
+    except ValueError:
+        days = 7
+
+    today = datetime.now(timezone.utc).date()
+    daily_counts = []
+    error_types: dict = {}
+    paths: dict = {}
+    total = 0
+
+    for d in range(days):
+        date = today - timedelta(days=d)
+        rows = _read_error_log_file(date.isoformat())
+        cnt = len(rows)
+        daily_counts.append({"date": date.isoformat(), "count": cnt})
+        total += cnt
+        for row in rows:
+            et = row.get("error_type") or "Unknown"
+            error_types[et] = error_types.get(et, 0) + 1
+            p = row.get("path") or "/"
+            paths[p] = paths.get(p, 0) + 1
+
+    top_types = sorted(error_types.items(), key=lambda x: -x[1])[:10]
+    top_paths = sorted(paths.items(), key=lambda x: -x[1])[:10]
+
+    return JSONResponse({
+        "days": days,
+        "total": total,
+        "daily_counts": list(reversed(daily_counts)),  # 오래된 → 최신 (차트용)
+        "top_error_types": [{"type": t, "count": c} for t, c in top_types],
+        "top_paths":       [{"path": p, "count": c} for p, c in top_paths],
+    })
+
+
+@app.get("/api/admin/errors")
+async def api_admin_errors(request: Request):
+    """일자별 에러 로그 + 필터.
+    쿼리: date=YYYY-MM-DD(기본 오늘), status, error_type, path_q, limit(기본 200, 최대 1000)."""
+    _require_admin_or_session(request)
+    qp = request.query_params
+    date_str = (qp.get("date") or "").strip() or datetime.now(timezone.utc).date().isoformat()
+    if not _DATE_RE.match(date_str):
+        return JSONResponse({"detail": "date 형식: YYYY-MM-DD"}, status_code=400)
+    status_q = qp.get("status")
+    error_type = (qp.get("error_type") or "").strip() or None
+    path_q = (qp.get("path_q") or "").strip().lower() or None
+    try:
+        limit = max(1, min(int(qp.get("limit") or "200"), 1000))
+    except ValueError:
+        limit = 200
+
+    rows = _read_error_log_file(date_str)
+
+    # 필터
+    out = []
+    for row in rows:
+        if status_q and str(row.get("status")) != status_q:
+            continue
+        if error_type and row.get("error_type") != error_type:
+            continue
+        if path_q and path_q not in (row.get("path") or "").lower():
+            continue
+        out.append(row)
+
+    # 최신부터, limit 적용
+    out.reverse()
+    truncated = len(out) > limit
+    out = out[:limit]
+
+    return JSONResponse({
+        "date": date_str,
+        "rows": out,
+        "total_in_file": len(rows),
+        "matched": sum(1 for r in rows if (
+            (not status_q or str(r.get("status")) == status_q) and
+            (not error_type or r.get("error_type") == error_type) and
+            (not path_q or path_q in (r.get("path") or "").lower())
+        )),
+        "truncated": truncated,
+        "limit": limit,
+    })
 
 
 # ─── 어드민 API: 클리닉/사용량/피드백 ──────────────────────────────
@@ -2417,25 +2923,43 @@ async def admin_applicants_page(request: Request):
 
 @app.get("/api/admin/applicants")
 async def api_admin_applicants(request: Request):
-    """신청자 목록 + 통계 반환. 세션 또는 ADMIN_SECRET Bearer 인증."""
+    """신청자 목록 + 퍼널 통계 반환. 세션 또는 ADMIN_SECRET Bearer 인증."""
     _require_admin_or_session(request)
+
+    application_type = request.query_params.get("type")  # beta / general / 전체(None)
+    status_filter    = request.query_params.get("status")  # pending/invited/registered/rejected/expired
 
     from db_manager import get_db as _get_db
     with _get_db() as conn:
-        rows = conn.execute(
-            "SELECT id, name, clinic_name, phone, email, note, "
-            "applied_at, invited_at, clicked_at, invite_token, status "
-            "FROM beta_applicants ORDER BY applied_at DESC"
-        ).fetchall()
+        sql = (
+            "SELECT a.*, "
+            "  (SELECT COUNT(*) FROM applicant_emails e WHERE e.applicant_id = a.id) AS email_count, "
+            "  (SELECT COUNT(*) FROM applicant_emails e WHERE e.applicant_id = a.id AND e.success = 0) AS email_failed "
+            "FROM beta_applicants a "
+            "WHERE 1=1 "
+        )
+        params: list = []
+        if application_type in ("beta", "general"):
+            sql += "AND a.application_type = ? "
+            params.append(application_type)
+        if status_filter in ("pending", "invited", "registered", "rejected", "expired"):
+            sql += "AND a.status = ? "
+            params.append(status_filter)
+        sql += "ORDER BY a.applied_at DESC"
+        rows = conn.execute(sql, params).fetchall()
 
+        # 퍼널 통계 (필터 무관 — 전체 기준)
         stats = conn.execute(
             """
             SELECT
-              COUNT(*) AS total,
-              SUM(CASE WHEN status = 'pending'    THEN 1 ELSE 0 END) AS pending,
-              SUM(CASE WHEN status = 'invited'    THEN 1 ELSE 0 END) AS invited,
-              SUM(CASE WHEN status = 'registered' THEN 1 ELSE 0 END) AS registered,
-              SUM(CASE WHEN clicked_at IS NOT NULL THEN 1 ELSE 0 END) AS clicked
+              COUNT(*)                                                         AS total,
+              SUM(CASE WHEN status = 'pending'    THEN 1 ELSE 0 END)            AS pending,
+              SUM(CASE WHEN status = 'invited'    THEN 1 ELSE 0 END)            AS invited,
+              SUM(CASE WHEN status = 'registered' THEN 1 ELSE 0 END)            AS registered,
+              SUM(CASE WHEN status = 'rejected'   THEN 1 ELSE 0 END)            AS rejected,
+              SUM(CASE WHEN status = 'expired'    THEN 1 ELSE 0 END)            AS expired,
+              SUM(CASE WHEN invited_at IS NOT NULL THEN 1 ELSE 0 END)           AS sent,
+              SUM(CASE WHEN clicked_at IS NOT NULL THEN 1 ELSE 0 END)           AS clicked
             FROM beta_applicants
             """
         ).fetchone()
@@ -2444,6 +2968,149 @@ async def api_admin_applicants(request: Request):
         "applicants": [dict(r) for r in rows],
         "stats": dict(stats) if stats else {},
     })
+
+
+@app.get("/api/admin/applicants/{applicant_id}/emails")
+async def api_admin_applicant_emails(request: Request, applicant_id: int):
+    """신청자별 이메일 발송 이력 (timeline UI용)."""
+    _require_admin_or_session(request)
+    from db_manager import get_db as _get_db
+    with _get_db() as conn:
+        rows = conn.execute(
+            "SELECT id, email_type, sent_at, success, error_msg "
+            "FROM applicant_emails WHERE applicant_id = ? "
+            "ORDER BY sent_at DESC, id DESC",
+            (applicant_id,),
+        ).fetchall()
+    return JSONResponse({"emails": [dict(r) for r in rows]})
+
+
+@app.patch("/api/admin/applicants/{applicant_id}")
+async def api_admin_applicant_patch(request: Request, applicant_id: int):
+    """admin_notes / admin_tags 수정. 세션 또는 ADMIN_SECRET 인증."""
+    _require_admin_or_session(request)
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"detail": "JSON 파싱 오류"}, status_code=400)
+
+    fields: list = []
+    params: list = []
+    if "admin_notes" in body:
+        fields.append("admin_notes = ?")
+        params.append((body.get("admin_notes") or "").strip() or None)
+    if "admin_tags" in body:
+        # 콤마 구분, 트림
+        raw = (body.get("admin_tags") or "").strip()
+        cleaned = ",".join(t.strip() for t in raw.split(",") if t.strip()) if raw else None
+        fields.append("admin_tags = ?")
+        params.append(cleaned)
+    if not fields:
+        return JSONResponse({"detail": "수정할 필드가 없습니다."}, status_code=400)
+    params.append(applicant_id)
+
+    from db_manager import get_db as _get_db
+    with _get_db() as conn:
+        cur = conn.execute(
+            f"UPDATE beta_applicants SET {', '.join(fields)} WHERE id = ?",
+            params,
+        )
+        if cur.rowcount == 0:
+            return JSONResponse({"detail": "신청자를 찾을 수 없습니다."}, status_code=404)
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/admin/applicants/{applicant_id}/reject")
+async def api_admin_applicant_reject(request: Request, applicant_id: int):
+    """신청 거절. 사유 기록 + status='rejected'."""
+    _require_admin_or_session(request)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    reason = (body.get("reason") or "").strip() or "사유 미기재"
+
+    from db_manager import get_db as _get_db
+    with _get_db() as conn:
+        row = conn.execute(
+            "SELECT status FROM beta_applicants WHERE id = ?", (applicant_id,),
+        ).fetchone()
+        if not row:
+            return JSONResponse({"detail": "신청자를 찾을 수 없습니다."}, status_code=404)
+        if row["status"] in ("registered",):
+            return JSONResponse(
+                {"detail": "이미 가입 완료된 신청자는 거절할 수 없습니다."}, status_code=400,
+            )
+        conn.execute(
+            "UPDATE beta_applicants SET status = 'rejected', rejection_reason = ? WHERE id = ?",
+            (reason, applicant_id),
+        )
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/admin/applicants/{applicant_id}/resend")
+async def api_admin_applicant_resend(request: Request, applicant_id: int):
+    """
+    수동 재발송. body.email_type:
+      - apply_confirm / admin_notify / invite / reminder
+    invite/reminder는 invite_token이 있어야 함 (없으면 invite-batch로 다시 진행).
+    """
+    _require_admin_or_session(request)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    email_type = (body.get("email_type") or "").strip()
+    if email_type not in ("apply_confirm", "admin_notify", "invite", "reminder"):
+        return JSONResponse({"detail": "허용되지 않은 email_type"}, status_code=400)
+
+    from db_manager import get_db as _get_db
+    with _get_db() as conn:
+        row = conn.execute(
+            "SELECT id, name, clinic_name, phone, email, note, invite_token "
+            "FROM beta_applicants WHERE id = ?",
+            (applicant_id,),
+        ).fetchone()
+    if not row:
+        return JSONResponse({"detail": "신청자를 찾을 수 없습니다."}, status_code=404)
+
+    base_url = os.getenv("BASE_URL", "https://cligent.kr")
+
+    try:
+        if email_type == "apply_confirm":
+            from plan_notify import send_beta_apply_confirm
+            ok = await asyncio.to_thread(
+                send_beta_apply_confirm, row["email"], row["name"], applicant_id,
+            )
+        elif email_type == "admin_notify":
+            from plan_notify import send_beta_admin_notify
+            ok = await asyncio.to_thread(
+                send_beta_admin_notify,
+                row["name"], row["clinic_name"], row["email"], row["note"] or "",
+                applicant_id,
+            )
+        else:  # invite / reminder — invite_token 필요
+            if not row["invite_token"]:
+                return JSONResponse(
+                    {"detail": "초대 토큰이 없습니다. invite-batch로 먼저 초대해 주세요."},
+                    status_code=400,
+                )
+            invite_url = f"{base_url}/onboard?token={row['invite_token']}"
+            if email_type == "invite":
+                from plan_notify import send_beta_invite_email
+                ok = await asyncio.to_thread(
+                    send_beta_invite_email, row["email"], row["name"], invite_url, applicant_id,
+                )
+            else:  # reminder
+                from plan_notify import send_beta_reminder
+                ok = await asyncio.to_thread(
+                    send_beta_reminder, row["email"], row["name"], invite_url, applicant_id,
+                )
+    except Exception as exc:
+        _logging.getLogger(__name__).warning("resend 실패 (id=%s): %s", applicant_id, exc)
+        return JSONResponse({"detail": f"발송 중 오류: {exc}"}, status_code=500)
+
+    return JSONResponse({"ok": True, "sent": bool(ok)})
 
 
 @app.post("/api/admin/invite-batch")
@@ -2499,7 +3166,9 @@ async def api_admin_invite_batch(request: Request):
                         (now_iso, token, row["id"]),
                     )
 
-                await asyncio.to_thread(send_beta_invite_email, row["email"], row["name"], invite_url)
+                await asyncio.to_thread(
+                    send_beta_invite_email, row["email"], row["name"], invite_url, row["id"],
+                )
                 invited.append(row["id"])
 
             except ValueError as exc:

@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cligent 어드민 — 로그인 이력</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet"/>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" rel="stylesheet"/>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Pretendard', -apple-system, sans-serif;
+      background: #f5f5f4; color: #1c1917; min-height: 100dvh;
+    }
+    header {
+      background: #064e3b; padding: 16px 32px;
+      display: flex; align-items: center; gap: 12px;
+    }
+    header h1 { color: #fff; font-size: 18px; font-weight: 700; }
+    header span { color: #6ee7b7; font-size: 13px; }
+    header nav { margin-left: auto; display: flex; gap: 8px; }
+    header nav a {
+      color: #6ee7b7; font-size: 13px; text-decoration: none;
+      padding: 6px 14px; border-radius: 8px;
+      border: 1px solid rgba(110, 231, 183, 0.4);
+    }
+    header nav a.active { background: rgba(110, 231, 183, 0.15); }
+
+    .container { max-width: 1280px; margin: 0 auto; padding: 28px 24px; }
+
+    .banner {
+      background: #f0fdf4; border: 1px solid #a7f3d0;
+      border-radius: 12px; padding: 12px 18px;
+      font-size: 13px; color: #065f46;
+      margin-bottom: 20px; line-height: 1.6;
+    }
+    .banner b { font-weight: 700; }
+
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    @media (max-width: 600px) { .stats-row { grid-template-columns: 1fr; } }
+    .stat-card {
+      background: #fff; border: 1.5px solid #e7e5e4;
+      border-radius: 14px; padding: 14px 16px;
+    }
+    .stat-card .label {
+      font-size: 11.5px; color: #78716c;
+      font-weight: 600; margin-bottom: 4px;
+      letter-spacing: 0.02em;
+    }
+    .stat-card .value {
+      font-size: 26px; font-weight: 800; color: #1c1917;
+      line-height: 1.1;
+    }
+    .stat-card.color-green .value { color: #065f46; }
+    .stat-card.color-amber .value { color: #b45309; }
+
+    .alert-card {
+      background: #fef2f2; border: 1.5px solid #fca5a5;
+      border-radius: 14px; padding: 14px 18px;
+      margin-bottom: 20px;
+    }
+    .alert-card h3 {
+      font-size: 13px; font-weight: 700; color: #991b1b;
+      margin-bottom: 8px;
+    }
+    .alert-card .row {
+      display: flex; align-items: center; gap: 12px;
+      font-size: 12.5px; color: #7f1d1d;
+      padding: 4px 0;
+    }
+    .alert-card .row .ip {
+      font-family: ui-monospace, SF Mono, monospace;
+      font-weight: 600; min-width: 140px;
+    }
+    .alert-card .row button {
+      margin-left: auto;
+      padding: 4px 10px; font-size: 11.5px;
+      background: #fff; border: 1px solid #fca5a5;
+      border-radius: 6px; color: #991b1b;
+      cursor: pointer; font-family: inherit;
+    }
+    .alert-card .row button:hover { background: #fee2e2; }
+
+    .toolbar {
+      display: flex; align-items: center;
+      gap: 12px; flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    .toolbar input, .toolbar select {
+      padding: 7px 12px;
+      border: 1.5px solid #e7e5e4;
+      border-radius: 10px;
+      font-size: 13px; font-family: inherit;
+      background: #fff; outline: none;
+    }
+    .toolbar input:focus, .toolbar select:focus { border-color: #064e3b; }
+    .toolbar input[type=text] { width: 220px; }
+    .toolbar .glabel { font-size: 12px; color: #78716c; }
+    .btn-primary {
+      padding: 7px 16px;
+      background: #064e3b; color: #fff;
+      border: none; border-radius: 10px;
+      font-size: 13px; font-weight: 600;
+      font-family: inherit; cursor: pointer;
+    }
+    .btn-primary:hover { opacity: 0.85; }
+    .btn-ghost {
+      padding: 7px 14px;
+      background: #fff; color: #44403c;
+      border: 1.5px solid #e7e5e4; border-radius: 10px;
+      font-size: 13px; font-family: inherit; cursor: pointer;
+    }
+    .btn-ghost:hover { border-color: #064e3b; }
+
+    .table-wrap {
+      background: #fff; border-radius: 16px;
+      border: 1px solid #e7e5e4; overflow: hidden;
+    }
+    table { width: 100%; border-collapse: collapse; }
+    thead th {
+      padding: 12px 14px;
+      font-size: 11.5px; font-weight: 600;
+      color: #78716c;
+      text-align: left;
+      border-bottom: 1px solid #f0efee;
+      background: #fafaf9;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+    }
+    thead th:first-child { padding-left: 16px; }
+    tbody td {
+      padding: 11px 14px;
+      font-size: 13px;
+      border-bottom: 1px solid #f5f5f4;
+      vertical-align: middle;
+    }
+    tbody td:first-child { padding-left: 16px; }
+    tbody tr.suspicious { background: #fef2f2; }
+    tbody tr.suspicious:hover { background: #fee2e2; }
+    tbody tr:hover { background: #fafaf9; }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 18px;
+      font-size: 10.5px; font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+    .badge.ok { background: #d1fae5; color: #065f46; }
+    .badge.fail { background: #fee2e2; color: #991b1b; }
+    .mono { font-family: ui-monospace, SF Mono, monospace; font-size: 11.5px; }
+    .ua-cell {
+      max-width: 280px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: #78716c;
+      font-size: 11.5px;
+    }
+    .empty { text-align: center; padding: 48px 0; color: #a8a29e; font-size: 14px; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Cligent 어드민</h1>
+    <span>로그인 이력</span>
+    <nav>
+      <a href="/admin">← 어드민</a>
+      <a href="/admin/applicants">신청자</a>
+      <a href="/admin/clinics">한의원</a>
+      <a href="/admin/usage">사용량</a>
+      <a href="/admin/feedback">피드백</a>
+      <a href="/admin/login-history" class="active">로그인 이력</a>
+      <a href="/admin/errors">에러</a>
+      <a href="/admin/blogs">블로그</a>
+      <a href="/admin/settings">설정</a>
+    </nav>
+  </header>
+
+  <div class="container">
+    <div class="banner">
+      PIPA 준수 · <b>90일 자동 삭제</b> · 의심 IP 감지(1시간 내 동일 IP 5회 이상 실패)
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="label">기간 내 시도</div>
+        <div class="value" id="s-total">—</div>
+      </div>
+      <div class="stat-card color-green">
+        <div class="label">성공</div>
+        <div class="value" id="s-ok">—</div>
+      </div>
+      <div class="stat-card color-amber">
+        <div class="label">실패</div>
+        <div class="value" id="s-fail">—</div>
+      </div>
+    </div>
+
+    <div id="alert-area"></div>
+
+    <div class="toolbar">
+      <span class="glabel">기간</span>
+      <select id="f-days" onchange="reload()">
+        <option value="1">1일</option>
+        <option value="7" selected>7일</option>
+        <option value="30">30일</option>
+        <option value="90">90일</option>
+      </select>
+      <span class="glabel">상태</span>
+      <select id="f-success" onchange="reload()">
+        <option value="">전체</option>
+        <option value="1">성공</option>
+        <option value="0">실패</option>
+      </select>
+      <input type="text" id="f-email" placeholder="이메일 검색" onkeypress="if(event.key==='Enter')reload()">
+      <input type="text" id="f-ip"    placeholder="IP 검색"     onkeypress="if(event.key==='Enter')reload()">
+      <button class="btn-primary" onclick="reload()">조회</button>
+      <button class="btn-ghost" onclick="resetFilters()">초기화</button>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>시각</th>
+            <th>이메일</th>
+            <th>상태</th>
+            <th>실패 사유</th>
+            <th>IP</th>
+            <th>UA</th>
+            <th>user_id</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div class="empty" id="empty-msg" style="display:none;">조회된 로그가 없습니다.</div>
+    </div>
+  </div>
+
+  <script>
+    async function reload() {
+      const days    = document.getElementById('f-days').value;
+      const success = document.getElementById('f-success').value;
+      const email   = document.getElementById('f-email').value.trim();
+      const ip      = document.getElementById('f-ip').value.trim();
+
+      const params = new URLSearchParams();
+      params.set('days', days);
+      if (success) params.set('success', success);
+      if (email)   params.set('email', email);
+      if (ip)      params.set('ip', ip);
+
+      try {
+        const res = await fetch('/api/admin/login-history?' + params.toString());
+        if (res.status === 401 || res.status === 403) {
+          location.href = '/login?next=/admin/login-history';
+          return;
+        }
+        const data = await res.json();
+        renderStats(data.stats);
+        renderAlerts(data.suspicious_ips || []);
+        renderRows(data.rows || []);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    function renderStats(s) {
+      document.getElementById('s-total').textContent = s.total ?? 0;
+      document.getElementById('s-ok').textContent    = s.ok    ?? 0;
+      document.getElementById('s-fail').textContent  = s.fail  ?? 0;
+    }
+
+    function renderAlerts(ips) {
+      const area = document.getElementById('alert-area');
+      if (!ips.length) { area.innerHTML = ''; return; }
+      area.innerHTML = `
+        <div class="alert-card">
+          <h3>⚠ 최근 1시간 의심 IP (5회 이상 실패)</h3>
+          ${ips.map(i => `
+            <div class="row">
+              <span class="ip">${esc(i.ip)}</span>
+              <span>실패 ${i.fails}회</span>
+              <button onclick="filterByIp('${esc(i.ip)}')">이 IP 보기</button>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+    function filterByIp(ip) {
+      document.getElementById('f-ip').value = ip;
+      reload();
+    }
+
+    function renderRows(rows) {
+      const tbody = document.getElementById('tbody');
+      if (!rows.length) {
+        tbody.innerHTML = '';
+        document.getElementById('empty-msg').style.display = 'block';
+        return;
+      }
+      document.getElementById('empty-msg').style.display = 'none';
+
+      // 의심 IP set
+      const ips = document.querySelectorAll('.alert-card .ip');
+      const suspIps = new Set([...ips].map(e => e.textContent));
+
+      tbody.innerHTML = rows.map(r => {
+        const cls = (!r.success && suspIps.has(r.ip)) ? 'suspicious' : '';
+        return `
+          <tr class="${cls}">
+            <td>${fmtDate(r.created_at)}</td>
+            <td>${esc(r.email || '—')}</td>
+            <td>${r.success
+                ? '<span class="badge ok">성공</span>'
+                : '<span class="badge fail">실패</span>'}</td>
+            <td>${esc(reasonLabel(r.failure_reason))}</td>
+            <td><span class="mono">${esc(r.ip || '—')}</span></td>
+            <td class="ua-cell" title="${esc(r.user_agent || '')}">${esc(r.user_agent || '—')}</td>
+            <td><span class="mono">${r.user_id ?? '—'}</span></td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function resetFilters() {
+      document.getElementById('f-days').value    = '7';
+      document.getElementById('f-success').value = '';
+      document.getElementById('f-email').value   = '';
+      document.getElementById('f-ip').value      = '';
+      reload();
+    }
+
+    function reasonLabel(r) {
+      return ({
+        user_not_found:      '미존재 이메일',
+        invalid_credentials: '비밀번호 불일치',
+        password_not_set:    '비밀번호 미설정',
+        disabled:            '비활성 계정',
+      })[r] || (r || '—');
+    }
+
+    function fmtDate(iso) {
+      if (!iso) return '—';
+      return iso.replace('T', ' ').slice(0, 19).replace('+00:00', '');
+    }
+    function esc(s) {
+      return String(s ?? '')
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+
+    reload();
+  </script>
+</body>
+</html>
