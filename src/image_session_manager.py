@@ -161,3 +161,55 @@ def get_clinic_image_stats(clinic_id: int) -> dict:
         "avg_regen_per_session": (regens / total) if total > 0 else 0.0,
         "avg_edit_per_session": (edits / total) if total > 0 else 0.0,
     }
+
+
+def get_user_image_stats(clinic_id: int, since: Optional[str] = None) -> dict:
+    """사용자(클리닉) 대시보드용 이미지 카운트.
+
+    1 세트 = initial 5장. regen·edit 호출 1회당 1장 추가 카운트.
+    단순화: 총 이미지 수 ≈ sessions × 5 + regen_count + edit_count.
+
+    Args:
+        clinic_id: 본인 클리닉 ID.
+        since: ISO datetime. 베타 가입일(clinics.created_at) 등 — 이후 세션만 집계.
+
+    반환:
+      sets_total / sets_this_month / images_total / images_this_month
+    """
+    from db_manager import get_db
+    from datetime import datetime as _dt
+
+    where = ["clinic_id = ?"]
+    params: list = [clinic_id]
+    if since:
+        where.append("datetime(created_at) >= datetime(?)")
+        params.append(since)
+
+    sql_total = f"""
+        SELECT COUNT(*) AS sets,
+               COALESCE(SUM(5 + COALESCE(regen_count, 0) + COALESCE(edit_count, 0)), 0) AS images
+        FROM image_sessions
+        WHERE {' AND '.join(where)}
+    """
+
+    now = _dt.utcnow()
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
+    where_month = where + ["datetime(created_at) >= datetime(?)"]
+    params_month = params + [month_start]
+    sql_month = f"""
+        SELECT COUNT(*) AS sets,
+               COALESCE(SUM(5 + COALESCE(regen_count, 0) + COALESCE(edit_count, 0)), 0) AS images
+        FROM image_sessions
+        WHERE {' AND '.join(where_month)}
+    """
+
+    with get_db() as conn:
+        row_total = conn.execute(sql_total, params).fetchone()
+        row_month = conn.execute(sql_month, params_month).fetchone()
+
+    return {
+        "sets_total": int(row_total["sets"] or 0),
+        "sets_this_month": int(row_month["sets"] or 0),
+        "images_total": int(row_total["images"] or 0),
+        "images_this_month": int(row_month["images"] or 0),
+    }

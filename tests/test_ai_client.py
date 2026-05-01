@@ -335,7 +335,9 @@ class TestOpenAIImageEdit:
         assert len(results) == 1
         assert results[0].usage["mode"] == "edit"
         kwargs = images_cls.last_kwargs
-        assert kwargs["model"] == "gpt-image-2"
+        # edit endpoint fallback chain — 첫 후보(gpt-image-1) 성공 시 그것으로.
+        # 환경 변수 OPENAI_EDIT_MODEL로 override 가능.
+        assert kwargs["model"] == "gpt-image-1"
         # image / mask는 BytesIO로 감싸짐
         assert "image" in kwargs
 

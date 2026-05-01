@@ -1800,24 +1800,75 @@ async def save_module_config(request: Request, user: dict = Depends(get_current_
 
 @app.get("/api/blog/stats")
 async def blog_stats(user: dict = Depends(get_current_user)):
-    stats = get_blog_stats()
-    # 온보딩 소요 시간 계산 (onboarding_started_at → first_blog_at)
+    """대시보드 글 카드용 통계.
+
+    - 본인 클리닉 카운트만 (베타 가입일 이후)
+    - 플랜 한도 포함 (코호트 1: standard 30/월)
+    """
+    clinic_id = user["clinic_id"]
+    since = None
+    plan_id = "free"
+    plan_limit_month = 3
     try:
         with __import__('db_manager').get_db() as conn:
             row = conn.execute(
-                "SELECT onboarding_started_at, first_blog_at FROM clinics WHERE id = ?",
-                (user["clinic_id"],),
+                "SELECT created_at, plan_id FROM clinics WHERE id = ?",
+                (clinic_id,),
             ).fetchone()
-        if row and row["onboarding_started_at"] and row["first_blog_at"]:
-            from datetime import datetime as _dt
-            fmt = "%Y-%m-%dT%H:%M:%S+00:00"
-            started = _dt.strptime(row["onboarding_started_at"], fmt)
-            finished = _dt.strptime(row["first_blog_at"], fmt)
-            stats["onboarding_seconds"] = max(0, int((finished - started).total_seconds()))
-        else:
-            stats["onboarding_seconds"] = None
+        if row:
+            since = row["created_at"]
+            plan_id = (row["plan_id"] or "free").strip().lower() or "free"
     except Exception:
-        stats["onboarding_seconds"] = None
+        pass
+
+    # 코호트 1 베타: standard 30/월 강제. 추후 plan_guard 연동 시 분기.
+    if plan_id == "pro":
+        plan_limit_month = 80
+    elif plan_id == "standard" or plan_id == "trial":
+        plan_limit_month = 30
+    else:
+        plan_limit_month = 30  # 베타 코호트 1 기본 standard 30 (사용자 결정)
+
+    stats = get_blog_stats(clinic_id=clinic_id, since=since)
+    stats["plan_id"] = plan_id
+    stats["plan_limit_month"] = plan_limit_month
+    return JSONResponse(stats)
+
+
+@app.get("/api/image/stats")
+async def image_stats(user: dict = Depends(get_current_user)):
+    """대시보드 이미지 카드용 통계.
+
+    - 본인 클리닉 카운트만 (베타 가입일 이후)
+    - 1 세트 = 5장. 카드에 세트·이미지 둘 다 표시 가능.
+    - 플랜 한도: 코호트 1 standard 30 세트/월
+    """
+    from image_session_manager import get_user_image_stats
+    clinic_id = user["clinic_id"]
+    since = None
+    plan_id = "free"
+    plan_limit_month = 30
+    try:
+        with __import__('db_manager').get_db() as conn:
+            row = conn.execute(
+                "SELECT created_at, plan_id FROM clinics WHERE id = ?",
+                (clinic_id,),
+            ).fetchone()
+        if row:
+            since = row["created_at"]
+            plan_id = (row["plan_id"] or "free").strip().lower() or "free"
+    except Exception:
+        pass
+    if plan_id == "pro":
+        plan_limit_month = 80
+    elif plan_id == "standard" or plan_id == "trial":
+        plan_limit_month = 30
+    else:
+        plan_limit_month = 30  # 베타 코호트 1 기본
+
+    stats = get_user_image_stats(clinic_id=clinic_id, since=since)
+    stats["plan_id"] = plan_id
+    stats["plan_limit_month"] = plan_limit_month
     return JSONResponse(stats)
 
 
@@ -2006,10 +2057,22 @@ async def api_blog_chat_turn(request: Request, user: dict = Depends(get_current_
     except PermissionError:
         return JSONResponse({"detail": "권한이 없습니다."}, status_code=403)
 
-    # SEO 입력 진입 → 본문 SSE streaming (1D-3)
+    # CONFIRM_IMAGE 응답(예/아니오) 진입 → 본문 SSE streaming (2026-05-01)
+    # SEO 단계는 turn JSON 응답으로 CONFIRM_IMAGE 옵션 메시지만 발송.
+    # 사용자가 CONFIRM_IMAGE에 응답하면 SSE 시작.
     # 한도 체크는 streaming 시작 전에 수행 (사용자에게 즉시 차단 응답)
     from blog_chat_state import Stage as _Stage
-    if state.stage == _Stage.SEO:
+    if state.stage == _Stage.CONFIRM_IMAGE:
+        from blog_chat_flow import (
+            CONFIRM_IMAGE_OPTIONS, match_option, process_turn, process_turn_streaming,
+        )
+        opt = match_option(CONFIRM_IMAGE_OPTIONS, user_input)
+        # 옵션 매칭 실패 → 결정론·LLM fallback은 process_turn에 위임 (JSON 응답)
+        if opt is None:
+            response = process_turn(state, user_input)
+            response["is_admin"] = _is_admin_clinic(user) and user.get("role") == "chief_director"
+            return JSONResponse(response)
+        # 매칭 성공 → state.auto_image 설정 + 본문 SSE 시작
         try:
             check_blog_limit(user["clinic_id"])
         except HTTPException as e:
@@ -2019,7 +2082,6 @@ async def api_blog_chat_turn(request: Request, user: dict = Depends(get_current_
         log_usage(user["clinic_id"], "blog_generation",
                   {"keyword": state.topic, "via": "blog_chat"})
         check_and_notify(user["clinic_id"])
-        from blog_chat_flow import process_turn_streaming
         return StreamingResponse(
             process_turn_streaming(state, user_input),
             media_type="text/event-stream",

@@ -169,7 +169,9 @@ class TestMatrixConsistency:
         m = IMAGE_MODULES[2]
         joined = " ".join(m["directives"]).lower()
         # Western-style lab coat 명시 (2026-05-01 강화 — 한국 한의사 가운 표현)
-        assert "western-style white lab coat" in joined
+        # Western-style lab coat + notched lapel (2026-05-01: stand collar는 mandarin/Chinese 오해 야기)
+        assert "western-style white doctor's lab coat" in joined
+        assert "notched lapel" in joined
         assert "patient gown" in joined
         # Chinese 부정 명시 (positive 디렉티브 안에)
         assert "not chinese tunic suit" in joined
@@ -190,12 +192,16 @@ class TestMatrixConsistency:
 
     def test_module3_chuna_has_western_coat(self):
         joined = " ".join(IMAGE_MODULES[3]["directives"]).lower()
-        assert "western-style white lab coat" in joined
+        # Western-style lab coat + notched lapel (2026-05-01: stand collar는 mandarin/Chinese 오해 야기)
+        assert "western-style white doctor's lab coat" in joined
+        assert "notched lapel" in joined
         assert "korean chuna therapy adjustable padded vinyl clinic table" in joined
 
     def test_module8_consultation_has_western_coat_and_korean_decor(self):
         joined = " ".join(IMAGE_MODULES[8]["directives"]).lower()
-        assert "western-style white lab coat" in joined
+        # Western-style lab coat + notched lapel (2026-05-01: stand collar는 mandarin/Chinese 오해 야기)
+        assert "western-style white doctor's lab coat" in joined
+        assert "notched lapel" in joined
         assert "hangul" in joined  # 한글 게시물·인터페이스
         assert "not chinese tunic suit" in joined
 

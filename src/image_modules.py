@@ -57,7 +57,7 @@ IMAGE_MODULES: dict[int, dict] = {
         "name_ko": "인체 치료 이미지(침/뜸/약침)",
         "directives": [
             # 가운 — Western 표준 lab coat 명시 (한국 한의사 가운 = 서양식 흰 가운)
-            "doctor wearing single-breasted Western-style white lab coat with stand collar, "
+            "doctor wearing single-breasted Western-style white doctor's lab coat with notched lapel collar (jacket-style lapel like a suit jacket, V-neckline opening at chest), "
             "Korean medical institution standard, Hangul name badge embroidered on the chest, "
             "modern professional fit (NOT Chinese tunic suit, NOT mandarin collar, NOT changshan robe)",
             # 환자복
@@ -79,6 +79,7 @@ IMAGE_MODULES: dict[int, dict] = {
         "negatives": [
             "needle through clothing, acupuncture needle on fabric, casual clothes during acupuncture",
             # 가운 — 명시적 China/Japan 차단
+            "stand-up collar coat, banded collar coat, mandarin neckline coat, high-collar lab coat, "
             "Chinese tunic suit, Chinese mandarin collar coat, changshan style robe, "
             "frog-button closure coat, traditional Chinese physician gown",
             "Japanese kampo robe, Japanese yukata-style gown",
@@ -120,7 +121,7 @@ IMAGE_MODULES: dict[int, dict] = {
         "name_ko": "추나치료 이미지",
         "directives": [
             # 가운 — 모듈 2와 동일 명시
-            "doctor wearing single-breasted Western-style white lab coat with stand collar, "
+            "doctor wearing single-breasted Western-style white doctor's lab coat with notched lapel collar (jacket-style lapel like a suit jacket, V-neckline opening at chest), "
             "Korean medical institution standard, Hangul name badge "
             "(NOT Chinese tunic suit, NOT mandarin collar, NOT changshan robe)",
             # 환자복
@@ -138,6 +139,7 @@ IMAGE_MODULES: dict[int, dict] = {
         ],
         "negatives": [
             "Chinese tuina massage table (face-hole only), Japanese shiatsu floor mat",
+            "stand-up collar coat, banded collar coat, mandarin neckline coat, high-collar lab coat, "
             "Chinese tunic suit, Chinese mandarin collar coat, changshan style robe, "
             "traditional Chinese physician gown",
             "Japanese kampo robe, Japanese yukata-style gown",
@@ -186,10 +188,14 @@ IMAGE_MODULES: dict[int, dict] = {
             "editorial poster design, magazine-quality composition",
             "bold typography space (text area reserved), clean grid layout",
             "high contrast composition, focal point centered or rule-of-thirds",
+            # 한글 강제 (2026-05-01) — 사용자 요구: 영어 텍스트 박힘 방지
+            "all visible text rendered in Korean Hangul (한글) only — NO English, NO Latin alphabet, NO romanization",
         ],
         "negatives": [
             "cluttered background, multiple competing focal points",
             "unintended text overlay, garbled letters",
+            # 영어 차단
+            "English text, Latin alphabet text, romanized labels, English headings, English captions",
         ],
         "boosters": ["editorial photography quality"],
         "style_suffix": "high-key lighting, magazine cover aesthetic",
@@ -237,7 +243,7 @@ IMAGE_MODULES: dict[int, dict] = {
         "name_ko": "한의사·환자 상담 이미지",
         "directives": [
             # 가운
-            "Korean medical doctor wearing single-breasted Western-style white lab coat with stand collar, "
+            "Korean medical doctor wearing single-breasted Western-style white doctor's lab coat with notched lapel collar (jacket-style lapel like a suit jacket, V-neckline opening at chest), "
             "Korean medical institution standard, Hangul name badge embroidered on the chest "
             "(NOT Chinese tunic suit, NOT mandarin collar, NOT changshan robe)",
             # 의료 기구·책상
@@ -253,6 +259,7 @@ IMAGE_MODULES: dict[int, dict] = {
             "doctor and patient seated, side or three-quarter angle, calm professional rapport",
         ],
         "negatives": [
+            "stand-up collar coat, banded collar coat, mandarin neckline coat, high-collar lab coat, "
             "Chinese tunic suit, Chinese mandarin collar coat, changshan style robe, "
             "traditional Chinese physician gown",
             "Chinese hospital gown patterns, Japanese kampo robe, Japanese yukata-style gown",
@@ -275,12 +282,16 @@ IMAGE_MODULES: dict[int, dict] = {
             "infographic style, clean flat illustration, labeled diagram",
             "isolated on pure white or very light neutral background",
             "icons, arrows, or labels conveying symptom features clearly",
+            # 한글 강제 (2026-05-01) — 사용자 요구: 인포그래픽 영어 출력 방지
+            "all labels and headings rendered in Korean Hangul (한글) only — NO English text, NO Latin alphabet, NO romanization",
         ],
         "negatives": [
             "photorealistic photo, 3D render",
             "cluttered icons, overlapping text",
             "background scenery",
             "garbled letters, unreadable text",
+            # 영어 차단
+            "English text, Latin alphabet labels, romanized words, English headings, English captions",
         ],
         "boosters": ["medical illustration accuracy"],
         "style_suffix": "flat design, vector-style clean lines",

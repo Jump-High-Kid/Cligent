@@ -326,7 +326,11 @@
       resize: none;
       outline: none;
       transition: border-color 0.15s;
+      /* textarea 내부 스크롤바 숨김 (max-height 도달 시 등장 차단) */
+      scrollbar-width: none;
+      -ms-overflow-style: none;
     }
+    .chat-input::-webkit-scrollbar { display: none; }
     .chat-input:focus { border-color: var(--emerald-900); }
     .chat-input:disabled { background: var(--stone-100); color: var(--stone-500); }
     .send-btn {

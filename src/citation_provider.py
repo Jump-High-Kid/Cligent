@@ -101,7 +101,13 @@ def build_citation_block(
 
     dynamic = get_dynamic_citations(keyword, diversity_config)
 
-    lines: list[str] = ["---", "**참고 문헌**"]
+    # 헤더는 ## (마크다운 H2)로 승격 — 본문 다른 섹션과 시각 통일.
+    # 빈 라벨 ('**참고 문헌**' inline-bold)이 비어 보이던 문제 해결 (2026-05-01).
+    lines: list[str] = ["---", "## 참고 문헌"]
+    # RAG 학술 검색 결과 0건일 때 도달하는 경로이므로 사용자에게 명시적 안내.
+    lines.append(
+        "관련 학술 논문이 자동 검색되지 않아, 아래 원전 출처와 검색 링크로 대신 안내드립니다."
+    )
     if static_citations:
         lines.append("")
         lines.append("**원전 / 가이드라인**")
@@ -114,7 +120,8 @@ def build_citation_block(
             if cit["url"]:
                 lines.append(f"- [{cit['label']}]({cit['url']})")
 
-    if len(lines) <= 2:
+    # 안내문구만 있는 경우(인용 0건)에는 빈 블록 반환
+    if not static_citations and not dynamic:
         return ""
 
     lines.append(

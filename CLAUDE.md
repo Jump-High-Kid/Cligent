@@ -24,6 +24,38 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 현재 구현 상태 (2026-05-01 기준)
 
+### 베타 직전 버그·기능 일괄 수정 (2026-05-01 후반, 미커밋·테스트 대기)
+
+사용자 직접 검증 중 발견한 9건 + 흐름 개선. 다음 세션에서 사용자 테스트 후 commit.
+
+**버그 수정:**
+- 옵션 다중 선택 (`explanation_type` `multi:True` + `match_options_multi` 함수, 숫자/라벨/한글 조사 분할)
+- 챗 입력창 스크롤바 hidden (`scrollbar-width: none` + `::-webkit-scrollbar`)
+- 유튜브 nav 비활성 (cursor-not-allowed + "준비중")
+- 이미지 진행 시간 60초/장 (5분 예상, "약 N분 남음")
+- 한의사 가운 차이나칼라 차단 (`stand collar` → `notched lapel`, negatives 강화)
+- 인포그래픽 영어 출력 차단 (모듈 5·9 "Korean Hangul only" + negatives "English text/Latin alphabet")
+- edit endpoint fallback chain (env → gpt-image-1 → dall-e-2, 모델별 size 매핑)
+- 참고 문헌 헤더 H2 승격 + RAG 0건 명시 안내문
+- 카운트다운 옵션 라벨 IMAGE_OPTIONS와 통일 (매칭 실패 해소) + sending polling
+
+**흐름 개선 (Stage.CONFIRM_IMAGE 추가):**
+- TOPIC → LENGTH → QUESTIONS×4 → SEO("주요 키워드") → **CONFIRM_IMAGE("이미지 자동 출력? 1)예 2)아니오")** → GENERATING → IMAGE
+- `state.auto_image=True` → 본문 완료 후 카운트다운 메시지 (3초 + meta.auto_action) → client setTimeout이 sendTurn('전체 만들기') 자동 트리거
+- `state.auto_image=False` → 기존 흐름 (사용자 IMAGE 옵션 선택 대기)
+- 갤러리 후 `kind:"completion_summary"` 메시지 — 본문 복사·전체 다운로드·발행 확인 3 버튼
+
+**사용량 카드 개편 (대시보드):**
+- "첫 블로그까지" 카드 삭제
+- 글·이미지 2 카드 — 이번달/플랜한도/진행바 + 누적 숫자
+- 본인 클리닉 + 베타 가입일(`clinics.created_at`) 이후만 집계
+- 코호트 1 standard 30/월 강제
+- `/api/image/stats` 신규 — `image_session_manager.get_user_image_stats(clinic_id, since)`
+
+**테스트**: pytest 358/365 통과 (회귀 0). 7건 사전 등록 P2/P3 그대로.
+
+**상세**: 메모리 `project_beta_bugfixes_2026-05-01.md`
+
 ### 블로그 챗 UI 단일 진입점 통합 (Day 5.5, 2026-05-01)
 
 **`/blog` 라우트를 `templates/index.html`(4단계 폼)에서 `templates/blog_chat.html`(챗 UI)로 교체.**

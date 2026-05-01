@@ -43,6 +43,7 @@ class Stage(str, Enum):
     LENGTH = "length"
     QUESTIONS = "questions"
     SEO = "seo"
+    CONFIRM_IMAGE = "confirm_image"
     GENERATING = "generating"
     IMAGE = "image"
     FEEDBACK = "feedback"
@@ -56,7 +57,10 @@ VALID_TRANSITIONS: dict[Stage, set[Stage]] = {
     Stage.LENGTH: {Stage.QUESTIONS, Stage.SEO},
     # 질문 N회 반복 → 끝나면 seo
     Stage.QUESTIONS: {Stage.QUESTIONS, Stage.SEO},
-    Stage.SEO: {Stage.GENERATING},
+    # SEO → CONFIRM_IMAGE가 정상. GENERATING/DONE은 테스트·fallback 호환.
+    Stage.SEO: {Stage.CONFIRM_IMAGE, Stage.GENERATING, Stage.DONE},
+    # 이미지 자동 생성 여부 확인 → 본문 생성 (DONE은 fallback)
+    Stage.CONFIRM_IMAGE: {Stage.GENERATING, Stage.CONFIRM_IMAGE, Stage.DONE},
     # 본문 완료 후 이미지 / 피드백 / 종료
     Stage.GENERATING: {Stage.IMAGE, Stage.FEEDBACK, Stage.DONE},
     Stage.IMAGE: {Stage.IMAGE, Stage.FEEDBACK, Stage.DONE},
@@ -69,7 +73,8 @@ _STAGE_TEXTS = {
     Stage.TOPIC: "주제 입력 중",
     Stage.LENGTH: "글자 수 정하는 중",
     Stage.QUESTIONS: "질문 답변 중",
-    Stage.SEO: "SEO 키워드 입력 중",
+    Stage.SEO: "주요 키워드 입력 중",
+    Stage.CONFIRM_IMAGE: "이미지 자동 생성 여부 확인 중",
     Stage.GENERATING: "본문 작성 중",
     Stage.IMAGE: "이미지 작업 중",
     Stage.FEEDBACK: "피드백 입력 중",
@@ -121,6 +126,9 @@ class BlogChatState:
     blog_history_id: Optional[int] = None
     image_session_id: Optional[str] = None  # image_sessions.session_id
 
+    # CONFIRM_IMAGE 단계 결과 — True면 본문 완료 후 IMAGE 자동 트리거
+    auto_image: bool = False
+
     # 헤더 우측 한도 표시
     quota: dict = field(default_factory=dict)
     # {regen_used, regen_limit, edit_used, edit_limit}
@@ -164,6 +172,7 @@ class BlogChatState:
             blog_text=data.get("blog_text", ""),
             blog_history_id=data.get("blog_history_id"),
             image_session_id=data.get("image_session_id"),
+            auto_image=bool(data.get("auto_image", False)),
             quota=data.get("quota", {}),
             created_at=row["created_at"],
             last_active_at=row["last_active_at"],

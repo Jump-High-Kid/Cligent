@@ -274,19 +274,45 @@
       </button>
     </section>
 
-    <!-- 사용량 요약 (A3) -->
-    <section class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+    <!-- 사용량 요약 (글 / 이미지 2장 — 2026-05-01 개편) -->
+    <section class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <!-- 글 생성 카드 -->
       <div class="neumorphic-card p-5 rounded-xl border border-outline-variant/10">
-        <p class="text-slate-400 text-[0.75rem] mb-1">이번 달 생성</p>
-        <p class="text-2xl font-bold text-primary" id="blog-this-month">—</p>
+        <div class="flex items-center justify-between mb-2">
+          <p class="text-slate-600 text-sm font-semibold flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-[18px] text-emerald-900">edit_square</span>
+            <span>글 생성</span>
+          </p>
+          <p class="text-slate-400 text-xs" id="blog-plan-label">—</p>
+        </div>
+        <div class="flex items-baseline gap-2 mb-2">
+          <p class="text-2xl font-bold text-primary"><span id="blog-this-month">—</span><span class="text-base text-slate-400">/<span id="blog-plan-limit">—</span></span></p>
+          <p class="text-xs text-slate-400">이번 달</p>
+        </div>
+        <!-- 진행바 -->
+        <div class="w-full h-1.5 bg-stone-100 rounded-full overflow-hidden mb-2">
+          <div id="blog-progress" class="h-full bg-emerald-700 rounded-full transition-all" style="width:0%"></div>
+        </div>
+        <p class="text-xs text-slate-500">누적 <span id="blog-total" class="font-semibold text-slate-700">—</span> 편</p>
       </div>
+      <!-- 이미지 생성 카드 -->
       <div class="neumorphic-card p-5 rounded-xl border border-outline-variant/10">
-        <p class="text-slate-400 text-[0.75rem] mb-1">누적 생성</p>
-        <p class="text-2xl font-bold" id="blog-total">—</p>
-      </div>
-      <div id="blog-onboarding-time" class="hidden neumorphic-card p-5 rounded-xl border border-emerald-100 bg-emerald-50">
-        <p class="text-emerald-700 text-[0.7rem] mb-1 font-semibold uppercase tracking-wide">첫 블로그까지</p>
-        <p class="text-2xl font-bold text-emerald-800" id="blog-onboarding-duration">—</p>
+        <div class="flex items-center justify-between mb-2">
+          <p class="text-slate-600 text-sm font-semibold flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-[18px] text-emerald-900">image</span>
+            <span>이미지 생성</span>
+          </p>
+          <p class="text-slate-400 text-xs" id="image-plan-label">—</p>
+        </div>
+        <div class="flex items-baseline gap-2 mb-2">
+          <p class="text-2xl font-bold text-primary"><span id="image-this-month">—</span><span class="text-base text-slate-400">/<span id="image-plan-limit">—</span></span></p>
+          <p class="text-xs text-slate-400">이번 달 (세트)</p>
+        </div>
+        <!-- 진행바 -->
+        <div class="w-full h-1.5 bg-stone-100 rounded-full overflow-hidden mb-2">
+          <div id="image-progress" class="h-full bg-emerald-700 rounded-full transition-all" style="width:0%"></div>
+        </div>
+        <p class="text-xs text-slate-500">누적 <span id="image-total" class="font-semibold text-slate-700">—</span> 세트 (≈ <span id="image-images-total" class="font-semibold text-slate-700">—</span>장)</p>
       </div>
     </section>
 
@@ -422,37 +448,52 @@
     statSection.className = statSection.className.replace(/grid-cols-\d+/, `grid-cols-${cols}`)
   }
 
-  // 블로그 생성 통계 로드
+  // 플랜 한국어 라벨
+  function _planLabel(planId) {
+    const map = { free: '무료', trial: '체험', standard: 'Standard', pro: 'Pro' }
+    return map[planId] || (planId || '—')
+  }
+
+  // 블로그 생성 통계 로드 — 본인 클리닉만, 베타 가입일 이후
   async function loadBlogStats() {
     try {
       const res = await fetch('/api/blog/stats')
       const data = await res.json()
-
-      // 숫자 카드 업데이트
-      document.getElementById('blog-this-month').textContent =
-        data.this_month > 0 ? `${data.this_month}편` : '0편'
-      document.getElementById('blog-total').textContent =
-        data.total > 0 ? `${data.total}편` : '0편'
-
-      // 온보딩 → 첫 블로그 소요 시간
-      if (data.onboarding_seconds != null) {
-        const secs = data.onboarding_seconds
-        let label
-        if (secs < 60) {
-          label = `${secs}초`
-        } else if (secs < 3600) {
-          label = `${Math.round(secs / 60)}분`
-        } else {
-          const h = Math.floor(secs / 3600)
-          const m = Math.round((secs % 3600) / 60)
-          label = m > 0 ? `${h}시간 ${m}분` : `${h}시간`
-        }
-        document.getElementById('blog-onboarding-duration').textContent = label
-        document.getElementById('blog-onboarding-time').classList.remove('hidden')
-      }
+      const thisMonth = data.this_month || 0
+      const total = data.total || 0
+      const limit = data.plan_limit_month || 30
+      document.getElementById('blog-this-month').textContent = String(thisMonth)
+      document.getElementById('blog-plan-limit').textContent = String(limit)
+      document.getElementById('blog-total').textContent = String(total)
+      document.getElementById('blog-plan-label').textContent = _planLabel(data.plan_id) + ' 플랜'
+      // 진행바
+      const pct = limit > 0 ? Math.min(100, Math.round((thisMonth / limit) * 100)) : 0
+      const bar = document.getElementById('blog-progress')
+      if (bar) bar.style.width = pct + '%'
     } catch (err) {
-      // 통계 로드 실패 시 조용히 무시 (카드 자체는 정상 표시)
       console.warn('블로그 통계 로드 실패:', err)
+    }
+  }
+
+  // 이미지 생성 통계 로드 — 본인 클리닉만, 베타 가입일 이후
+  async function loadImageStats() {
+    try {
+      const res = await fetch('/api/image/stats')
+      const data = await res.json()
+      const thisMonth = data.sets_this_month || 0
+      const setsTotal = data.sets_total || 0
+      const imagesTotal = data.images_total || 0
+      const limit = data.plan_limit_month || 30
+      document.getElementById('image-this-month').textContent = String(thisMonth)
+      document.getElementById('image-plan-limit').textContent = String(limit)
+      document.getElementById('image-total').textContent = String(setsTotal)
+      document.getElementById('image-images-total').textContent = String(imagesTotal)
+      document.getElementById('image-plan-label').textContent = _planLabel(data.plan_id) + ' 플랜'
+      const pct = limit > 0 ? Math.min(100, Math.round((thisMonth / limit) * 100)) : 0
+      const bar = document.getElementById('image-progress')
+      if (bar) bar.style.width = pct + '%'
+    } catch (err) {
+      console.warn('이미지 통계 로드 실패:', err)
     }
   }
 
@@ -802,6 +843,7 @@
   // 페이지 로드 시 실행
   applyModulePermissions()
   loadBlogStats()
+  loadImageStats()
   loadNaverNotifications()
   loadBlogList(1, false)
   loadSeriesTopics()

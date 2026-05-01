@@ -64,19 +64,40 @@ def save_blog_entry(
     return entry_id
 
 
-def get_blog_stats() -> dict:
+def get_blog_stats(
+    clinic_id: Optional[int] = None,
+    since: Optional[str] = None,
+) -> dict:
     """
-    대시보드 카드용 통계 반환
+    대시보드 카드용 통계 반환.
+
+    Args:
+        clinic_id: 지정 시 해당 클리닉의 entry만 카운트. None이면 전체 (어드민용).
+        since: ISO datetime. 지정 시 이 시점 이후 created_at만 카운트 (베타 가입일 등).
 
     반환 형식:
     {
-        "total": 전체 생성 수,
+        "total": 누적 생성 수,
         "this_month": 이번 달 생성 수,
         "recent_keywords": [최근 3개 주제],
         "last_created_at": "2026-04-16T14:30:00" | null
     }
     """
     stats = _load_json(STATS_PATH, default=[])
+    if not stats:
+        return {"total": 0, "this_month": 0, "recent_keywords": [], "last_created_at": None}
+
+    # 클리닉 필터 (clinic_id None인 옛 entry는 본인 클리닉으로 안 잡힘)
+    if clinic_id is not None:
+        stats = [e for e in stats if e.get("clinic_id") == clinic_id]
+    # since 필터 (베타 가입일 이후만)
+    if since:
+        try:
+            since_dt = _parse_dt(since)
+            stats = [e for e in stats if _parse_dt(e["created_at"]) >= since_dt]
+        except Exception:
+            pass
+
     if not stats:
         return {"total": 0, "this_month": 0, "recent_keywords": [], "last_created_at": None}
 

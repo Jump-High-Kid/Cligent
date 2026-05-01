@@ -172,10 +172,14 @@ class TestProcessTurnHappyPath:
         assert state.length_chars == 2000
         assert state.stage == Stage.SEO
 
-        # SEO: 키워드 입력 → DONE
+        # SEO: 키워드 입력 → CONFIRM_IMAGE (2026-05-01 변경)
         r3 = process_turn(state, "추나치료, 디스크")
         assert state.seo_keywords == ["추나치료", "디스크"]
+        assert state.stage == Stage.CONFIRM_IMAGE
+        # CONFIRM_IMAGE에 "아니오" 응답 → fallback에서 DONE까지 진행
+        process_turn(state, "아니오")
         assert state.stage == Stage.DONE
+        assert state.auto_image is False
 
 
 class TestProcessTurnLengthCustom:
@@ -236,6 +240,9 @@ class TestProcessTurnSeo:
         process_turn(state, "2")
         process_turn(state, "넘김")
         assert state.seo_keywords == []
+        # SEO 뒤 CONFIRM_IMAGE 단계 추가 (2026-05-01)
+        assert state.stage == Stage.CONFIRM_IMAGE
+        process_turn(state, "아니오")
         assert state.stage == Stage.DONE
 
     def test_empty_input_treated_as_skip(self):
@@ -249,6 +256,9 @@ class TestProcessTurnSeo:
         # SEO stage에서 빈 입력
         process_turn(state, "")
         assert state.seo_keywords == []
+        # SEO 뒤 CONFIRM_IMAGE 단계 추가 (2026-05-01)
+        assert state.stage == Stage.CONFIRM_IMAGE
+        process_turn(state, "아니오")
         assert state.stage == Stage.DONE
 
     def test_max_5_keywords(self):
@@ -328,6 +338,8 @@ class TestProcessTurnDone:
         process_turn(state, "허리디스크")
         process_turn(state, "2")
         process_turn(state, "넘김")
+        # CONFIRM_IMAGE → "아니오" → DONE
+        process_turn(state, "아니오")
         assert state.stage == Stage.DONE
         # DONE 상태에서 추가 입력
         r = process_turn(state, "또 쓸게요")
@@ -464,13 +476,17 @@ class TestStreamingForSeo:
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
 
         state = create_session(clinic_id=1, user_id=10)
-        # SEO stage까지 진행
+        # CONFIRM_IMAGE stage까지 진행 (2026-05-01 변경: SEO → CONFIRM_IMAGE → SSE)
         flow.process_turn(state, "허리디스크")
         flow.process_turn(state, "2")
         assert state.stage == Stage.SEO
+        # SEO 키워드 입력 → CONFIRM_IMAGE 진입
+        flow.process_turn(state, "추나, 디스크")
+        assert state.stage == Stage.CONFIRM_IMAGE
+        assert state.seo_keywords == ["추나", "디스크"]
 
-        # SSE generator 실행 — frame 수집
-        gen = flow.process_turn_streaming(state, "추나, 디스크")
+        # SSE generator 실행 — CONFIRM_IMAGE에 "아니오" 응답이 SSE 트리거 input
+        gen = flow.process_turn_streaming(state, "아니오")
         frames = []
         import json as _json
         for raw in gen:

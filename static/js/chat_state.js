@@ -178,6 +178,19 @@
       if (bubble) attachImageGallery(bubble, msg);
       if (msg.meta.quota) setQuota(msg.meta.quota);
     }
+    // 완료 안내(글+이미지 모두 출력) — 본문 복사·전체 다운로드·발행 확인 3 버튼 부착
+    if (msg && msg.role === 'assistant' && msg.meta && msg.meta.kind === 'completion_summary') {
+      const bubble = row.querySelector('.bubble');
+      if (bubble) attachCompletionActions(bubble, msg);
+    }
+    // 이미지 자동 시작 카운트다운 — N초 후 server가 지정한 auto_action을 자동 전송.
+    // 사용자가 옵션 클릭(또는 입력)하면 sendTurn 시작 시점에 cancelAutoImageStart로 취소.
+    if (msg && msg.role === 'assistant' && msg.meta && msg.meta.kind === 'auto_image_countdown') {
+      scheduleAutoImageStart(
+        msg.meta.countdown_sec || 3,
+        msg.meta.auto_action || '전체 만들기',
+      );
+    }
     if (wasNearBottom && m) {
       m.scrollTop = m.scrollHeight;
     }
@@ -331,6 +344,82 @@
     });
     footer.appendChild(zipBtn);
     bubbleEl.appendChild(footer);
+  }
+
+  // 완료 안내 메시지에 3 버튼 부착: 본문 복사 · 이미지 전체 다운로드 · 발행 확인 등록
+  function attachCompletionActions(bubbleEl, msg) {
+    const meta = msg.meta || {};
+    const blogText = meta.blog_text || '';
+    const blogHistoryId = meta.blog_history_id || null;
+    const filenameBase = meta.filename_base || 'image';
+
+    const actions = document.createElement('div');
+    actions.className = 'bubble-actions';
+    actions.style.marginTop = '12px';
+
+    // 1) 본문 복사
+    const copyBtn = document.createElement('button');
+    copyBtn.type = 'button';
+    copyBtn.className = 'bubble-action-btn primary';
+    copyBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px">content_copy</span>본문 복사';
+    copyBtn.addEventListener('click', () => {
+      if (typeof copyBlogToClipboard === 'function' && blogText) {
+        copyBlogToClipboard(blogText, copyBtn);
+      } else {
+        flashButton(copyBtn, '본문 없음');
+      }
+    });
+    actions.appendChild(copyBtn);
+
+    // 2) 이미지 전체 다운로드 — 직전 갤러리 메시지의 ZIP 버튼 클릭 위임
+    const dlBtn = document.createElement('button');
+    dlBtn.type = 'button';
+    dlBtn.className = 'bubble-action-btn';
+    dlBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px">download</span>이미지 전체 다운로드';
+    dlBtn.addEventListener('click', () => {
+      // 가장 최근 갤러리의 ZIP 버튼 트리거
+      const galleries = document.querySelectorAll('.image-gallery-footer .image-action-btn');
+      const target = Array.from(galleries).reverse().find(b => /전체.*ZIP|ZIP/i.test(b.textContent || ''));
+      if (target) {
+        target.click();
+        flashButton(dlBtn, '다운로드 시작');
+      } else {
+        flashButton(dlBtn, '이미지 없음');
+      }
+    });
+    actions.appendChild(dlBtn);
+
+    // 3) 발행 확인 등록 — 네이버 검색 인덱싱 폴링 시작
+    const checkBtn = document.createElement('button');
+    checkBtn.type = 'button';
+    checkBtn.className = 'bubble-action-btn';
+    checkBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px">search</span>발행 확인';
+    if (!blogHistoryId) {
+      checkBtn.disabled = true;
+      checkBtn.title = '블로그 이력 ID가 없어요.';
+    } else {
+      checkBtn.addEventListener('click', async () => {
+        const prev = checkBtn.innerHTML;
+        checkBtn.disabled = true;
+        checkBtn.textContent = '등록 중...';
+        try {
+          const res = await fetch(`/api/blog/history/${blogHistoryId}/publish-check`, {
+            method: 'POST', credentials: 'include',
+          });
+          if (!res.ok) {
+            throw new Error('publish-check failed');
+          }
+          flashButton(checkBtn, '등록됨');
+          setTimeout(() => { checkBtn.innerHTML = prev; checkBtn.disabled = false; }, 2200);
+        } catch (_e) {
+          flashButton(checkBtn, '실패');
+          setTimeout(() => { checkBtn.innerHTML = prev; checkBtn.disabled = false; }, 2200);
+        }
+      });
+    }
+    actions.appendChild(checkBtn);
+
+    bubbleEl.appendChild(actions);
   }
 
   // 카드 1장 — 이미지 + 번호 + [✎ 수정][⬇ 다운로드]. 재생성은 footer.
@@ -651,9 +740,40 @@
    * 사용자 입력 또는 빈 입력(첫 진입)으로 1턴 진행.
    * @param {string} userInput
    */
+  // 자동 이미지 시작 카운트다운 timer (2026-05-01 추가)
+  let _autoImageTimerId = null;
+  function scheduleAutoImageStart(sec, action) {
+    if (_autoImageTimerId) clearTimeout(_autoImageTimerId);
+    const delay = Math.max(1, sec | 0) * 1000;
+    const payload = action || '전체 만들기';
+    _autoImageTimerId = setTimeout(function fire() {
+      _autoImageTimerId = null;
+      // SSE가 늦게 끝났을 가능성 — sending 풀릴 때까지 250ms 간격 짧게 polling (최대 5초)
+      let waited = 0;
+      const tick = () => {
+        if (!state.sending) {
+          sendTurn(payload);
+          return;
+        }
+        waited += 250;
+        if (waited >= 5000) return;  // 5초 넘게 sending이면 포기
+        setTimeout(tick, 250);
+      };
+      tick();
+    }, delay);
+  }
+  function cancelAutoImageStart() {
+    if (_autoImageTimerId) {
+      clearTimeout(_autoImageTimerId);
+      _autoImageTimerId = null;
+    }
+  }
+
   async function sendTurn(userInput) {
     if (state.sending) return;
     state.sending = true;
+    // 새 입력 시작 — 진행 중이던 자동 이미지 timer는 취소 (사용자가 직접 입력했으므로)
+    cancelAutoImageStart();
     setSendButton(false);
 
     try {

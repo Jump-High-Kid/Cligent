@@ -130,14 +130,17 @@ def test_first_turn_creates_session_and_advances_to_length():
 
 
 def test_seo_input_returns_sse_with_token_frames():
-    """LENGTH → SEO → SEO 입력 → text/event-stream + token frames."""
+    """LENGTH → SEO → CONFIRM_IMAGE → 본문 SSE (2026-05-01: CONFIRM_IMAGE 단계 추가)."""
     # 1) topic 입력
     r1 = client.post("/api/blog-chat/turn", json={"user_input": "허리디스크"})
     sid = r1.json()["session_id"]
     # 2) length 선택
     client.post("/api/blog-chat/turn",
                 json={"session_id": sid, "user_input": "2"})
-    # 3) SEO 입력 → SSE
+    # 3) SEO 키워드 입력 → CONFIRM_IMAGE 옵션 메시지 (JSON, SSE 아님)
+    client.post("/api/blog-chat/turn",
+                json={"session_id": sid, "user_input": "추나, 디스크"})
+    # 4) CONFIRM_IMAGE 응답 → 본문 SSE
     def fake_gen(*args, **kwargs):
         yield 'data: {"text": "본문 시작"}\n\n'
         yield 'data: {"done": true, "usage": {"cost_krw": 5}}\n\n'
@@ -147,7 +150,7 @@ def test_seo_input_returns_sse_with_token_frames():
          patch("main.check_blog_limit"), \
          patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test"}):
         res = client.post("/api/blog-chat/turn",
-                          json={"session_id": sid, "user_input": "추나, 디스크"})
+                          json={"session_id": sid, "user_input": "아니오"})
     assert res.status_code == 200
     assert "text/event-stream" in res.headers.get("content-type", "")
     body = res.content.decode("utf-8")
@@ -168,20 +171,24 @@ def test_seo_input_returns_sse_with_token_frames():
 
 
 def test_quota_exceeded_returns_429():
-    """SEO stage 진입 시 한도 초과 → JSON 429 응답."""
+    """CONFIRM_IMAGE stage 진입 시 한도 초과 → JSON 429 응답 (2026-05-01: SEO → CONFIRM_IMAGE)."""
     from fastapi import HTTPException
 
     r1 = client.post("/api/blog-chat/turn", json={"user_input": "허리디스크"})
     sid = r1.json()["session_id"]
     client.post("/api/blog-chat/turn",
                 json={"session_id": sid, "user_input": "2"})
+    # SEO 키워드 → CONFIRM_IMAGE 옵션 메시지
+    client.post("/api/blog-chat/turn",
+                json={"session_id": sid, "user_input": "넘김"})
 
     def raise_quota(_):
         raise HTTPException(status_code=429, detail="이번 달 한도 초과.")
 
     with patch("main.check_blog_limit", side_effect=raise_quota):
+        # CONFIRM_IMAGE 응답이 quota check 트리거
         res = client.post("/api/blog-chat/turn",
-                          json={"session_id": sid, "user_input": "넘김"})
+                          json={"session_id": sid, "user_input": "아니오"})
     assert res.status_code == 429
     data = res.json()
     assert data.get("kind") == "quota_exceeded"
@@ -307,12 +314,14 @@ def test_image_all_option_yields_gallery_and_advances_to_feedback(monkeypatch):
 
     # 단계 텍스트 일부 + 갤러리 메시지 1개 + 마지막은 done
     assert any("분석" in t or "컨셉" in t for t in stage_texts)
-    # 이미지 5장 진행 안내 — 각 호출 직전 "이미지 N/5 ... (약 N초 남음)" stage_text
+    # 이미지 5장 진행 안내 — 각 호출 직전 "이미지 N/5 ... (약 N분 남음)" stage_text
     progress_texts = [t for t in stage_texts if "이미지" in t and "/5" in t]
     assert len(progress_texts) == 5
     # negative_prompt가 있으면 본문에 통합되었는지 (gpt-image-2 호환)
     # 이 테스트의 fake prompts는 string이라 분기 안 타지만 단위테스트는 별도 추가됨
-    assert "약 50초 남음" in progress_texts[0]
+    # 첫 호출은 5장 모두 남았으므로 5분, 마지막은 1분
+    assert "약 5분 남음" in progress_texts[0]
+    assert "약 1분 남음" in progress_texts[4]
     assert "이미지 1/5" in progress_texts[0]
     assert "이미지 5/5" in progress_texts[4]
     assert "next_message" in types

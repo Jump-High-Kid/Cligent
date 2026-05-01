@@ -50,6 +50,12 @@ SEO_OPTIONS = [
 ]
 
 
+CONFIRM_IMAGE_OPTIONS = [
+    {"id": "yes", "label": "예"},
+    {"id": "no", "label": "아니오"},
+]
+
+
 IMAGE_OPTIONS = [
     {"id": "all", "label": "전체 만들기"},
     {"id": "none", "label": "이미지 없이 종료"},
@@ -131,6 +137,51 @@ def match_option(options: list[dict], user_input: str) -> Optional[dict]:
         if s in label or label.split(" ")[0] == s:
             return opt
     return None
+
+
+def match_options_multi(options: list[dict], user_input: str) -> list[dict]:
+    """multi-select 결정론 매칭. "1,3" "1 3" "변증시치, 해부학" 등 입력 → 옵션 list.
+
+    숫자가 하나라도 발견되면 숫자 모드로만 처리 (라벨 추가 안 함).
+    숫자 없으면 콤마/공백 구분 후 각 토큰을 match_option로 매칭.
+    중복 제거. 실패 시 빈 list (호출자가 ambiguous로 분기).
+    """
+    if not options or not user_input:
+        return []
+    s = user_input.strip()
+    if not s:
+        return []
+    # 1) 숫자 토큰 추출 (1자리 단독만 — "13"을 "1,3"으로 오해석 방지: 옵션 13개 미만이면 그대로 13으로)
+    nums = re.findall(r"\d+", s)
+    if nums:
+        selected: list[dict] = []
+        seen_idx: set[int] = set()
+        for n_str in nums:
+            try:
+                n = int(n_str)
+            except ValueError:
+                continue
+            if 1 <= n <= len(options):
+                idx = n - 1
+                if idx not in seen_idx:
+                    seen_idx.add(idx)
+                    selected.append(options[idx])
+        return selected
+    # 2) 콤마·세미콜론·공백·한글 조사로 분할 후 라벨 매칭
+    parts = re.split(r"[,，;、/\s]+|과\s|와\s|및\s", s)
+    selected_labels: list[dict] = []
+    seen_id: set[str] = set()
+    for p in parts:
+        p = p.strip()
+        if not p:
+            continue
+        opt = match_option(options, p)
+        if opt:
+            oid = opt.get("id") or ""
+            if oid not in seen_id:
+                seen_id.add(oid)
+                selected_labels.append(opt)
+    return selected_labels
 
 
 # ── Haiku 자연어 fallback (1D-2) ──────────────────────────────
@@ -235,10 +286,18 @@ def _question_stage_message(stage: dict, answered_count: int) -> tuple[str, list
 
 def _seo_message() -> tuple[str, list[dict], dict]:
     text = (
-        "마지막으로, SEO 키워드를 1~3개 입력해주세요.\n"
+        "주요 키워드 1~3개를 입력해주세요.\n"
         "쉼표로 구분 (예: 추나치료, 디스크). 직접 정하기 어려우시면 [자동 생성]."
     )
     return text, SEO_OPTIONS, {}
+
+
+def _confirm_image_message() -> tuple[str, list[dict], dict]:
+    text = (
+        "마지막으로, 글 완성 후 이미지 5장을 연속으로 출력하시겠습니까?\n"
+        "1) 예  2) 아니오"
+    )
+    return text, CONFIRM_IMAGE_OPTIONS, {}
 
 
 def _ambiguous_message(options: list[dict]) -> tuple[str, list[dict], dict]:
@@ -326,7 +385,17 @@ def process_turn(state: BlogChatState, user_input: str) -> dict:
     if s == Stage.QUESTIONS:
         from blog_chat_options import get_stage, total_stages
 
-        answered_count = len(state.questions_answered)
+        # multi-select stage는 같은 key로 여러 entry를 누적하므로,
+        # 진행 카운트는 list 길이가 아닌 distinct key 수로 산출.
+        def _answered_key_count() -> int:
+            seen: set[str] = set()
+            for a in state.questions_answered:
+                k = a.get("key")
+                if k:
+                    seen.add(k)
+            return len(seen)
+
+        answered_count = _answered_key_count()
 
         if user_input:
             current = get_stage(answered_count)
@@ -338,22 +407,47 @@ def process_turn(state: BlogChatState, user_input: str) -> dict:
                 save_session(state)
                 return _to_response(state)
 
-            opt = match_option(current["options"], user_input)
-            if opt is None:
-                opt = llm_match_option(current["options"], user_input)
-            if opt is None:
-                # ambiguous — 같은 stage 다시 묻기
-                text, opts, meta = _ambiguous_message(current["options"])
-                append_message(state, "assistant", text, options=opts, meta=meta)
-                save_session(state)
-                return _to_response(state)
+            is_multi = bool(current.get("multi"))
+            if is_multi:
+                opts_selected = match_options_multi(current["options"], user_input)
+                # skip 단독 입력 처리: skip이 포함되면 skip만 채택 (다른 항목과 모순 방지)
+                if any(o.get("id") == current.get("skip_id") for o in opts_selected):
+                    opts_selected = [o for o in opts_selected if o.get("id") == current.get("skip_id")][:1]
+                # 실패 시 단일 LLM fallback 시도
+                if not opts_selected:
+                    single = llm_match_option(current["options"], user_input)
+                    if single:
+                        opts_selected = [single]
+                if not opts_selected:
+                    text, opts, meta = _ambiguous_message(current["options"])
+                    append_message(state, "assistant", text, options=opts, meta=meta)
+                    save_session(state)
+                    return _to_response(state)
+                # 같은 key로 여러 항목 append (questions_answered list 그대로 누적)
+                for opt in opts_selected:
+                    state.questions_answered.append({
+                        "key": current["key"],
+                        "id": opt["id"],
+                        "label": opt.get("label", ""),
+                    })
+                answered_count += 1
+            else:
+                opt = match_option(current["options"], user_input)
+                if opt is None:
+                    opt = llm_match_option(current["options"], user_input)
+                if opt is None:
+                    # ambiguous — 같은 stage 다시 묻기
+                    text, opts, meta = _ambiguous_message(current["options"])
+                    append_message(state, "assistant", text, options=opts, meta=meta)
+                    save_session(state)
+                    return _to_response(state)
 
-            state.questions_answered.append({
-                "key": current["key"],
-                "id": opt["id"],
-                "label": opt.get("label", ""),
-            })
-            answered_count += 1
+                state.questions_answered.append({
+                    "key": current["key"],
+                    "id": opt["id"],
+                    "label": opt.get("label", ""),
+                })
+                answered_count += 1
 
         # 다음 stage 또는 SEO 진입
         next_stage = get_stage(answered_count)
@@ -371,8 +465,8 @@ def process_turn(state: BlogChatState, user_input: str) -> dict:
         return _to_response(state)
 
     # ── SEO ──
-    # 정상 흐름: 라우트가 SEO 진입을 감지해서 SSE process_turn_streaming으로 분기.
-    # 이 코드 경로는 (예: SSE 비활성·테스트·LLM 키 누락) fallback일 때만 실행.
+    # SEO 입력은 자유 입력. 키워드 저장 후 CONFIRM_IMAGE 단계로 진입해서
+    # "이미지 자동 생성" 옵션을 묻는다 (2026-05-01 추가).
     if s == Stage.SEO:
         normalized = (user_input or "").strip()
         if normalized in ("넘김", "skip", "스킵", "자동 생성", "자동생성", ""):
@@ -380,6 +474,27 @@ def process_turn(state: BlogChatState, user_input: str) -> dict:
         else:
             kws = [k.strip() for k in normalized.split(",") if k.strip()]
             state.seo_keywords = kws[:5]
+        transition(state, Stage.CONFIRM_IMAGE)
+        text, opts, meta = _confirm_image_message()
+        append_message(state, "assistant", text, options=opts, meta=meta)
+        save_session(state)
+        return _to_response(state)
+
+    # ── CONFIRM_IMAGE ──
+    # 사용자 응답에 따라 state.auto_image 결정. 그 다음 GENERATING SSE는
+    # 라우트(main.py)가 트리거 (process_turn_streaming).
+    if s == Stage.CONFIRM_IMAGE:
+        opt = match_option(CONFIRM_IMAGE_OPTIONS, user_input)
+        if opt is None:
+            opt = llm_match_option(CONFIRM_IMAGE_OPTIONS, user_input)
+        if opt is None:
+            text, opts, meta = _ambiguous_message(CONFIRM_IMAGE_OPTIONS)
+            append_message(state, "assistant", text, options=opts, meta=meta)
+            save_session(state)
+            return _to_response(state)
+        state.auto_image = (opt.get("id") == "yes")
+        save_session(state)
+        # 라우트가 SSE 시작. 이 응답은 fallback (SSE 비활성 환경)일 때만 도달.
         transition(state, Stage.GENERATING)
         _placeholder_generating(state)
         transition(state, Stage.DONE)
@@ -555,18 +670,16 @@ def _stream_generator_for_seo(state: BlogChatState, user_input: str):
         yield _sse_frame({"type": "done"})
         return
 
-    # 1) SEO 입력을 state에 반영 (사용자 메시지 append)
+    # 1) CONFIRM_IMAGE 응답 echo + state.auto_image 설정 (2026-05-01)
+    # SEO 키워드는 이미 SEO 단계에서 state.seo_keywords에 저장됨.
     if user_input:
         append_message(state, "user", user_input)
         yield _sse_frame({"type": "user_message",
                           "message": serialize_message(state.messages[-1])})
 
-    normalized = (user_input or "").strip()
-    if normalized in ("넘김", "skip", "스킵", ""):
-        state.seo_keywords = []
-    else:
-        kws = [k.strip() for k in normalized.split(",") if k.strip()]
-        state.seo_keywords = kws[:5]
+    opt = match_option(CONFIRM_IMAGE_OPTIONS, user_input or "")
+    if opt is not None:
+        state.auto_image = (opt.get("id") == "yes")
 
     # 2) GENERATING 진입
     transition(state, Stage.GENERATING)
@@ -590,7 +703,21 @@ def _stream_generator_for_seo(state: BlogChatState, user_input: str):
 
     # 옵션 카탈로그 답변 → blog_generator 인자 매핑
     from blog_chat_options import to_blog_args
-    answers_dict = {a.get("key"): a.get("id") for a in state.questions_answered if a.get("key")}
+    # multi-select stage는 같은 key로 여러 entry 누적됨 → list로 모음.
+    answers_dict: dict = {}
+    for a in state.questions_answered:
+        k = a.get("key")
+        v = a.get("id")
+        if not k or v is None:
+            continue
+        if k in answers_dict:
+            existing = answers_dict[k]
+            if isinstance(existing, list):
+                existing.append(v)
+            else:
+                answers_dict[k] = [existing, v]
+        else:
+            answers_dict[k] = v
     blog_args = to_blog_args(answers_dict)
 
     collected: list[str] = []
@@ -664,10 +791,27 @@ def _stream_generator_for_seo(state: BlogChatState, user_input: str):
     yield _sse_frame({"type": "message_done",
                       "message": serialize_message(placeholder)})
 
-    # 7) IMAGE 단계 옵션 메시지 (사용자 클릭 → 1D-4 placeholder 또는 1F 실제 호출)
+    # 7) IMAGE 단계 진입.
+    # auto_image=True (사용자가 자동 출력 선택) → 카운트다운 메시지 + client가 3초 후 자동 트리거
+    # auto_image=False → 기존 옵션 메시지 (사용자 선택 대기)
     transition(state, Stage.IMAGE)
-    img_text = "본문이 완성됐어요. 이미지 5장을 만들까요?"
-    img_msg = append_message(state, "assistant", img_text, options=IMAGE_OPTIONS, meta={})
+    if state.auto_image:
+        img_text = (
+            "본문이 완성됐어요. 3초 후 이미지 5장 생성을 자동으로 시작합니다.\n"
+            "지금 [전체 만들기]를 누르면 즉시 시작, [이미지 없이 종료]를 누르면 자동 시작이 취소됩니다."
+        )
+        # IMAGE_OPTIONS와 라벨 통일 — match_option 매칭 깨짐 방지 (2026-05-01)
+        img_options = IMAGE_OPTIONS
+        img_meta = {
+            "kind": "auto_image_countdown",
+            "countdown_sec": 3,
+            "auto_action": "전체 만들기",  # client setTimeout이 sendTurn 인자로 사용
+        }
+    else:
+        img_text = "본문이 완성됐어요. 이미지 5장을 만들까요?"
+        img_options = IMAGE_OPTIONS
+        img_meta = {}
+    img_msg = append_message(state, "assistant", img_text, options=img_options, meta=img_meta)
     save_session(state)
     yield _sse_frame({"type": "next_message",
                       "message": serialize_message(img_msg)})
@@ -681,10 +825,10 @@ def _stream_generator_for_seo(state: BlogChatState, user_input: str):
 def process_turn_streaming(state: BlogChatState, user_input: str):
     """라우트에서 호출하는 SSE 진입점.
 
-    SEO 진입 → 본문 streaming (1D-3).
+    CONFIRM_IMAGE 응답 → 본문 streaming (1D-3 + auto_image 분기).
     IMAGE 진입 + "all" 매칭 → 이미지 5단계 텍스트 SSE (1F).
     """
-    if state.stage == Stage.SEO:
+    if state.stage == Stage.CONFIRM_IMAGE:
         return _stream_generator_for_seo(state, user_input)
     if state.stage == Stage.IMAGE:
         return _stream_generator_for_image(state, user_input)
@@ -729,7 +873,7 @@ def image_partial_frames() -> int:
 _IMAGE_STAGE_TEXTS = [
     "본문을 분석하고 있어요...",
     "5장의 컨셉을 정리하는 중...",
-    "이미지 세션을 준비하는 중... (전체 약 50초 예상)",
+    "이미지 세션을 준비하는 중... (전체 약 5분 예상)",
     # [3], [4]는 동적 'N/5' 메시지로 대체 (2026-05-01)
 ]
 
@@ -882,19 +1026,24 @@ def _stream_generator_for_image(state: BlogChatState, user_input: str):
         return
 
     # ── 3. gpt-image-2 호출 (5번, 사이사이 진행 안내) ───────
-    # 각 호출 평균 ~10초 추정. 사용자가 다른 일 가능하도록 예상 시간 + 모듈 제목 노출.
-    SECONDS_PER_IMAGE = 10
+    # 실측: 1장당 평균 ~60초 (조직 인증 직후·고해상도). 사용자가 다른 일 가능하도록
+    # 예상 시간 + 모듈 제목 노출. 분 단위로 자연스럽게 표시.
+    SECONDS_PER_IMAGE = 60
     try:
         from image_generator import get_plan_dimensions
         from ai_client import call_openai_image_generate
         size, quality = get_plan_dimensions(plan_id)
         images: list[str] = []
         for idx, p in enumerate(prompt_list):
-            remaining = (5 - idx) * SECONDS_PER_IMAGE
+            remaining_sec = (5 - idx) * SECONDS_PER_IMAGE
+            if remaining_sec >= 60:
+                remaining_label = f"약 {remaining_sec // 60}분 남음"
+            else:
+                remaining_label = f"약 {remaining_sec}초 남음"
             title = title_list[idx] or f"{idx + 1}번 장면"
             stage_msg = (
                 f"이미지 {idx + 1}/5 — {title} 그리는 중... "
-                f"(약 {remaining}초 남음)"
+                f"({remaining_label})"
             )
             yield _sse_frame({"type": "stage_text", "text": stage_msg})
             responses = call_openai_image_generate(
@@ -955,6 +1104,27 @@ def _stream_generator_for_image(state: BlogChatState, user_input: str):
     save_session(state)
     yield _sse_frame({"type": "next_message",
                       "message": serialize_message(gallery_msg)})
+
+    # ── 4-b. 완료 안내 + 3 버튼 (본문 복사·전체 다운로드·발행 확인) ──
+    completion_text = (
+        "블로그 글과 이미지가 모두 출력되었습니다. "
+        "이미지를 확인해보시고 만족스럽지 못한 이미지는 수정 또는 재생성 해주세요. "
+        "수정이 재생성보다 이미지를 빨리 만듭니다."
+    )
+    completion_meta = {
+        "kind": "completion_summary",
+        "blog_history_id": getattr(state, "blog_history_id", None),
+        "blog_text": getattr(state, "blog_text", "") or "",
+        "filename_base": (state.topic or "image").strip(),
+        "image_count": len(images),
+    }
+    completion_msg = append_message(
+        state, "assistant", completion_text,
+        options=[], meta=completion_meta,
+    )
+    save_session(state)
+    yield _sse_frame({"type": "next_message",
+                      "message": serialize_message(completion_msg)})
 
     # ── 5. FEEDBACK stage 전이 + 옵션 메시지 ────────────────
     transition(state, Stage.FEEDBACK)

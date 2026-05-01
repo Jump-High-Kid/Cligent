@@ -131,9 +131,10 @@
       <span class="nav-label font-medium text-sm whitespace-nowrap">공지사항</span>
       <span id="nav-unread-badge" class="nav-label ml-auto hidden text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500 text-white whitespace-nowrap">0</span>
     </a>
-    <a class="nav-item flex items-center gap-3 text-stone-600 px-4 py-3 rounded-xl hover:bg-stone-200 transition-all cursor-pointer" data-path="/youtube">
+    <a class="nav-item flex items-center gap-3 text-stone-400 px-4 py-3 rounded-xl cursor-not-allowed" data-path="#">
       <span class="material-symbols-outlined flex-shrink-0">smart_display</span>
       <span class="nav-label font-medium text-sm whitespace-nowrap">YouTube 생성기</span>
+      <span class="nav-label ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-stone-200 text-stone-400 whitespace-nowrap">준비중</span>
     </a>
     <a class="nav-item flex items-center gap-3 text-stone-400 px-4 py-3 rounded-xl cursor-not-allowed" data-path="#">
       <span class="material-symbols-outlined flex-shrink-0">inventory_2</span>
@@ -648,10 +649,11 @@
       <span class="material-symbols-outlined">help_outline</span>
       <span class="font-medium text-sm">도움말</span>
     </button>
-    <button onclick="mobileNav('/youtube'); toggleMobileDrawer(false);"
-      class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-stone-700 hover:bg-stone-100 transition-all">
+    <button disabled
+      class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-stone-400 cursor-not-allowed">
       <span class="material-symbols-outlined">smart_display</span>
       <span class="font-medium text-sm">YouTube 생성기</span>
+      <span class="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-stone-200 text-stone-400">준비중</span>
     </button>
     <button id="md-invite-btn" onclick="navigateToInvite()" style="display:none;"
       class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-stone-700 hover:bg-stone-100 transition-all">

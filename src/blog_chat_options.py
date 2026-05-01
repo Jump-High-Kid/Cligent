@@ -39,7 +39,7 @@ BLOG_OPTION_STAGES: list[dict] = [
     },
     {
         "key": "explanation_type",
-        "prompt": "어떤 관점으로 설명할까요?",
+        "prompt": "어떤 관점으로 설명할까요? (여러 개 선택 가능 — 쉼표로 구분, 예: 1,3)",
         "options": [
             {"id": "변증시치", "label": "변증시치"},
             {"id": "체질의학", "label": "체질의학(사상체질)"},
@@ -50,6 +50,7 @@ BLOG_OPTION_STAGES: list[dict] = [
             {"id": "skip", "label": "건너뛰기"},
         ],
         "skip_id": "skip",
+        "multi": True,
     },
     {
         "key": "format_id",
@@ -94,16 +95,29 @@ def to_blog_args(answers: dict) -> dict:
                    format_id==auto       → format_id=None  (blog_generator default 사용)
 
     누락된 키는 보수적 default ("정보" / "일반인" / None / None).
+
+    explanation_type은 multi-select 지원: value가 list거나 str 모두 허용.
+    "skip"은 무시. 나머지는 그대로 list로 정규화.
     """
-    mode = (answers.get("mode") or "정보").strip() or "정보"
-    reader_level = (answers.get("reader_level") or "일반인").strip() or "일반인"
+    def _as_str(v) -> str:
+        if isinstance(v, list):
+            return (v[-1] if v else "") or ""
+        return (v or "").strip() if isinstance(v, str) else ""
 
-    expl = (answers.get("explanation_type") or "").strip()
-    explanation_types: Optional[list[str]] = None
-    if expl and expl != "skip":
-        explanation_types = [expl]
+    mode = _as_str(answers.get("mode")) or "정보"
+    reader_level = _as_str(answers.get("reader_level")) or "일반인"
 
-    fmt = (answers.get("format_id") or "").strip()
+    expl_raw = answers.get("explanation_type")
+    expl_list: list[str] = []
+    if isinstance(expl_raw, list):
+        expl_list = [s.strip() for s in expl_raw if isinstance(s, str) and s.strip()]
+    elif isinstance(expl_raw, str) and expl_raw.strip():
+        expl_list = [expl_raw.strip()]
+    expl_list = [e for e in expl_list if e and e != "skip"]
+    # 사상체질·변증시치 상호 배타 가드 (blog_generator도 가드하지만 이중 방어)
+    explanation_types: Optional[list[str]] = expl_list or None
+
+    fmt = _as_str(answers.get("format_id"))
     format_id: Optional[str] = None
     if fmt and fmt != "auto":
         format_id = fmt
