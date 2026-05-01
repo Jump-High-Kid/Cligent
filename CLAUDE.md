@@ -35,7 +35,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 이미지 진행 시간 60초/장 (5분 예상, "약 N분 남음")
 - 한의사 가운 차이나칼라 차단 (`stand collar` → `notched lapel`, negatives 강화)
 - 인포그래픽 영어 출력 차단 (모듈 5·9 "Korean Hangul only" + negatives "English text/Latin alphabet")
-- edit endpoint fallback chain (env → gpt-image-1 → dall-e-2, 모델별 size 매핑)
+- edit endpoint 모델 분리 — generations=`gpt-image-2` / edits=`gpt-image-1.5` (gpt-image-2 edit 미지원). BytesIO에 `.name="input.png"`/`.name="mask.png"` 부여 필수 (multipart 파일명). 사용자 환경 실호출 검증 완료
 - 참고 문헌 헤더 H2 승격 + RAG 0건 명시 안내문
 - 카운트다운 옵션 라벨 IMAGE_OPTIONS와 통일 (매칭 실패 해소) + sending polling
 

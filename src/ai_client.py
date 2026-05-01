@@ -266,55 +266,43 @@ def call_openai_image_edit(
     api_key = _get_openai_key()
     client = openai.OpenAI(api_key=api_key, timeout=_openai_image_timeout_sec())
     try:
-        # OpenAI Python SDK의 images.edit()는 quality 인자 미지원 (2026-05-01).
-        # edit endpoint 모델은 환경별로 다름 — fallback chain으로 시도:
-        #   env OPENAI_EDIT_MODEL → gpt-image-1 → dall-e-2 순.
-        # 모델별 size 호환 매핑.
-        SIZE_BY_MODEL = {
-            "gpt-image-1": {"1024x1024", "1024x1536", "1536x1024", "auto"},
-            "dall-e-2":    {"256x256", "512x512", "1024x1024"},
-            "dall-e-3":    {"1024x1024", "1024x1792", "1792x1024"},
-        }
-        env_model = os.getenv("OPENAI_EDIT_MODEL", "").strip() or None
-        candidates: list[str] = []
-        for m in [env_model, "gpt-image-1", "dall-e-2"]:
-            if m and m not in candidates:
-                candidates.append(m)
+        # edit 모델 gpt-image-1.5 사용 (2026-05-01).
+        # 공식 API Reference의 images.edit 모델 목록에 gpt-image-2가 빠져 있음 — generation은
+        # 되지만 edit에서는 미지원/미반영 상태. gpt-image-1.5가 현재 안정 옵션.
+        # 향후 OpenAI가 gpt-image-2를 edit 목록에 추가하면 generations와 동일 모델로 통일 예정.
+        EDIT_MODEL = "gpt-image-1.5"
+        # gpt-image-1.5 size 허용 (gpt-image-2와 동일).
+        ALLOWED_SIZES = {"1024x1024", "1024x1536", "1536x1024", "2048x2048", "auto"}
+        try_size = size if size in ALLOWED_SIZES else "1024x1024"
 
-        last_exc: Optional[Exception] = None
-        response = None
-        for cand in candidates:
-            allowed = SIZE_BY_MODEL.get(cand, {"1024x1024"})
-            try_size = size if size in allowed else "1024x1024"
-            kwargs = {
-                "model": cand,
-                "image": io.BytesIO(image_bytes),
-                "prompt": prompt,
-                "size": try_size,
-                "n": n,
-            }
-            if mask_bytes:
-                kwargs["mask"] = io.BytesIO(mask_bytes)
-            try:
-                response = client.images.edit(**kwargs)
-                break  # 성공 시 다음 후보 시도 안 함
-            except Exception as exc:
-                msg = str(exc).lower()
-                # 모델 미지원 / 권한 / not exist 류만 다음 후보로 넘어감
-                if any(s in msg for s in ("does not exist", "must be", "invalid_value", "model_not_found", "permission")):
-                    last_exc = exc
-                    logger.warning("openai edit fallback: %s 실패 → 다음 후보", cand)
-                    continue
-                # 그 외 에러는 즉시 분류 → 호출자에게 전달
-                raise
-        if response is None:
-            raise (last_exc or AIClientError("server", "이미지 수정 모델을 찾지 못했어요."))
+        # multipart/form-data 처리에서 파일명 메타데이터가 필요 — BytesIO.name 부여.
+        image_file = io.BytesIO(image_bytes)
+        image_file.name = "input.png"
+
+        kwargs: dict = {
+            "model": EDIT_MODEL,
+            "image": image_file,
+            "prompt": prompt,
+            "size": try_size,
+            "quality": quality,
+            "n": n,
+        }
+        if mask_bytes:
+            mask_file = io.BytesIO(mask_bytes)
+            mask_file.name = "mask.png"
+            kwargs["mask"] = mask_file
+        response = client.images.edit(**kwargs)
         results: list[AIResponse] = []
         for item in response.data:
             results.append(
                 AIResponse(
                     content=item.b64_json or "",
-                    usage={"size": size, "quality": quality, "mode": "edit"},
+                    usage={
+                        "size": try_size,
+                        "quality": quality,
+                        "mode": "edit",
+                        "model": EDIT_MODEL,
+                    },
                 )
             )
         return results
