@@ -1,0 +1,17 @@
+{
+  "_comment": "이 파일은 빈 메타 양식 템플릿입니다. 직접 수정하지 마세요. scripts/init_anatomy_part.py 또는 scripts/fetch_anatomy.py를 사용해 자동 생성됩니다.",
+  "asset_id": "anatomy_<slug>_<view>_v1",
+  "body_part_slug": "<slug>",
+  "body_part_ko": "<한글명 — _SLUGS.json에서 자동>",
+  "view_angle": "anterior",
+  "source": "Servier Medical Art",
+  "source_url": "<페이지 URL>",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0/",
+  "attribution_text": "Servier Medical Art licensed under CC BY 4.0",
+  "downloaded_at": "<YYYY-MM-DD>",
+  "file_path": "data/anatomy/<slug>/source.svg",
+  "modifications": "",
+  "acupoints": [],
+  "notes": ""
+}

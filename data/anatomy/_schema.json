@@ -1,0 +1,94 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Cligent Anatomy Asset Meta",
+  "description": "Phase 1 자료 수집 메타데이터 스키마. validate_anatomy_meta.py가 이 파일을 참조해 검증.",
+  "type": "object",
+  "required": [
+    "asset_id",
+    "body_part_slug",
+    "body_part_ko",
+    "view_angle",
+    "source",
+    "source_url",
+    "license",
+    "attribution_text",
+    "downloaded_at",
+    "file_path"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "asset_id": {
+      "type": "string",
+      "pattern": "^anatomy_[a-z][a-z0-9_]*_(anterior|posterior|lateral|medial|oblique)_v[0-9]+$",
+      "description": "Format: anatomy_{slug}_{view_angle}_v{N}. Example: anatomy_neck_anterior_anterior_v1"
+    },
+    "body_part_slug": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "description": "Must match a slug listed in _SLUGS.json"
+    },
+    "body_part_ko": {
+      "type": "string",
+      "minLength": 1,
+      "description": "한글 부위명 (자동 채움 — _SLUGS.json에서 참조)"
+    },
+    "view_angle": {
+      "type": "string",
+      "enum": ["anterior", "posterior", "lateral", "medial", "oblique"],
+      "description": "anterior=정면, posterior=후면, lateral=외측, medial=내측, oblique=사면"
+    },
+    "source": {
+      "type": "string",
+      "enum": [
+        "Servier Medical Art",
+        "AnatomyTOOL",
+        "Wikimedia Commons",
+        "Custom (in-house)",
+        "Other"
+      ]
+    },
+    "source_url": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https?://"
+    },
+    "license": {
+      "type": "string",
+      "enum": ["CC BY 4.0", "CC BY-SA 4.0", "CC0", "CC BY 3.0"]
+    },
+    "license_url": {
+      "type": "string",
+      "format": "uri"
+    },
+    "attribution_text": {
+      "type": "string",
+      "minLength": 10,
+      "description": "Canonical: '<source> licensed under <license>'. validate가 자동 검증."
+    },
+    "downloaded_at": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+      "description": "ISO date YYYY-MM-DD"
+    },
+    "file_path": {
+      "type": "string",
+      "pattern": "^data/anatomy/[a-z][a-z0-9_]*/source\\.(svg|png)$"
+    },
+    "modifications": {
+      "type": "string",
+      "description": "원본 대비 수정 내역 (선택)"
+    },
+    "acupoints": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "이 부위에 매핑되는 경혈 카탈로그 (선택, 좌표는 별 파일 acupoints.json)"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "mask_path": {
+      "type": "string",
+      "description": "image2 edit endpoint용 마스크 (Phase 2 예약)"
+    }
+  }
+}

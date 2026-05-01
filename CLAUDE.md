@@ -24,6 +24,54 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 현재 구현 상태 (2026-05-01 기준)
 
+### 해부학 DB Phase 1 인프라 (2026-05-01 후반)
+
+베타 critical path. Cohort 1 노출 게이트 3조건 중 ②번. 30 부위 자료 수집 인프라 완성, 도메인 작업(원장님)은 1주 일정으로 시작.
+
+**산출물 (8 파일 + 30 디렉토리):**
+- `data/anatomy/_SLUGS.json` — 30 영문 slug ↔ 한글 ↔ 카테고리 single source of truth
+- `data/anatomy/_schema.json` — JSON Schema Draft-07 (필수/선택/특수 필드 + enum + format 검증)
+- `data/anatomy/_LICENSE_TEMPLATE.json` — 빈 메타 양식
+- `data/anatomy/_SEARCH_URLS.json` — 30 부위 × 3소스(Servier/AnatomyTOOL/Wikimedia) 검색 링크 90개
+- `data/anatomy/_README.md` — 작업 가이드 (slug 표·view_angle·자주 발생 문제)
+- `data/anatomy/{30 slug}/.gitkeep` — placeholder, 진행률 추적용
+- `scripts/init_anatomy_part.py` — 빈 meta.json 자동 생성 (offline fallback)
+- `scripts/fetch_anatomy.py` — Playwright 기반 URL → 다운로드 + 메타 자동 추출 (메인)
+- `scripts/validate_anatomy_meta.py` — jsonschema 검증 + `--fix` (attribution 자동 수정) + 진행률 + `--strict`
+
+**의존성**: `playwright==1.48.0`, `jsonschema==4.23.0` (requirements.txt 갱신)
+
+**원장님 작업 흐름 (1부위당 ~3분):**
+```
+1. _SEARCH_URLS.json에서 부위별 3 소스 링크 확인
+2. 브라우저에서 적합 자료 1개 선택, 페이지 URL 복사
+3. python scripts/fetch_anatomy.py {slug} --url "..." --view anterior
+   → Playwright headless가 페이지 fetch → SVG/PNG 다운로드 → meta.json 자동 생성
+4. python scripts/validate_anatomy_meta.py
+   → "1/30 완료" 진행률 출력
+```
+
+**메타 스키마 (필수+선택+특수):**
+- 필수 10: asset_id, body_part_slug, body_part_ko, view_angle, source, source_url, license, attribution_text, downloaded_at, file_path
+- 선택 4: license_url(자동 채움), modifications, acupoints, notes
+- 특수 (이번 포함): view_angle (anterior/posterior/lateral/medial/oblique)
+- 특수 (Phase 2 예약): mask_path (image2 edit endpoint용), body_part_kcd (KCD-8 batch 매핑)
+
+**asset_id 규칙**: `anatomy_{slug}_{view_angle}_v{N}` (예: `anatomy_neck_anterior_anterior_v1`)
+
+**라이선스 화이트리스트**: CC BY 4.0 / CC BY-SA 4.0 / CC0 / CC BY 3.0
+
+**attribution_text 자동 검증**: canonical = `"{source} licensed under {license}"`. 미스매치 시 `--fix`로 자동 수정.
+
+**테스트**: 46/46 통과 (test_anatomy_meta 17 + test_init_anatomy_part 11 + test_fetch_anatomy 18). 회귀 0건. 전체 411 중 7건 사전 등록 P2/P3 그대로.
+
+**다음 단계 (Week 2~4):**
+- Week 2 (AI): 경혈 좌표 매핑 도구 (VGG annotator 통합 또는 JSON 에디터)
+- Week 3~4 (원장님): 240 경혈 좌표 매핑 — 도메인 작업, Phase 1 lever
+- M1~M2: image2 edit endpoint + DB 통합
+
+**메모리**: `~/.claude/projects/-Users-jhzmac/memory/project_anatomy_db.md`
+
 ### 베타 직전 버그·기능 일괄 수정 (2026-05-01 후반, 미커밋·테스트 대기)
 
 사용자 직접 검증 중 발견한 9건 + 흐름 개선. 다음 세션에서 사용자 테스트 후 commit.

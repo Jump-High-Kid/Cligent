@@ -14,3 +14,5 @@ sentry-sdk[fastapi]==2.18.0
 structlog==24.4.0
 beautifulsoup4==4.12.3
 python-multipart==0.0.9
+jsonschema==4.23.0
+playwright==1.48.0

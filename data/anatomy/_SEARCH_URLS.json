@@ -1,0 +1,160 @@
+{
+  "_comment": "30부위 × 3소스 = 90개 검색 링크. 원장님이 부위별로 3소스 중 가장 적합한 자료를 선택. fetch_anatomy.py가 이 파일 참조.",
+  "sources": {
+    "servier": "Servier Medical Art (CC BY 4.0) — 메인",
+    "anatomytool": "AnatomyTOOL (CC BY 일부) — 보완",
+    "wikimedia": "Wikimedia Commons (CC BY/CC0) — 백업"
+  },
+  "search_urls": {
+    "face": {
+      "servier": "https://smart.servier.com/?s=face+anatomy",
+      "anatomytool": "https://anatomytool.org/search?keys=face",
+      "wikimedia": "https://commons.wikimedia.org/w/index.php?search=face+anatomy+diagram&fileres=on"
+    },
+    "occiput": {
+      "servier": "https://smart.servier.com/?s=occiput+head+posterior",
+      "anatomytool": "https://anatomytool.org/search?keys=occiput",
+      "wikimedia": "https://commons.wikimedia.org/w/index.php?search=occipital+region+anatomy&fileres=on"
+    },
+    "temple": {
+      "servier": "https://smart.servier.com/?s=temporal+region",
+      "anatomytool": "https://anatomytool.org/search?keys=temporal",
+      "wikimedia": "https://commons.wikimedia.org/w/index.php?search=temple+anatomy&fileres=on"
+    },
+    "neck_anterior": {
+      "servier": "https://smart.servier.com/?s=neck+anterior",
+      "anatomytool": "https://anatomytool.org/search?keys=neck+anterior",
+      "wikimedia": "https://commons.wikimedia.org/w/index.php?search=anterior+neck+anatomy&fileres=on"
+    },
+    "neck_posterior": {
+      "servier": "https://smart.servier.com/?s=neck+posterior",
+      "anatomytool": "https://anatomytool.org/search?keys=neck+posterior",
+      "wikimedia": "https://commons.wikimedia.org/w/index.php?search=posterior+neck+anatomy&fileres=on"
+    },
+    "shoulder": {
+      "servier": "https://smart.servier.com/?s=shoulder+joint",
+      "anatomytool": "https://anatomytool.org/search?keys=shoulder",
+      "wikimedia": "https://commons.wikimedia.org/w/index.php?search=shoulder+joint+anatomy&fileres=on"
+    },
+    "upper_arm": {
+      "servier": "https://smart.servier.com/?s=upper+arm+humerus",
+      "anatomytool": "https://anatomytool.org/search?keys=humerus",
+      "wikimedia": "https://commons.wikimedia.org/w/index.php?search=upper+arm+anatomy&fileres=on"
+    },
+    "elbow": {
+      "servier": "https://smart.servier.com/?s=elbow+joint",
+      "anatomytool": "https://anatomytool.org/search?keys=elbow",
+      "wikimedia": "https://commons.wikimedia.org/w/index.php?search=elbow+joint+anatomy&fileres=on"
+    },
+    "forearm": {
+      "servier": "https://smart.servier.com/?s=forearm+radius+ulna",
+      "anatomytool": "https://anatomytool.org/search?keys=forearm",
+      "wikimedia": "https://commons.wikimedia.org/w/index.php?search=forearm+anatomy&fileres=on"
+    },
+    "hand": {
+      "servier": "https://smart.servier.com/?s=hand+anatomy",
+      "anatomytool": "https://anatomytool.org/search?keys=hand",
+      "wikimedia": "https://commons.wikimedia.org/w/index.php?search=hand+anatomy+diagram&fileres=on"
+    },
+    "chest": {
+      "servier": "https://smart.servier.com/?s=chest+thorax",
+      "anatomytool": "https://anatomytool.org/search?keys=thorax",
+      "wikimedia": "https://commons.wikimedia.org/w/index.php?search=chest+anatomy&fileres=on"
+    },
+    "scapula": {
+      "servier": "https://smart.servier.com/?s=scapula",
+      "anatomytool": "https://anatomytool.org/search?keys=scapula",
+      "wikimedia": "https://commons.wikimedia.org/w/index.php?search=scapula+anatomy&fileres=on"
+    },
+    "upper_back": {
+      "servier": "https://smart.servier.com/?s=upper+back+thoracic+spine",
+      "anatomytool": "https://anatomytool.org/search?keys=thoracic+spine",
+      "wikimedia": "https://commons.wikimedia.org/w/index.php?search=upper+back+anatomy&fileres=on"
+    },
+    "mid_back": {
+      "servier": "https://smart.servier.com/?s=middle+back+thoracolumbar",
+      "anatomytool": "https://anatomytool.org/search?keys=thoracolumbar",
+      "wikimedia": "https://commons.wikimedia.org/w/index.php?search=middle+back+anatomy&fileres=on"
+    },
+    "lumbar": {
+      "servier": "https://smart.servier.com/?s=lumbar+spine",
+      "anatomytool": "https://anatomytool.org/search?keys=lumbar",
+      "wikimedia": "https://commons.wikimedia.org/w/index.php?search=lumbar+spine+anatomy&fileres=on"
+    },
+    "sacrum": {
+      "servier": "https://smart.servier.com/?s=sacrum",
+      "anatomytool": "https://anatomytool.org/search?keys=sacrum",
+      "wikimedia": "https://commons.wikimedia.org/w/index.php?search=sacrum+anatomy&fileres=on"
+    },
+    "buttock": {
+      "servier": "https://smart.servier.com/?s=buttock+gluteal",
+      "anatomytool": "https://anatomytool.org/search?keys=gluteal",
+      "wikimedia": "https://commons.wikimedia.org/w/index.php?search=gluteal+region+anatomy&fileres=on"
+    },
+    "groin": {
+      "servier": "https://smart.servier.com/?s=groin+inguinal",
+      "anatomytool": "https://anatomytool.org/search?keys=inguinal",
+      "wikimedia": "https://commons.wikimedia.org/w/index.php?search=inguinal+region+anatomy&fileres=on"
+    },
+    "hip": {
+      "servier": "https://smart.servier.com/?s=hip+joint",
+      "anatomytool": "https://anatomytool.org/search?keys=hip",
+      "wikimedia": "https://commons.wikimedia.org/w/index.php?search=hip+joint+anatomy&fileres=on"
+    },
+    "thigh": {
+      "servier": "https://smart.servier.com/?s=thigh+femur",
+      "anatomytool": "https://anatomytool.org/search?keys=thigh",
+      "wikimedia": "https://commons.wikimedia.org/w/index.php?search=thigh+anatomy&fileres=on"
+    },
+    "knee": {
+      "servier": "https://smart.servier.com/?s=knee+joint",
+      "anatomytool": "https://anatomytool.org/search?keys=knee",
+      "wikimedia": "https://commons.wikimedia.org/w/index.php?search=knee+joint+anatomy&fileres=on"
+    },
+    "lower_leg": {
+      "servier": "https://smart.servier.com/?s=lower+leg+tibia",
+      "anatomytool": "https://anatomytool.org/search?keys=tibia",
+      "wikimedia": "https://commons.wikimedia.org/w/index.php?search=lower+leg+anatomy&fileres=on"
+    },
+    "ankle": {
+      "servier": "https://smart.servier.com/?s=ankle+joint",
+      "anatomytool": "https://anatomytool.org/search?keys=ankle",
+      "wikimedia": "https://commons.wikimedia.org/w/index.php?search=ankle+joint+anatomy&fileres=on"
+    },
+    "foot_dorsal": {
+      "servier": "https://smart.servier.com/?s=foot+dorsal",
+      "anatomytool": "https://anatomytool.org/search?keys=foot+dorsal",
+      "wikimedia": "https://commons.wikimedia.org/w/index.php?search=dorsal+foot+anatomy&fileres=on"
+    },
+    "foot_plantar": {
+      "servier": "https://smart.servier.com/?s=foot+plantar",
+      "anatomytool": "https://anatomytool.org/search?keys=foot+plantar",
+      "wikimedia": "https://commons.wikimedia.org/w/index.php?search=plantar+foot+anatomy&fileres=on"
+    },
+    "achilles": {
+      "servier": "https://smart.servier.com/?s=achilles+tendon",
+      "anatomytool": "https://anatomytool.org/search?keys=achilles",
+      "wikimedia": "https://commons.wikimedia.org/w/index.php?search=achilles+tendon+anatomy&fileres=on"
+    },
+    "upper_abdomen": {
+      "servier": "https://smart.servier.com/?s=upper+abdomen+epigastric",
+      "anatomytool": "https://anatomytool.org/search?keys=epigastric",
+      "wikimedia": "https://commons.wikimedia.org/w/index.php?search=upper+abdomen+anatomy&fileres=on"
+    },
+    "lower_abdomen": {
+      "servier": "https://smart.servier.com/?s=lower+abdomen+hypogastric",
+      "anatomytool": "https://anatomytool.org/search?keys=hypogastric",
+      "wikimedia": "https://commons.wikimedia.org/w/index.php?search=lower+abdomen+anatomy&fileres=on"
+    },
+    "flank": {
+      "servier": "https://smart.servier.com/?s=flank+lateral+abdomen",
+      "anatomytool": "https://anatomytool.org/search?keys=flank",
+      "wikimedia": "https://commons.wikimedia.org/w/index.php?search=flank+anatomy&fileres=on"
+    },
+    "skeleton": {
+      "servier": "https://smart.servier.com/?s=human+skeleton",
+      "anatomytool": "https://anatomytool.org/search?keys=skeleton",
+      "wikimedia": "https://commons.wikimedia.org/w/index.php?search=human+skeleton+full&fileres=on"
+    }
+  }
+}
