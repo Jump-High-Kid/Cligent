@@ -24,6 +24,28 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 현재 구현 상태 (2026-05-01 기준)
 
+### 블로그 챗 UI 단일 진입점 통합 (Day 5.5, 2026-05-01)
+
+**`/blog` 라우트를 `templates/index.html`(4단계 폼)에서 `templates/blog_chat.html`(챗 UI)로 교체.**
+- `src/main.py:663` — `FileResponse(... "blog_chat.html")` 변경
+- `src/main.py:691-697` — 중복 `/blog` 라우트 7줄 제거
+- 사이드바·모바일 nav `/blog` 링크 그대로 유지 (URL 안 바꿈)
+
+**자동 활성화 (chat_state.js + blog_chat.html에 사전 구현돼 있던 기능):**
+- 헤더 quota 카운터 — 재생성·수정 used/limit (`#quotaArea`)
+- 단일 PNG 다운로드 + 전체 ZIP 다운로드 (JSZip)
+- 카드별 [↺] 재생성 + 자동 한도 차감
+- 이미지 편집 + quota 갱신
+- KPI 자동 추적 (image_sessions 테이블, `/api/image/regenerate`·`/api/image/edit`에서 increment)
+
+**회귀**: pytest 358/365 통과 (98%). `test_blog_chat_route.py` 11/11 모두 통과. 7개 실패는 사전 등록 P2/P3 (next_steps.md).
+
+**안전 확보 후 정리 대상 (Cohort 1 7일 안정 동작 후):**
+1. `main.py:1910-1935` `/blog/chat` 라우트 제거 또는 `/blog`로 308 redirect
+2. `clinics.chat_beta_enabled` 컬럼 (`db_manager.py:323`) — DEFAULT 0, 어디서도 새로 ON 안 함
+3. `tests/test_blog_chat_route.py` 게이트 테스트 2건
+4. `templates/index.html` 2394줄 dead code 삭제
+
 ### 이미지 모듈 시스템 + negative 통합 (2026-05-01)
 
 **11 모듈 분기 시스템 (`src/image_modules.py` 신설):**

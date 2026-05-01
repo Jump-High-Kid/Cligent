@@ -662,11 +662,11 @@ _NO_CACHE = {"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "
 
 @app.get("/blog")
 async def blog_page(request: Request):
-    """블로그 생성기 — 인증 필요"""
+    """블로그 생성기 — 인증 필요. 2026-05-01부터 챗 UI로 통합."""
     token = request.cookies.get(COOKIE_NAME)
     if not token:
         return RedirectResponse("/login")
-    return FileResponse(ROOT / "templates" / "index.html", headers=_NO_CACHE)
+    return FileResponse(ROOT / "templates" / "blog_chat.html", headers=_NO_CACHE)
 
 
 @app.get("/app")
@@ -686,15 +686,6 @@ async def dashboard_page(request: Request):
     if not token:
         return RedirectResponse("/login")
     return FileResponse(ROOT / "templates" / "dashboard.html", headers=_NO_CACHE)
-
-
-@app.get("/blog")
-async def blog_page(request: Request):
-    """블로그 생성기"""
-    token = request.cookies.get(COOKIE_NAME)
-    if not token:
-        return RedirectResponse("/login")
-    return FileResponse(ROOT / "templates" / "index.html", headers=_NO_CACHE)
 
 
 @app.get("/settings")
