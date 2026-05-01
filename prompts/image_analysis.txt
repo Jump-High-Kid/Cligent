@@ -12,13 +12,14 @@
     "age_range": "string (예: 40대)",
     "type": "string (예: 직장인, 주부, 고령자, 일반 성인)"
   },
-  "scenes": [5개 scene 객체]
+  "scenes": [5개 scene 객체 — 모두 서로 다른 module]
 }
 
 ## scene 객체 스키마
 {
   "position": 1~5 정수,
   "title_ko": "string (한국어 장면 제목, 10자 이내)",
+  "module": 1~11 정수 (필수 — 아래 모듈 카탈로그 참조),
   "camera_angle": "string (영어 카메라 앵글 지시어)",
   "subject": "string (영어, 주요 피사체)",
   "setting": "string (영어, 배경 장소)",
@@ -27,19 +28,49 @@
   "anatomical_region": "leg|arm|foot|hand|back|head|torso|none"
 }
 
-### anatomical_region 결정 규칙 (joint confusion 방지 — 필수)
-- 침 치료·해부학 도해·신체 부위 클로즈업 장면이면 정확한 부위 지정 필수
+## 모듈 카탈로그 (필수 — scene.module 값으로 사용)
+
+| ID | 모듈명          | 적용 장면 예시                                           |
+|----|-----------------|----------------------------------------------------------|
+| 1  | 해부학 이미지    | 경혈 위치도, 근육·골격 도해, WHO 표준 위치도              |
+| 2  | 인체 치료 이미지 | 침·뜸·약침 시술 클로즈업, 시술 전후 자세                  |
+| 3  | 추나치료 이미지  | Chuna 도수치료 동작, 골반·척추 교정 자세                  |
+| 4  | 한약·음식 이미지 | 한약 약봉지·전탕기, 한방차, 한방식이·건강식, 약재 클로즈업 |
+| 5  | 포스터·카드      | 표지·배너·인포카드형 — 텍스트 영역 확보, editorial 톤     |
+| 6  | 한의학 도서      | 동의보감·동의수세보원 판본, 고서 페이지·표지              |
+| 7  | 환자 상황 이미지 | 일상 속 증상 표현 (요통으로 허리 잡기, 두통 잡기 등)        |
+| 8  | 상담 이미지      | 한의사·환자 상담 장면, 진료실 대화                        |
+| 9  | 증상 특징 요약   | 인포그래픽, 증상 분류 다이어그램, 라벨링 도해             |
+| 10 | 자세 비교        | 바른 자세 vs 잘못된 자세, before vs after                 |
+| 11 | 기타            | 위 1~10에 명확히 들어가지 않는 모든 장면 (분위기·풍경 등) |
+
+### 모듈 분류 결정 규칙
+1. 가장 우선되는 단서는 **subject·setting의 핵심**이지, 한의학 관련도가 아닙니다.
+2. 인체가 등장하는 장면이라도 도해라면 1번, 시술이라면 2번, 추나라면 3번, 일상 자세라면 7번/10번.
+3. 약재·음식이 주요 피사체면 4번 (시술 도구가 함께 보이더라도).
+4. 텍스트가 들어갈 자리 강조형 디자인이면 5번 (한의학 콘텐츠라도).
+5. 1~10에 애매하면 **반드시 11번** — 잘못 분류하면 무관한 negatives가 주입되어 결과가 망가짐.
+
+### 5개 scene = 5개 다른 module (필수 규칙)
+- 같은 module을 2개 이상의 scene에 부여하지 마세요.
+- 블로그 1편이 다양한 시각적 진입점을 갖도록 5개 module을 의도적으로 다르게 선택하세요.
+- 어쩔 수 없이 같은 module을 두 번 써야 할 경우 → 한쪽은 11번(기타)로 분류.
+
+## anatomical_region 결정 규칙 (joint confusion 방지)
+- 침 치료·해부학 도해·신체 부위 클로즈업 장면이면 정확한 부위 지정 필수.
 - 분류 기준 (acupoints_used 또는 subject 기반):
-  - `leg`: ST36, ST40, SP6, SP10, BL40, GB34 등 다리 경혈 / "다리·무릎·허벅지·종아리" 묘사
-  - `arm`: LU7, LI4, LI11, HT7, PC6, TE5, SI3 등 팔 경혈 / "팔·팔꿈치·전완" 묘사
-  - `foot`: ST44, BL60, KD3, KD6, LV3 등 발 경혈 / "발·발목" 묘사
-  - `hand`: 손 경혈 / "손·손목·손가락" 묘사
-  - `back`: BL17, BL23, GV4, GV14 / "허리·등·척추" 묘사
-  - `head`: GB20, GV20 / "머리·얼굴·목" 묘사
-  - `torso`: ST25, CV4, CV6, CV12, CV17 / "복부·가슴" 묘사
-  - `none`: 인체 클로즈업 없는 장면 (한약재·진료실 풍경·도구 등)
+  - leg: ST36, ST40, SP6, SP10, BL40, GB34 등 다리 경혈 / "다리·무릎·허벅지·종아리" 묘사
+  - arm: LU7, LI4, LI11, HT7, PC6, TE5, SI3 등 팔 경혈 / "팔·팔꿈치·전완" 묘사
+  - foot: ST44, BL60, KD3, KD6, LV3 등 발 경혈 / "발·발목" 묘사
+  - hand: 손 경혈 / "손·손목·손가락" 묘사
+  - back: BL17, BL23, GV4, GV14 / "허리·등·척추" 묘사
+  - head: GB20, GV20 / "머리·얼굴·목" 묘사
+  - torso: ST25, CV4, CV6, CV12, CV17 / "복부·가슴" 묘사
+  - none: 인체 클로즈업 없는 장면 (한약재·음식·진료실 풍경·도서·인포그래픽 등)
 
 ## 경혈 선택 참고표 (WHO Standard Acupuncture Point Locations 기준)
+모듈 1·2 scene에 acupoints_used 부여 시 아래 표에서 선택.
+
 | 코드  | 한글명(한자)       | 주요 적응증                                  |
 |-------|--------------------|----------------------------------------------|
 | LU7   | 열결(列缺)         | 기침, 천식, 두통, 목 통증, 손목              |
@@ -73,27 +104,24 @@
 | CV12  | 중완(中脘)         | 위장 질환, 소화불량, 식욕 저하              |
 | CV17  | 전중(膻中)         | 흉통, 기침, 천식, 심계항진                  |
 
-## 장면 분석 지침
-
-블로그 구조를 파악하여 **시각적으로 가장 효과적인 5개 장면**을 자유롭게 선택하세요.
-미리 정해진 순서나 유형 없이, 블로그 내용에 가장 잘 맞는 장면을 선정합니다.
-
-### 카메라 앵글 선택 기준
+## 카메라 앵글 선택 기준
 - 공간·분위기 전달: eye-level wide angle
-- 특정 행동이나 사물 클로즈업: macro lens, shallow depth of field
+- 특정 행동·사물 클로즈업: macro lens, shallow depth of field
 - 환자 시점 공감: over-the-shoulder shot
-- 소품·식재료 배열: overhead flat lay
+- 소품·식재료·약재 배열: overhead flat lay
 - 인물 신뢰감 표현: medium shot, centered
+- 도해·인포그래픽: front-facing flat illustration angle
 
-### 장면 선정 규칙
-- 5개 중 반드시 1개는 임상 치료 장면 (침·뜸·한약 조제·부항 등)
-- 임상 치료 장면의 scene 객체에는 acupoints_used 배열 포함 (1~2개)
-- 나머지 scene 객체에는 acupoints_used 키 생략
-- 치료 장면의 camera_angle: 반드시 "macro lens, shallow depth of field"
-- 동일한 장면 유형이 반복되면 다양성이 없으므로 5개 장면이 서로 다른 피사체·구도를 가질 것
+## 장면 선정 지침
+- 5개 scene이 서로 다른 module + 서로 다른 피사체·구도일 것.
+- 모듈 2(시술) scene을 1개 포함하면 좋지만 필수 아님 — 블로그 주제가 추나·한약·음식·도서 위주면 그 모듈로 대체.
+- 모듈 2·3 scene의 camera_angle: "macro lens, shallow depth of field" 우선.
+- 모듈 4·6의 camera_angle: "overhead flat lay" 또는 "macro lens close-up" 우선.
+- 모듈 9의 camera_angle: "front-facing flat illustration angle".
 
-### 기타 규칙
-- acupoints: 블로그 주제와 관련된 경혈 1~3개 (위 참고표에서 선택)
-- season: 블로그 내 계절·날씨 언급이 없으면 "unspecified"
-- patient.age_range: 블로그 타깃 독자 기준, 명시 없으면 "40대"
-- placement_ko: 블로그 어느 섹션에 배치할지 설명 (예: "도입 단락 이후", "치료법 소개 섹션")
+## 기타 규칙
+- acupoints: 블로그 주제와 관련된 경혈 1~3개 (위 참고표에서 선택).
+- season: 블로그 내 계절·날씨 언급이 없으면 "unspecified".
+- patient.age_range: 블로그 타깃 독자 기준, 명시 없으면 "40대".
+- placement_ko: 블로그 어느 섹션에 배치할지 설명 (예: "도입 단락 이후").
+- acupoints_used: 모듈 1·2 scene만 부여, 나머지 scene은 키 자체 생략 또는 빈 배열.

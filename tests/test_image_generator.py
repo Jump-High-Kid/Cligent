@@ -125,6 +125,51 @@ class TestGenerateInitialSet:
             result = generate_initial_set("프롬프트", "free")
         assert len(result.images) == 5
 
+    def test_initial_with_prompt_list_calls_five_times(self):
+        """5개 다른 prompt list → 각 1장씩 5번 호출, ImageSet 5장 합쳐짐 (2026-05-01)."""
+        captured_prompts = []
+
+        def fake_call(prompt, size, quality, n):
+            captured_prompts.append(prompt)
+            return _fake_responses(1)
+
+        prompts = [f"모듈{i+1} prompt" for i in range(5)]
+        with patch.object(ig, "call_openai_image_generate", side_effect=fake_call):
+            result = generate_initial_set(prompts, "standard")
+
+        assert captured_prompts == prompts
+        assert len(result.images) == 5
+        assert result.mode == "initial"
+        assert result.size == "1024x1024"
+
+    def test_initial_list_wrong_length_rejected(self):
+        with pytest.raises(AIClientError) as exc:
+            generate_initial_set(["only one"], "standard")
+        assert exc.value.kind == "bad_request"
+        with pytest.raises(AIClientError) as exc:
+            generate_initial_set(["a"] * 6, "standard")
+        assert exc.value.kind == "bad_request"
+
+    def test_initial_list_with_empty_string_rejected(self):
+        with pytest.raises(AIClientError) as exc:
+            generate_initial_set(["a", "b", "", "d", "e"], "standard")
+        assert exc.value.kind == "bad_request"
+
+    def test_initial_str_path_unchanged(self):
+        """기존 str 단일 prompt 경로는 한 번 호출 + n=5 그대로."""
+        captured = {}
+
+        def fake_call(prompt, size, quality, n):
+            captured["prompt"] = prompt
+            captured["n"] = n
+            return _fake_responses(5)
+
+        with patch.object(ig, "call_openai_image_generate", side_effect=fake_call):
+            result = generate_initial_set("프롬프트", "standard")
+        assert captured["n"] == 5
+        assert captured["prompt"] == "프롬프트"
+        assert len(result.images) == 5
+
 
 # ── 재생성 (regen) 한도 ───────────────────────────────────
 
@@ -167,6 +212,35 @@ class TestRegenerate:
     def test_regen_empty_prompt_rejected(self):
         with pytest.raises(AIClientError) as exc:
             regenerate_set("", "standard", regen_used=0)
+        assert exc.value.kind == "bad_request"
+
+    def test_regen_n_one_card_level(self):
+        """카드별 [↺] 재생성 — n=1 통과, OpenAI 호출 시 n=1 전달."""
+        captured = {}
+
+        def fake_call(prompt, size, quality, n):
+            captured["n"] = n
+            return _fake_responses(n)
+
+        with patch.object(ig, "call_openai_image_generate", side_effect=fake_call):
+            result = regenerate_set("프롬프트", "standard", regen_used=0, n=1)
+        assert captured["n"] == 1
+        assert len(result.images) == 1
+        assert result.mode == "regen"
+
+    def test_regen_n_one_still_consumes_quota(self):
+        """1장 재생성도 1회 차감 — Standard regen_used=1이면 n=1도 차단."""
+        with pytest.raises(ImageQuotaExceeded) as exc:
+            regenerate_set("프롬프트", "standard", regen_used=1, n=1)
+        assert exc.value.kind == "regen"
+        assert exc.value.limit == 1
+
+    def test_regen_n_out_of_range_rejected(self):
+        with pytest.raises(AIClientError) as exc:
+            regenerate_set("프롬프트", "standard", regen_used=0, n=0)
+        assert exc.value.kind == "bad_request"
+        with pytest.raises(AIClientError) as exc:
+            regenerate_set("프롬프트", "standard", regen_used=0, n=6)
         assert exc.value.kind == "bad_request"
 
 

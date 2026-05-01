@@ -132,9 +132,27 @@ def _build_set(
     )
 
 
-def generate_initial_set(prompt: str, plan_id: str) -> ImageSet:
-    """블로그 1편당 첫 5장 생성. 한도 체크 없음 (initial은 항상 무료)."""
-    if not prompt or not prompt.strip():
+def generate_initial_set(prompt, plan_id: str, on_progress=None) -> ImageSet:
+    """블로그 1편당 첫 5장 생성. 한도 체크 없음 (initial은 항상 무료).
+
+    Args:
+        prompt: 단일 str (모듈 동일 5장 variation) 또는 list[str]
+                (5개 다른 모듈 prompt — 각 1장씩 생성).
+                list 길이는 정확히 INITIAL_SET_SIZE(=5).
+        plan_id: 플랜.
+        on_progress: list 입력 시 호출되는 콜백 — fn(index, total) → None.
+                    SSE stage_text 갱신에 사용. 단일 str 입력엔 미사용.
+
+    Returns:
+        ImageSet (images 5장).
+
+    Raises:
+        AIClientError on bad input. 5번 호출 중 1개라도 실패 시 raise.
+    """
+    if isinstance(prompt, list):
+        return _generate_initial_multi(prompt, plan_id, on_progress=on_progress)
+
+    if not isinstance(prompt, str) or not prompt.strip():
         raise AIClientError("bad_request", "이미지 프롬프트가 비어 있습니다.")
 
     size, quality = get_plan_dimensions(plan_id)
@@ -144,11 +162,66 @@ def generate_initial_set(prompt: str, plan_id: str) -> ImageSet:
     return _build_set(responses, plan_id, mode="initial")
 
 
-def regenerate_set(prompt: str, plan_id: str, regen_used: int) -> ImageSet:
-    """5장 재생성. regen_used가 무료 한도 이상이면 ImageQuotaExceeded.
+def _generate_initial_multi(
+    prompts: list, plan_id: str, on_progress=None
+) -> ImageSet:
+    """5개 다른 prompt 각각 1장씩 생성. ImageSet 5장으로 합쳐 반환.
+
+    OpenAI Tier1 rate limit는 ai_client.call_openai_image_generate 내부
+    semaphore가 처리. 여기서는 직렬 호출 (각 6~10초, 합 30~50초 예상).
+
+    Args:
+        on_progress: fn(index, total) → None. 각 호출 직전에 발화.
+                    SSE stage_text로 "이미지 N/5 그리는 중" 등 표시.
+    """
+    if len(prompts) != INITIAL_SET_SIZE:
+        raise AIClientError(
+            "bad_request",
+            f"prompts list 길이는 정확히 {INITIAL_SET_SIZE}여야 합니다 "
+            f"(받은 길이: {len(prompts)}).",
+        )
+    for idx, p in enumerate(prompts):
+        if not isinstance(p, str) or not p.strip():
+            raise AIClientError(
+                "bad_request",
+                f"prompts[{idx}]가 비어 있거나 문자열이 아닙니다.",
+            )
+
+    size, quality = get_plan_dimensions(plan_id)
+    images: list[str] = []
+    for idx, p in enumerate(prompts):
+        if on_progress is not None:
+            try:
+                on_progress(idx, INITIAL_SET_SIZE)
+            except Exception:
+                logger.debug("on_progress callback raised, ignoring")
+        responses = call_openai_image_generate(
+            prompt=p, size=size, quality=quality, n=1,
+        )
+        if not responses:
+            raise AIClientError(
+                "server", "OpenAI에서 이미지를 받지 못했습니다.",
+            )
+        images.append(responses[0].content)
+
+    return ImageSet(
+        images=images,
+        plan_id=normalize_plan_id(plan_id),
+        size=size,
+        quality=quality,
+        mode="initial",
+    )
+
+
+def regenerate_set(
+    prompt: str, plan_id: str, regen_used: int, n: int = INITIAL_SET_SIZE,
+) -> ImageSet:
+    """n장 재생성. regen_used가 무료 한도 이상이면 ImageQuotaExceeded.
 
     Args:
         regen_used: 이번 세션에서 이미 사용한 재생성 횟수 (이번 호출 미포함).
+        n: 생성 장수 (1~5). 기본 5 (전체 재생성). 카드별 [↺]는 n=1.
+           1장 재생성도 한도 1회 차감 — 사용자 경제성 명확.
 
     Raises:
         ImageQuotaExceeded: 무료 한도 초과.
@@ -156,6 +229,8 @@ def regenerate_set(prompt: str, plan_id: str, regen_used: int) -> ImageSet:
     """
     if not prompt or not prompt.strip():
         raise AIClientError("bad_request", "이미지 프롬프트가 비어 있습니다.")
+    if n < 1 or n > INITIAL_SET_SIZE:
+        raise AIClientError("bad_request", f"n은 1~{INITIAL_SET_SIZE} 범위여야 합니다.")
 
     limits = get_plan_limits(plan_id)
     free_limit = limits["regen_free"]
@@ -169,7 +244,7 @@ def regenerate_set(prompt: str, plan_id: str, regen_used: int) -> ImageSet:
 
     size, quality = get_plan_dimensions(plan_id)
     responses = call_openai_image_generate(
-        prompt=prompt, size=size, quality=quality, n=INITIAL_SET_SIZE
+        prompt=prompt, size=size, quality=quality, n=n
     )
     return _build_set(responses, plan_id, mode="regen")
 

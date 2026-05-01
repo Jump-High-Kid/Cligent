@@ -365,6 +365,22 @@ async def _login_history_purge_scheduler() -> None:
             _error_logger.error("login_history_purge_scheduler 오류: %s", e)
 
 
+async def _blog_chat_session_purge_scheduler() -> None:
+    """24시간마다 24h 이상 미활성 blog_chat_sessions 행 자동 삭제 (TTL).
+
+    in-memory LRU와 DB 양쪽을 정리. blog_chat_state.cleanup_stale_sessions 위임.
+    """
+    while True:
+        await asyncio.sleep(24 * 3600)
+        try:
+            from blog_chat_state import cleanup_stale_sessions
+            deleted = cleanup_stale_sessions(ttl_hours=24)
+            if deleted > 0:
+                _error_logger.info("blog_chat_sessions: TTL 24h 초과 %d건 삭제", deleted)
+        except Exception as e:
+            _error_logger.error("blog_chat_session_purge_scheduler 오류: %s", e)
+
+
 async def _applicant_expiry_scheduler() -> None:
     """24시간마다 expires_at 지난 pending 신청자를 status='expired'로 자동 전환."""
     while True:
@@ -453,6 +469,8 @@ async def lifespan(application: FastAPI):
     _err_purge_sched = asyncio.create_task(_error_logs_purge_scheduler())
     # 네이버 발행 확인 스케줄러 (30분 주기)
     _naver_sched = asyncio.create_task(_naver_check_scheduler())
+    # 블로그 챗 세션 TTL 24h 정리 (Step 1, 1D-4)
+    _chat_purge_sched = asyncio.create_task(_blog_chat_session_purge_scheduler())
     yield
     _sched.cancel()
     _reminder_sched.cancel()
@@ -460,7 +478,9 @@ async def lifespan(application: FastAPI):
     _login_purge_sched.cancel()
     _err_purge_sched.cancel()
     _naver_sched.cancel()
-    for task in (_sched, _reminder_sched, _expiry_sched, _login_purge_sched, _err_purge_sched, _naver_sched):
+    _chat_purge_sched.cancel()
+    for task in (_sched, _reminder_sched, _expiry_sched, _login_purge_sched,
+                 _err_purge_sched, _naver_sched, _chat_purge_sched):
         try:
             await task
         except asyncio.CancelledError:
@@ -1561,37 +1581,52 @@ def _write_feedback_report() -> None:
     rep_path.write_text(report, encoding="utf-8")
 
 
-@app.post("/api/feedback")
-async def submit_feedback(request: Request, user: dict = Depends(get_current_user)):
-    """피드백 / 오류 신고 저장 (개발자만 열람 — 사용자에게 미노출)"""
+def _persist_feedback(
+    clinic_id: int,
+    user_id: Optional[int],
+    page: str,
+    message: str,
+    context: Optional[dict] = None,
+    user_email: str = "",
+) -> None:
+    """피드백 1건을 DB(feedback) + jsonl(data/feedback.jsonl) 양쪽에 저장.
+
+    /api/feedback 라우트와 blog_chat_flow의 FEEDBACK stage가 공용으로 사용.
+    DB 실패는 RuntimeError로 호출자에게 위임 (라우트는 500, chat 흐름은 fail-soft).
+    jsonl 기록·리포트 갱신은 fail-soft.
+    """
     import json as _json
-    body = await request.json()
-    message = (body.get("message") or "").strip()
-    page    = (body.get("page") or "unknown").strip()[:100]
+    page = (page or "unknown").strip()[:100]
+    message = (message or "").strip()
     if not message:
-        return JSONResponse({"detail": "메시지를 입력해주세요."}, status_code=400)
-    if len(message) > 2000:
-        return JSONResponse({"detail": "2000자 이내로 입력해주세요."}, status_code=400)
+        raise ValueError("empty message")
+
+    context_str: Optional[str] = None
+    if isinstance(context, dict) and context:
+        try:
+            context_str = _json.dumps(context, ensure_ascii=False)[:4000]
+        except (TypeError, ValueError):
+            context_str = None
+
     from datetime import datetime as _dt
     now_str = _dt.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-    try:
-        from db_manager import get_db
-        with get_db() as conn:
-            conn.execute(
-                "INSERT INTO feedback (clinic_id, user_id, page, message) VALUES (?,?,?,?)",
-                (user["clinic_id"], user["id"], page, message),
-            )
-            conn.commit()
-    except Exception as e:
-        return JSONResponse({"detail": f"저장 실패: {e}"}, status_code=500)
-    # jsonl 기록 + 5개마다 리포트 갱신
+    from db_manager import get_db
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO feedback (clinic_id, user_id, page, message, context_json) "
+            "VALUES (?,?,?,?,?)",
+            (clinic_id, user_id, page, message, context_str),
+        )
+        conn.commit()
+    # jsonl 기록 + 배치 도달 시 리포트 갱신 (실패 흡수)
     try:
         log_path = ROOT / "data" / "feedback.jsonl"
         entry = _json.dumps({
             "ts": now_str, "page": page,
-            "clinic_id": user["clinic_id"],
-            "user": user.get("email", ""),
+            "clinic_id": clinic_id,
+            "user": user_email or "",
             "message": message,
+            "context": context if isinstance(context, dict) else None,
         }, ensure_ascii=False)
         with open(log_path, "a", encoding="utf-8") as f:
             f.write(entry + "\n")
@@ -1603,6 +1638,37 @@ async def submit_feedback(request: Request, user: dict = Depends(get_current_use
             _write_feedback_report()
     except Exception:
         pass
+
+
+@app.post("/api/feedback")
+async def submit_feedback(request: Request, user: dict = Depends(get_current_user)):
+    """피드백 / 오류 신고 저장 (개발자만 열람 — 사용자에게 미노출)
+
+    Body: { message, page?, context?: dict }
+    context는 blog_chat 등에서 발생 단계·session_id·error를 함께 전달 (선택).
+    """
+    body = await request.json()
+    message = (body.get("message") or "").strip()
+    page    = (body.get("page") or "unknown").strip()[:100]
+    if not message:
+        return JSONResponse({"detail": "메시지를 입력해주세요."}, status_code=400)
+    if len(message) > 2000:
+        return JSONResponse({"detail": "2000자 이내로 입력해주세요."}, status_code=400)
+
+    context_obj = body.get("context")
+    context_dict = context_obj if isinstance(context_obj, dict) else None
+
+    try:
+        _persist_feedback(
+            clinic_id=user["clinic_id"],
+            user_id=user["id"],
+            page=page,
+            message=message,
+            context=context_dict,
+            user_email=user.get("email", ""),
+        )
+    except Exception as e:
+        return JSONResponse({"detail": f"저장 실패: {e}"}, status_code=500)
     return JSONResponse({"ok": True})
 
 
@@ -1845,6 +1911,173 @@ async def blog_history_text(entry_id: int, user: dict = Depends(get_current_user
     if text is None:
         raise HTTPException(status_code=404, detail="전문을 찾을 수 없거나 만료되었습니다.")
     return JSONResponse({"text": text})
+
+
+# ── Blog Chat (Step 1, v10 plan — chat-driven UX) ──────────────────
+# 1B 골격: 세션 발급/조회 + 메시지 echo. 자연어 파싱·SSE 본문은 1D에서 통합.
+
+@app.get("/blog/chat")
+async def blog_chat_page(request: Request):
+    """블로그 챗 인터페이스 — 인증 + Cohort 1 베타 플래그 필요 (Phase 1F).
+
+    `clinics.chat_beta_enabled = 1` 인 클리닉만 진입.
+    미허용 클리닉은 기존 `/blog` 폼으로 fallback.
+    """
+    token = request.cookies.get(COOKIE_NAME)
+    if not token:
+        return RedirectResponse("/login")
+    # 베타 플래그 검사 — 인증 토큰에서 clinic_id 추출 후 DB lookup
+    try:
+        from auth_manager import decode_token
+        payload = decode_token(token)
+        clinic_id = payload.get("clinic_id") if payload else None
+    except Exception:
+        clinic_id = None
+    if clinic_id:
+        from db_manager import get_db
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT chat_beta_enabled FROM clinics WHERE id = ?", (clinic_id,),
+            ).fetchone()
+        if not row or not row["chat_beta_enabled"]:
+            return RedirectResponse("/blog")
+    return FileResponse(ROOT / "templates" / "blog_chat.html", headers=_NO_CACHE)
+
+
+@app.post("/api/blog-chat/turn")
+async def api_blog_chat_turn(request: Request, user: dict = Depends(get_current_user)):
+    """블로그 챗 1턴.
+
+    Body: { session_id?: str, user_input?: str }
+    Response (1D-1): JSON { session_id, stage, stage_text, messages, quota }
+      - 결정론적 옵션 매칭 (번호/정확 라벨). 모호한 입력은 ambiguous 메시지.
+    Phase 1D-2: 자연어 해석 fallback (짧은 LLM 호출).
+    Phase 1D-3: generating stage 진입 시 text/event-stream으로 분기.
+    """
+    from blog_chat_flow import process_turn
+    from blog_chat_state import (
+        append_message,
+        create_session,
+        get_session,
+        save_session,
+        serialize_message,
+        stage_text,
+    )
+
+    body = await request.json()
+    session_id = (body.get("session_id") or "").strip()
+    user_input = (body.get("user_input") or "").strip()
+
+    if user_input and len(user_input) > 2000:
+        return JSONResponse(
+            {"detail": "입력은 2,000자 이내로 작성해주세요."}, status_code=400
+        )
+
+    # 신규 세션 — UUID4 발급 + 첫 인사
+    # user_input이 있으면 그 입력으로 process_turn까지 1회 진행 (사용자 첫 액션 흐름)
+    if not session_id:
+        state = create_session(clinic_id=user["clinic_id"], user_id=user["id"])
+        append_message(
+            state, "assistant",
+            "안녕하세요, 원장님. 오늘은 어떤 주제로 글을 써볼까요?\n"
+            "버튼을 클릭하시거나 직접 입력해주세요. "
+            "여러 개 선택은 해당 번호를 입력해주세요.",
+            options=[],
+            meta={"stage_text": stage_text(state.stage)},
+        )
+        save_session(state)
+        is_chat_admin = _is_admin_clinic(user) and user.get("role") == "chief_director"
+        # 빈 입력 — 인사만 반환 (현재 클라는 빈 화면을 정적으로 사용하므로 호출되지 않음)
+        if not user_input:
+            return JSONResponse({
+                "session_id": state.session_id,
+                "stage": state.stage.value,
+                "stage_text": stage_text(state.stage),
+                "messages": [serialize_message(m) for m in state.messages],
+                "quota": state.quota,
+                "is_admin": is_chat_admin,
+            })
+        # 첫 입력 — 인사 + user 메시지 + 다음 stage 메시지 모두 한 번에
+        from blog_chat_flow import process_turn
+        response = process_turn(state, user_input)
+        # 신규 세션의 첫 응답엔 인사도 포함되도록 latest_n 보정
+        response["messages"] = [
+            serialize_message(m) for m in state.messages[-3:]
+        ]
+        response["is_admin"] = is_chat_admin
+        return JSONResponse(response)
+
+    # 기존 세션 복구
+    try:
+        state = get_session(session_id, clinic_id=user["clinic_id"])
+    except LookupError:
+        return JSONResponse({"detail": "세션을 찾을 수 없습니다."}, status_code=404)
+    except PermissionError:
+        return JSONResponse({"detail": "권한이 없습니다."}, status_code=403)
+
+    # SEO 입력 진입 → 본문 SSE streaming (1D-3)
+    # 한도 체크는 streaming 시작 전에 수행 (사용자에게 즉시 차단 응답)
+    from blog_chat_state import Stage as _Stage
+    if state.stage == _Stage.SEO:
+        try:
+            check_blog_limit(user["clinic_id"])
+        except HTTPException as e:
+            return JSONResponse(
+                {"detail": e.detail, "kind": "quota_exceeded"}, status_code=e.status_code,
+            )
+        log_usage(user["clinic_id"], "blog_generation",
+                  {"keyword": state.topic, "via": "blog_chat"})
+        check_and_notify(user["clinic_id"])
+        from blog_chat_flow import process_turn_streaming
+        return StreamingResponse(
+            process_turn_streaming(state, user_input),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+
+    # IMAGE 단계 + "all" 옵션 매칭 → 5단계 텍스트 SSE (1F, M0 게이트)
+    # "none"(이미지 없이 종료)은 process_turn JSON 분기로 가야 정상.
+    if state.stage == _Stage.IMAGE:
+        from blog_chat_flow import IMAGE_OPTIONS, match_option, process_turn_streaming
+        opt = match_option(IMAGE_OPTIONS, user_input)
+        if opt and opt.get("id") == "all":
+            return StreamingResponse(
+                process_turn_streaming(state, user_input),
+                media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+            )
+
+    # 그 외 stage는 결정론 + Haiku fallback JSON 응답
+    response = process_turn(state, user_input)
+    response["is_admin"] = _is_admin_clinic(user) and user.get("role") == "chief_director"
+    return JSONResponse(response)
+
+
+@app.get("/api/blog-chat/session/{session_id}")
+async def api_blog_chat_session_get(
+    session_id: str, user: dict = Depends(get_current_user)
+):
+    """세션 전체 state 조회 — 다중 탭/새로고침 복구용."""
+    from blog_chat_state import get_session, serialize_message, stage_text
+
+    try:
+        state = get_session(session_id, clinic_id=user["clinic_id"])
+    except LookupError:
+        return JSONResponse({"detail": "세션을 찾을 수 없습니다."}, status_code=404)
+    except PermissionError:
+        return JSONResponse({"detail": "권한이 없습니다."}, status_code=403)
+
+    return JSONResponse({
+        "session_id": state.session_id,
+        "stage": state.stage.value,
+        "stage_text": stage_text(state.stage),
+        "messages": [serialize_message(m) for m in state.messages],
+        "topic": state.topic,
+        "length_chars": state.length_chars,
+        "seo_keywords": state.seo_keywords,
+        "quota": state.quota,
+        "is_admin": _is_admin_clinic(user) and user.get("role") == "chief_director",
+    })
 
 
 def _stream_and_save(
@@ -2821,6 +3054,7 @@ async def api_admin_feedback(
         rows = conn.execute(
             f"""
             SELECT f.id, f.page, f.message, f.created_at, f.viewed_at,
+                   f.context_json,
                    f.clinic_id, f.user_id,
                    c.name AS clinic_name,
                    u.email AS user_email
@@ -3565,13 +3799,19 @@ async def api_image_regenerate(
     request: Request,
     user: dict = Depends(get_current_user),
 ):
-    """같은 프롬프트로 5장 재생성. plan별 무료 한도 적용.
+    """같은 프롬프트로 n장 재생성. plan별 무료 한도 적용.
 
-    Body: {"session_id": str, "prompt": str}
+    Body: {"session_id": str, "prompt": str, "n"?: int (1~5, 기본 5)}
+        n=1은 카드별 [↺] 단일 재생성 (1장도 한도 1회 차감).
     """
     body = await request.json()
     session_id = (body.get("session_id") or "").strip()
     prompt = (body.get("prompt") or "").strip()
+    try:
+        n = int(body.get("n") or 5)
+    except (TypeError, ValueError):
+        n = 5
+    n = max(1, min(5, n))
     if not session_id:
         raise HTTPException(status_code=400, detail="session_id가 필요합니다.")
     if not prompt:
@@ -3596,7 +3836,7 @@ async def api_image_regenerate(
     edit_used = sess["edit_count"]
 
     try:
-        result = regenerate_set(prompt=prompt, plan_id=plan_id, regen_used=regen_used)
+        result = regenerate_set(prompt=prompt, plan_id=plan_id, regen_used=regen_used, n=n)
     except ImageQuotaExceeded as exc:
         raise HTTPException(
             status_code=429,

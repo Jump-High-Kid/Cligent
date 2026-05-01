@@ -10,7 +10,6 @@ prompts:
   questions: prompts/questions.txt
   conversation: prompts/conversation.txt
   blog: prompts/blog.txt
-  image_prompt: prompts/image_prompt.txt
   image_analysis: prompts/image_analysis.txt
   image_generation: prompts/image_generation.txt
 image_prompt:

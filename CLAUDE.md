@@ -22,7 +22,57 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **의학 정보**: 검증되지 않은 치료 효과는 사실로 제시 금지 — 항상 불확실성 명시
 - **처방 데이터**: 약재명은 KCD 또는 표준 한의학 용어 사용
 
-## 현재 구현 상태 (2026-04-30 기준)
+## 현재 구현 상태 (2026-05-01 기준)
+
+### 이미지 모듈 시스템 + negative 통합 (2026-05-01)
+
+**11 모듈 분기 시스템 (`src/image_modules.py` 신설):**
+- 모듈 1 해부학 / 2 인체치료(침·뜸·약침) / 3 추나 / 4 한약·음식 / 5 포스터·카드 / 6 한의학 도서(판본) / 7 환자 상황 / 8 상담 / 9 증상 특징 요약 / 10 자세 비교 / 11 기타
+- 각 모듈 dict: `name_ko / directives / negatives / boosters / style_suffix`
+- `get_module(id)`, `build_module_addendum(id, anatomical_region)`, `build_global_directives()`
+- Stage 1(`prompts/image_analysis.txt`)이 scene별 `module: 1~11` 분류, Stage 2(`prompts/image_generation.txt` 254→80줄)가 모듈 fragment를 영어 프롬프트에 통합
+- **5장 모두 다른 모듈** — `blog_chat_flow.py`가 5번 직접 호출 (각 n=1), 카드별 [↺]는 `meta.prompts[idx]`로 그 모듈 그대로 재생성
+- Midjourney 파라미터(`--ar`, `--stylize`, `--style raw`, `--niji` 등) 전부 제거 — gpt-image-2가 무시
+
+**negative_prompt 본문 통합 (CRITICAL — gpt-image-2 SDK 호환):**
+- gpt-image-2는 별도 `negative_prompt` 인자 없음. Stage 2 출력의 `negative_prompt` 필드는 무시됨.
+- `blog_chat_flow.py`가 본문 끝에 `\n\nNegative aspects to avoid: ...` 자동 합침
+- env `IMAGE_INJECT_NEGATIVES=0`으로 즉시 끔 (역효과 발견 시 fallback)
+
+**가운·의료기구·배경 positive 강화 (모듈 2·3·8):**
+- "single-breasted Western-style white lab coat with stand collar (Korean medical institution standard, Hangul name badge) — NOT Chinese tunic suit, NOT mandarin collar, NOT changshan robe"
+- 한국 인테리어 + 한글 게시물 명시 + China/Japan 시각 단서 명시 부정
+
+**⭐ 5개 추가 negative 분배:**
+- 한글 텍스트 박힘(1·2·3·4·7·8·10·11) / 침 과도(2) / 양방 응급실 톤(2·3·8) / 아동(2·3·7·10) / 노출(2·3·10)
+- 모듈 5·6·9는 텍스트가 의도된 디자인이라 한글 텍스트 negative 제외
+
+**이미지 진행 안내 (B + 예상 시간):**
+- 5번 호출 사이사이 `이미지 N/5 — [모듈 title] 그리는 중... (약 N초 남음)` SSE stage_text
+- 첫 호출 50초, 마지막 10초 표시 — 사용자가 다른 일 가능
+
+**기타 마이너 수정:**
+- `ai_client.call_openai_image_edit` — `quality` 인자 제거 (OpenAI SDK 미지원)
+- 인사 안내 보강 (버튼 클릭/직접 입력/번호 입력)
+- 옵션 단축키 4 → 9 확장 (chat_state.js·chat_input.js)
+- 자동 스크롤 임계값 streaming 중 500
+- 비용 표시 어드민(`is_admin`)에게만 — 일반 사용자 노출 0
+- `---` → `<hr>` 변환 (textToHtml에 옛 index.html 로직 복원)
+- 참고 문헌 번호 1부터 빈 칸 없이 연속 (prompts/blog.txt 명시)
+- 이미지 카드 클릭 → b64 원본 lightbox modal (ESC/클릭 닫기)
+
+**테스트**: 137/137 통과 (관련 모듈)
+
+### 옵션 카탈로그(QUESTIONS) + 카드별 [↺] (2026-05-01)
+- `src/blog_chat_options.py` 신설 — 4 stage 옵션 카탈로그 (mode·reader_level·explanation_type·format_id) → `to_blog_args()`로 generate_blog_stream 인자 매핑
+- LENGTH → QUESTIONS×4 → SEO 흐름 (`blog_chat_flow.py`)
+- 카드별 [↺] (n=1) — `image_generator.regenerate_set(prompt, plan_id, regen_used, n)`. 1장 재생성도 한도 1회 차감.
+- progress_only placeholder DOM 제거 (next_message 도착 시 row 통째 제거)
+- 스크롤바 완전 hidden (`scrollbar-width: none + ::-webkit-scrollbar { display: none }`)
+
+---
+
+## 이전 구현 상태 (2026-04-30 기준)
 
 ### Phase 2~4 — 이미지 인프라 (2026-04-30 후반)
 

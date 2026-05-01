@@ -76,19 +76,52 @@ def _analyze_blog(keyword: str, blog_content: str, api_key: str) -> tuple[dict, 
     return _parse_json_response(text), usage
 
 
+def _build_module_section(analysis: dict) -> str:
+    """분석 JSON의 scene별 module 필드를 읽어 모듈 addendum 결합.
+
+    Stage 2 user message 끝에 붙어 Claude가 모듈별 fragment를 그대로
+    영문 프롬프트에 통합하도록 유도.
+    """
+    from image_modules import build_module_addendum, build_global_directives
+
+    scenes = analysis.get("scenes") or []
+    sections: list[str] = []
+    for scene in scenes:
+        if not isinstance(scene, dict):
+            continue
+        position = scene.get("position")
+        module_id = scene.get("module")
+        anatomical_region = scene.get("anatomical_region")
+        addendum = build_module_addendum(module_id, anatomical_region)
+        if addendum:
+            sections.append(f"### Scene {position} addendum\n{addendum}")
+
+    if not sections:
+        return build_global_directives()
+
+    return (
+        build_global_directives()
+        + "\n\n## Per-scene module addendums (use only matching scene's fragments)\n"
+        + "\n\n".join(sections)
+    )
+
+
 def _generate_prompts(
     analysis: dict,
     api_key: str,
     style: str = "photorealistic",
     tone: str = "warm",
 ) -> tuple[dict, dict]:
-    """Stage 2: 분석 JSON + 스타일/톤 → 이미지 프롬프트 배열 JSON 반환"""
+    """Stage 2: 분석 JSON + 스타일/톤 + 모듈 addendum → 이미지 프롬프트 배열 JSON."""
     system = load_prompt("image_generation")
+    module_section = _build_module_section(analysis)
+
     user = (
         f"IMAGE_STYLE: {style}\n"
         f"IMAGE_TONE: {tone}\n\n"
         f"블로그 분석 결과:\n"
-        f"{json.dumps(analysis, ensure_ascii=False, indent=2)}"
+        f"{json.dumps(analysis, ensure_ascii=False, indent=2)}\n\n"
+        f"{module_section}"
     )
     text, usage = _call_claude(system, user, api_key, max_tokens=4000)
     return _parse_json_response(text), usage

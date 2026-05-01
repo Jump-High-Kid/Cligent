@@ -32,6 +32,18 @@ logger = logging.getLogger(__name__)
 _OPENAI_CONCURRENCY = 3
 _openai_semaphore: Optional[asyncio.Semaphore] = None
 
+# gpt-image-2 generations(n=5) / edits 모두 30~120s 소요. 60s timeout이 짧아 잘 끊김.
+# env OPENAI_IMAGE_TIMEOUT_SEC 으로 override 가능 (기본 180s).
+def _openai_image_timeout_sec() -> float:
+    raw = os.getenv("OPENAI_IMAGE_TIMEOUT_SEC", "").strip()
+    try:
+        v = float(raw)
+        if v > 0:
+            return v
+    except (TypeError, ValueError):
+        pass
+    return 180.0
+
 
 def _get_openai_semaphore() -> asyncio.Semaphore:
     """동시성 제한 세마포어. 첫 호출 시 lazy init (이벤트 루프 필요)."""
@@ -199,7 +211,7 @@ def call_openai_image_generate(
     import openai
 
     api_key = _get_openai_key()
-    client = openai.OpenAI(api_key=api_key, timeout=60.0)
+    client = openai.OpenAI(api_key=api_key, timeout=_openai_image_timeout_sec())
     try:
         response = client.images.generate(
             model="gpt-image-2",
@@ -252,14 +264,15 @@ def call_openai_image_edit(
     import openai
 
     api_key = _get_openai_key()
-    client = openai.OpenAI(api_key=api_key, timeout=60.0)
+    client = openai.OpenAI(api_key=api_key, timeout=_openai_image_timeout_sec())
     try:
+        # OpenAI Python SDK의 images.edit()는 quality 인자 미지원 (2026-05-01).
+        # quality는 호출자가 plan별로 size에만 반영하면 됨.
         kwargs = {
             "model": "gpt-image-2",
             "image": io.BytesIO(image_bytes),
             "prompt": prompt,
             "size": size,
-            "quality": quality,
             "n": n,
         }
         if mask_bytes:
