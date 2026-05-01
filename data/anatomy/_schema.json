@@ -72,7 +72,7 @@
     },
     "file_path": {
       "type": "string",
-      "pattern": "^data/anatomy/[a-z][a-z0-9_]*/source\\.(svg|png)$"
+      "pattern": "^data/anatomy/[a-z][a-z0-9_]*/source_(anterior|posterior|lateral|medial|oblique)\\.(svg|png)$"
     },
     "modifications": {
       "type": "string",

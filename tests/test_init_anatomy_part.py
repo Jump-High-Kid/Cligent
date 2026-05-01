@@ -37,7 +37,7 @@ def test_build_meta_known_slug(fake_root: Path) -> None:
     assert meta["body_part_ko"] == "전경부"
     assert meta["license_url"] == "https://creativecommons.org/licenses/by/4.0/"
     assert meta["attribution_text"] == "Servier Medical Art licensed under CC BY 4.0"
-    assert meta["file_path"] == "data/anatomy/neck_anterior/source.svg"
+    assert meta["file_path"] == "data/anatomy/neck_anterior/source_anterior.svg"
 
 
 def test_build_meta_unknown_slug_raises(fake_root: Path) -> None:
@@ -97,6 +97,7 @@ def test_write_meta_existing_raises_without_force(fake_root: Path) -> None:
 
 
 def test_write_meta_force_overwrites(fake_root: Path) -> None:
+    """force는 같은 view의 기존 meta 파일을 덮어씀."""
     meta1 = init.build_meta(
         slug="hand",
         view="anterior",
@@ -106,13 +107,35 @@ def test_write_meta_force_overwrites(fake_root: Path) -> None:
     init.write_meta("hand", meta1)
     meta2 = init.build_meta(
         slug="hand",
-        view="posterior",
-        source="Servier Medical Art",
-        license_str="CC BY 4.0",
+        view="anterior",
+        source="Wikimedia Commons",
+        license_str="CC BY-SA 4.0",
     )
     target = init.write_meta("hand", meta2, overwrite=True)
     loaded = json.loads(target.read_text(encoding="utf-8"))
-    assert loaded["view_angle"] == "posterior"
+    assert loaded["source"] == "Wikimedia Commons"
+
+
+def test_write_meta_multi_view_coexist(fake_root: Path) -> None:
+    """같은 부위에 다른 view 자료가 공존 (덮어쓰지 않음)."""
+    m_ant = init.build_meta(
+        slug="shoulder",
+        view="anterior",
+        source="Wikimedia Commons",
+        license_str="CC BY-SA 4.0",
+    )
+    m_post = init.build_meta(
+        slug="shoulder",
+        view="posterior",
+        source="Wikimedia Commons",
+        license_str="CC BY-SA 4.0",
+    )
+    p1 = init.write_meta("shoulder", m_ant)
+    p2 = init.write_meta("shoulder", m_post)
+    assert p1.name == "meta_anterior.json"
+    assert p2.name == "meta_posterior.json"
+    assert p1.exists()
+    assert p2.exists()
 
 
 def test_main_cli_success(fake_root: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -137,7 +160,7 @@ def test_main_cli_with_url(fake_root: Path) -> None:
         ["chest", "--url", "https://smart.servier.com/example/", "--view", "anterior"]
     )
     assert rc == 0
-    target = fake_root / "data" / "anatomy" / "chest" / "meta.json"
+    target = fake_root / "data" / "anatomy" / "chest" / "meta_anterior.json"
     loaded = json.loads(target.read_text(encoding="utf-8"))
     assert loaded["source_url"] == "https://smart.servier.com/example/"
 
@@ -146,6 +169,6 @@ def test_main_cli_wikimedia_default_license(fake_root: Path) -> None:
     """Wikimedia source는 CC BY-SA 4.0 default."""
     rc = init.main(["skeleton", "--source", "Wikimedia Commons"])
     assert rc == 0
-    target = fake_root / "data" / "anatomy" / "skeleton" / "meta.json"
+    target = fake_root / "data" / "anatomy" / "skeleton" / "meta_anterior.json"
     loaded = json.loads(target.read_text(encoding="utf-8"))
     assert loaded["license"] == "CC BY-SA 4.0"

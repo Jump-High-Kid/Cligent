@@ -167,7 +167,8 @@ def fetch_and_save(
                 ext = determine_extension(image_url, image_bytes)
                 target_dir = repo_root() / "data" / "anatomy" / slug
                 target_dir.mkdir(parents=True, exist_ok=True)
-                image_target = target_dir / f"source.{ext}"
+                # view 접미사로 같은 부위 다중 자료 지원
+                image_target = target_dir / f"source_{view}.{ext}"
                 image_target.write_bytes(image_bytes)
                 image_saved_path = str(image_target.relative_to(repo_root()))
         except ImportError as e:

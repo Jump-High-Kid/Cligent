@@ -41,19 +41,21 @@ def _valid_meta() -> dict:
         "license_url": "https://creativecommons.org/licenses/by/4.0/",
         "attribution_text": "Servier Medical Art licensed under CC BY 4.0",
         "downloaded_at": "2026-05-01",
-        "file_path": "data/anatomy/neck_anterior/source.svg",
+        "file_path": "data/anatomy/neck_anterior/source_anterior.svg",
     }
 
 
 def _write_meta(root: Path, slug: str, meta: dict, with_file: bool = True) -> Path:
+    """meta_{view}.json + source_{view}.svg로 기록."""
     part_dir = root / "data" / "anatomy" / slug
     part_dir.mkdir(parents=True, exist_ok=True)
+    view = meta["view_angle"]
     if with_file:
-        (part_dir / "source.svg").write_text(
+        (part_dir / f"source_{view}.svg").write_text(
             '<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg"/>',
             encoding="utf-8",
         )
-    target = part_dir / "meta.json"
+    target = part_dir / f"meta_{view}.json"
     target.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
     return target
 
@@ -107,7 +109,7 @@ def test_duplicate_asset_id_fails(fake_root: Path) -> None:
     m2 = _valid_meta()
     m2["body_part_slug"] = "shoulder"
     m2["body_part_ko"] = "견관절"
-    m2["file_path"] = "data/anatomy/shoulder/source.svg"
+    m2["file_path"] = "data/anatomy/shoulder/source_anterior.svg"
     # asset_id는 그대로 유지 → 중복
     _write_meta(fake_root, "neck_anterior", m1)
     _write_meta(fake_root, "shoulder", m2)
@@ -158,6 +160,32 @@ def test_progress_count(fake_root: Path) -> None:
     assert "shoulder" in pending
 
 
+def test_progress_counts_each_part_once_with_multiple_views(fake_root: Path) -> None:
+    """같은 부위에 anterior + posterior 자료가 둘 다 있어도 done 1로 카운트."""
+    m_ant = _valid_meta()
+    m_post = _valid_meta()
+    m_post["asset_id"] = "anatomy_neck_anterior_posterior_v1"
+    m_post["view_angle"] = "posterior"
+    m_post["file_path"] = "data/anatomy/neck_anterior/source_posterior.svg"
+    _write_meta(fake_root, "neck_anterior", m_ant)
+    _write_meta(fake_root, "neck_anterior", m_post)
+    done, total, pending = v.compute_progress(v.load_slugs())
+    assert done == 1
+    assert total == 30
+
+
+def test_multi_view_both_validated(fake_root: Path) -> None:
+    """같은 부위 두 view 메타 모두 스키마/파일 검증 통과."""
+    m_ant = _valid_meta()
+    m_post = _valid_meta()
+    m_post["asset_id"] = "anatomy_neck_anterior_posterior_v1"
+    m_post["view_angle"] = "posterior"
+    m_post["file_path"] = "data/anatomy/neck_anterior/source_posterior.svg"
+    _write_meta(fake_root, "neck_anterior", m_ant)
+    _write_meta(fake_root, "neck_anterior", m_post)
+    assert v.run() == 0
+
+
 # 13
 def test_strict_fails_under_30(fake_root: Path) -> None:
     _write_meta(fake_root, "neck_anterior", _valid_meta())
@@ -168,7 +196,7 @@ def test_strict_fails_under_30(fake_root: Path) -> None:
 def test_invalid_json_fails(fake_root: Path) -> None:
     part_dir = fake_root / "data" / "anatomy" / "neck_anterior"
     part_dir.mkdir(parents=True)
-    (part_dir / "meta.json").write_text("{ broken json", encoding="utf-8")
+    (part_dir / "meta_anterior.json").write_text("{ broken json", encoding="utf-8")
     assert v.run() == 1
 
 
@@ -183,11 +211,11 @@ def test_empty_state_fails_strict(fake_root: Path) -> None:
 
 def test_extension_not_in_whitelist_fails(fake_root: Path) -> None:
     meta = _valid_meta()
-    meta["file_path"] = "data/anatomy/neck_anterior/source.jpg"
+    meta["file_path"] = "data/anatomy/neck_anterior/source_anterior.jpg"
     part_dir = fake_root / "data" / "anatomy" / "neck_anterior"
     part_dir.mkdir(parents=True, exist_ok=True)
-    (part_dir / "source.jpg").write_text("fake", encoding="utf-8")
-    (part_dir / "meta.json").write_text(
+    (part_dir / "source_anterior.jpg").write_text("fake", encoding="utf-8")
+    (part_dir / "meta_anterior.json").write_text(
         json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     assert v.run() == 1

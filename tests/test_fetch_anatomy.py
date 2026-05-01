@@ -121,7 +121,7 @@ def test_fetch_and_save_manual_mode_creates_meta(fake_root: Path) -> None:
     )
     assert result["manual_mode"] is True
     assert result["asset_id"] == "anatomy_neck_anterior_anterior_v1"
-    target = fake_root / "data" / "anatomy" / "neck_anterior" / "meta.json"
+    target = fake_root / "data" / "anatomy" / "neck_anterior" / "meta_anterior.json"
     assert target.exists()
     loaded = json.loads(target.read_text(encoding="utf-8"))
     assert loaded["source"] == "Servier Medical Art"
@@ -148,18 +148,51 @@ def test_fetch_and_save_with_mocked_playwright(
         view="anterior",
     )
     assert result["manual_mode"] is False
-    assert result["image_saved"] == "data/anatomy/neck_anterior/source.svg"
+    assert result["image_saved"] == "data/anatomy/neck_anterior/source_anterior.svg"
 
-    image_target = fake_root / "data" / "anatomy" / "neck_anterior" / "source.svg"
+    image_target = (
+        fake_root / "data" / "anatomy" / "neck_anterior" / "source_anterior.svg"
+    )
     assert image_target.exists()
     assert image_target.read_bytes() == fake_svg
 
     meta = json.loads(
-        (fake_root / "data" / "anatomy" / "neck_anterior" / "meta.json").read_text(
-            encoding="utf-8"
-        )
+        (
+            fake_root / "data" / "anatomy" / "neck_anterior" / "meta_anterior.json"
+        ).read_text(encoding="utf-8")
     )
     assert "Anterior neck" in meta.get("notes", "")
+
+
+def test_fetch_and_save_multi_view_coexist(
+    fake_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """같은 부위에 anterior + posterior 자료가 덮어쓰지 않고 공존."""
+    fake_svg = b'<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg"/>'
+    monkeypatch.setattr(
+        fetch,
+        "fetch_page",
+        lambda url, timeout_ms=30000: (
+            SERVIER_SAMPLE_HTML,
+            fake_svg,
+            "https://smart.servier.com/wp-content/uploads/x.svg",
+        ),
+    )
+    fetch.fetch_and_save(
+        slug="shoulder",
+        url="https://smart.servier.com/anterior/",
+        view="anterior",
+    )
+    fetch.fetch_and_save(
+        slug="shoulder",
+        url="https://smart.servier.com/posterior/",
+        view="posterior",
+    )
+    base = fake_root / "data" / "anatomy" / "shoulder"
+    assert (base / "source_anterior.svg").exists()
+    assert (base / "source_posterior.svg").exists()
+    assert (base / "meta_anterior.json").exists()
+    assert (base / "meta_posterior.json").exists()
 
 
 def test_fetch_and_save_playwright_missing_falls_back_to_manual(

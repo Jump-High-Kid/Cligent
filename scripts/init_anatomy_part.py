@@ -90,7 +90,8 @@ def build_meta(
 
     body_part_ko = parts[slug]["ko"]
     asset_id = f"anatomy_{slug}_{view}_v{version}"
-    file_path = f"data/anatomy/{slug}/source.svg"
+    # 다중 view 지원: 부위당 여러 자료를 view_angle 접미사로 구분.
+    file_path = f"data/anatomy/{slug}/source_{view}.svg"
 
     return {
         "asset_id": asset_id,
@@ -111,13 +112,18 @@ def build_meta(
 
 
 def write_meta(slug: str, meta: dict, overwrite: bool = False) -> Path:
+    """meta_{view}.json 파일로 기록. view는 meta dict의 view_angle 필드에서 추출."""
+    view = meta.get("view_angle", "")
+    if view not in VALID_VIEWS:
+        raise ValueError(f"meta missing valid view_angle: {view!r}")
+
     target_dir = repo_root() / "data" / "anatomy" / slug
     target_dir.mkdir(parents=True, exist_ok=True)
-    target = target_dir / "meta.json"
+    target = target_dir / f"meta_{view}.json"
 
     if target.exists() and not overwrite:
         raise FileExistsError(
-            f"meta.json already exists: {target}\nuse --force to overwrite"
+            f"{target.name} already exists: {target}\nuse --force to overwrite"
         )
 
     with target.open("w", encoding="utf-8") as f:
@@ -190,7 +196,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args.source_url:
         print("⚠ source_url 미입력 — meta.json 열어서 직접 입력 필요")
     print(f"\n다음 단계:")
-    print(f"  1. cp <자료 파일> data/anatomy/{args.slug}/source.svg")
+    print(f"  1. cp <자료 파일> data/anatomy/{args.slug}/source_{args.view}.svg")
     print(f"  2. python scripts/validate_anatomy_meta.py")
     return 0
 

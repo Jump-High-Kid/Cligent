@@ -48,8 +48,8 @@ def build_canonical_attribution(source: str, license_str: str) -> str:
 
 
 def find_meta_files() -> list[Path]:
-    """data/anatomy/{slug}/meta.json 찾기."""
-    return sorted(anatomy_dir().glob("*/meta.json"))
+    """data/anatomy/{slug}/meta_{view}.json 찾기. 부위당 다중 view 지원."""
+    return sorted(anatomy_dir().glob("*/meta_*.json"))
 
 
 def load_meta(path: Path) -> dict:
@@ -167,14 +167,18 @@ def check_duplicate_asset_ids(metas: list[dict]) -> list[str]:
 
 
 def compute_progress(slugs: dict) -> tuple[int, int, list[str]]:
-    """완료 부위 카운트 + 미완 slug 리스트."""
+    """완료 부위 카운트 + 미완 slug 리스트.
+
+    부위 단위 진행률: 부위 디렉토리에 meta_*.json 1개라도 있으면 done.
+    여러 view 자료를 받아도 부위 1개로 카운트.
+    """
     parts = slugs["parts"]
     total = len(parts)
     done: list[str] = []
     pending: list[str] = []
     for slug in parts:
-        meta_path = anatomy_dir() / slug / "meta.json"
-        if meta_path.exists():
+        slug_dir = anatomy_dir() / slug
+        if slug_dir.is_dir() and any(slug_dir.glob("meta_*.json")):
             done.append(slug)
         else:
             pending.append(slug)
@@ -192,13 +196,15 @@ def run(fix: bool = False, strict: bool = False, verbose: bool = False) -> int:
 
     for meta_path in find_meta_files():
         slug = meta_path.parent.name
+        # 부위당 여러 메타 — 키는 "slug/meta_view.json" 형태로 unique
+        key = f"{slug}/{meta_path.name}"
         try:
             meta = load_meta(meta_path)
         except json.JSONDecodeError as e:
-            failures[slug] = [f"invalid JSON: {e}"]
+            failures[key] = [f"invalid JSON: {e}"]
             continue
         except Exception as e:
-            failures[slug] = [f"load error: {e}"]
+            failures[key] = [f"load error: {e}"]
             continue
 
         # --fix 모드: attribution을 schema 검증 전에 먼저 수정 (minLength 등 우회)
@@ -215,7 +221,7 @@ def run(fix: bool = False, strict: bool = False, verbose: bool = False) -> int:
         errors += attr_errors
 
         if errors:
-            failures[slug] = errors
+            failures[key] = errors
         metas.append(meta)
 
     dup_errors = check_duplicate_asset_ids(metas)
@@ -236,8 +242,8 @@ def run(fix: bool = False, strict: bool = False, verbose: bool = False) -> int:
 
     if failures or dup_errors:
         print("\n❌ 검증 실패:")
-        for slug, errs in failures.items():
-            print(f"  [{slug}]")
+        for key, errs in failures.items():
+            print(f"  [{key}]")
             for e in errs:
                 print(f"    - {e}")
         for e in dup_errors:

@@ -1,0 +1,16 @@
+{
+  "asset_id": "anatomy_shoulder_posterior_v1",
+  "body_part_slug": "shoulder",
+  "body_part_ko": "견관절",
+  "view_angle": "posterior",
+  "source": "Wikimedia Commons",
+  "source_url": "https://en.wikipedia.org/wiki/File:Shoulder_joint_back-en.svg",
+  "license": "CC BY-SA 4.0",
+  "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+  "attribution_text": "Wikimedia Commons licensed under CC BY-SA 4.0",
+  "downloaded_at": "2026-05-01",
+  "file_path": "data/anatomy/shoulder/source_posterior.png",
+  "modifications": "",
+  "acupoints": [],
+  "notes": "page title: File:Shoulder joint back-en.svg - Wikipedia"
+}
