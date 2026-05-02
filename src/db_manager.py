@@ -1,10 +1,13 @@
 """
 db_manager.py — SQLite 데이터베이스 초기화 및 연결 관리
 
-테이블:
-  clinics  — 한의원 정보 + 슬롯 한도
-  users    — 로그인 사용자 (역할 포함)
-  invites  — 72시간 유효 1회용 초대 토큰
+테이블 (대표):
+  clinics, users, invites              — 인증·온보딩
+  plans, usage_logs, subscriptions     — 결제·플랜
+  feedback, beta_applicants, ...       — 운영
+  image_sessions                       — 1편 블로그당 1세션, regen/edit 카운트
+  blog_chat_sessions                   — chat-driven UX state (서버 보유)
+  image_jobs                           — 이미지 생성 큐 (M1+ worker pool)
 
 trial_expires_at 정책:
   - create_clinic() 호출 시 1회만 NOW + 14일로 설정
@@ -214,11 +217,60 @@ def init_db() -> None:
               ON image_sessions(clinic_id);
             CREATE INDEX IF NOT EXISTS idx_image_sessions_created
               ON image_sessions(created_at);
+
+            -- 블로그 챗 세션 (Step 1, v10 plan E1 — 서버 state 보유)
+            -- 클라는 session_id만 보유, 서버가 state 100% 보유 → 끊김 복구·다중 탭 가드
+            -- in-memory LRU + DB 백업 (TTL 24h, 미완료 세션 일일 정리)
+            -- stage 값: topic / length / questions / seo / generating / image / feedback / done
+            CREATE TABLE IF NOT EXISTS blog_chat_sessions (
+                session_id      TEXT    PRIMARY KEY,                 -- UUID4
+                clinic_id       INTEGER NOT NULL REFERENCES clinics(id),
+                user_id         INTEGER REFERENCES users(id),
+                stage           TEXT    NOT NULL DEFAULT 'topic',
+                state_json      TEXT    NOT NULL,                    -- 누적 입력·옵션·본문·이미지 메타
+                created_at      TEXT    NOT NULL DEFAULT (datetime('now', 'utc')),
+                last_active_at  TEXT    NOT NULL DEFAULT (datetime('now', 'utc'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_blog_chat_sessions_clinic
+              ON blog_chat_sessions(clinic_id, last_active_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_blog_chat_sessions_active
+              ON blog_chat_sessions(last_active_at);
+
+            -- 이미지 생성 작업 큐 (Step 1, v10 plan E3 + worker pool)
+            -- M0(5인): 동기 호출, 큐 미사용 (job 행은 추적용으로만 기록)
+            -- M1(25인): worker pool 동적 (concurrency = MIN(IPM × 0.6, active_sessions))
+            -- M2(50인): + Batch API 24h 모드
+            -- job_type: initial / regen / edit
+            -- status: queued / running / done / failed
+            CREATE TABLE IF NOT EXISTS image_jobs (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id      TEXT    NOT NULL,                    -- blog_chat_sessions.session_id
+                clinic_id       INTEGER NOT NULL REFERENCES clinics(id),
+                user_id         INTEGER REFERENCES users(id),
+                job_type        TEXT    NOT NULL,
+                payload_json    TEXT    NOT NULL,
+                status          TEXT    NOT NULL DEFAULT 'queued',
+                submitted_at    TEXT    NOT NULL DEFAULT (datetime('now', 'utc')),
+                started_at      TEXT,
+                completed_at    TEXT,
+                result_json     TEXT,
+                error_message   TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_image_jobs_status_time
+              ON image_jobs(status, submitted_at);
+            CREATE INDEX IF NOT EXISTS idx_image_jobs_clinic
+              ON image_jobs(clinic_id);
+            CREATE INDEX IF NOT EXISTS idx_image_jobs_session
+              ON image_jobs(session_id);
         """)
-        # feedback 컬럼 마이그레이션 (admin 뷰어 — viewed_at)
+        # feedback 컬럼 마이그레이션
+        # - viewed_at: admin 뷰어 미확인/확인 토글
+        # - context_json: blog_chat 발생 단계·session_id·error 등 (어드민 펼침용)
         existing_fb = {row[1] for row in conn.execute("PRAGMA table_info(feedback)")}
         if "viewed_at" not in existing_fb:
             conn.execute("ALTER TABLE feedback ADD COLUMN viewed_at TEXT")
+        if "context_json" not in existing_fb:
+            conn.execute("ALTER TABLE feedback ADD COLUMN context_json TEXT")
 
         # beta_applicants 컬럼 마이그레이션 (라이프사이클 강화 2026-04-29)
         existing_ba = {row[1] for row in conn.execute("PRAGMA table_info(beta_applicants)")}
@@ -266,6 +318,9 @@ def init_db() -> None:
             # 어드민 클리닉 플래그 — 일반 직원이 합류하지 못하도록 차단
             ("is_admin_clinic",      "INTEGER DEFAULT 0"),
             ("naver_blog_id",        "TEXT"),               # 네이버 블로그 아이디 (발행 확인용)
+            # Step 1 Phase 1F — 블로그 챗 Cohort 1 게이트
+            # 0 = 미노출(/blog 폼만) / 1 = /blog/chat 진입 허용
+            ("chat_beta_enabled",    "INTEGER DEFAULT 0"),
         ]:
             if col not in existing:
                 conn.execute(f"ALTER TABLE clinics ADD COLUMN {col} {definition}")

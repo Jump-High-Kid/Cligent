@@ -16,6 +16,9 @@
   .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24; }
   .filter-btn { padding:6px 14px; border-radius:9999px; font-size:13px; font-weight:600; background:#f5f5f4; color:#57534e; }
   .filter-btn.active { background:#064e3b; color:#fff; }
+  /* 출처(source) 뱃지 — sage-tint 톤, 페이지 라벨과 시각 분리 */
+  .src-chat { display:inline-flex; align-items:center; gap:3px; padding:1px 8px; border-radius:9999px;
+              font-size:11px; font-weight:600; background:#eef1ea; color:#4b5b46; }
 </style>
 </head>
 <body class="text-stone-800">
@@ -80,11 +83,39 @@
         const cardClass = isViewed
           ? 'bg-stone-50 border-stone-200'
           : 'bg-emerald-50/40 border-emerald-200';
+        // context_json: blog_chat 등 발생 단계·session_id·error 컨텍스트
+        let ctxPretty = '';
+        let ctxSource = '';
+        if (f.context_json) {
+          try {
+            const parsed = JSON.parse(f.context_json);
+            ctxPretty = JSON.stringify(parsed, null, 2);
+            ctxSource = (parsed && parsed.source) ? String(parsed.source) : '';
+          } catch (_) {
+            ctxPretty = String(f.context_json);
+          }
+        }
+        // page="blog_chat" 도 같은 출처로 인식 (안전망)
+        const isBlogChat = ctxSource === 'blog_chat' || (f.page || '') === 'blog_chat';
+        const sourceBadge = isBlogChat
+          ? `<span class="src-chat" title="블로그 챗에서 수집됨">
+               <span class="material-symbols-outlined text-[12px]">forum</span>블로그 챗
+             </span>`
+          : '';
+        const ctxBlock = ctxPretty ? `
+          <details class="mt-2 group">
+            <summary class="text-[11px] text-stone-500 cursor-pointer hover:text-stone-800 select-none">
+              <span class="material-symbols-outlined text-[14px] align-middle">expand_more</span>
+              컨텍스트 보기
+            </summary>
+            <pre class="mt-2 text-[11px] bg-stone-100 text-stone-700 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap break-words">${esc(ctxPretty)}</pre>
+          </details>` : '';
         return `
           <div class="border ${cardClass} rounded-xl p-4">
             <div class="flex items-start justify-between gap-2 mb-2 flex-wrap">
               <div class="flex items-center gap-2 text-xs text-stone-500 flex-wrap">
                 ${!isViewed ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-700 text-white">NEW</span>' : ''}
+                ${sourceBadge}
                 <span class="font-semibold text-stone-700">${esc(f.clinic_name || ('clinic#' + (f.clinic_id || '?')))}</span>
                 <span>·</span>
                 <span>${esc(f.user_email || ('user#' + (f.user_id || '?')))}</span>
@@ -94,6 +125,7 @@
               <span class="text-xs text-stone-400">${fmtDate(f.created_at)}</span>
             </div>
             <p class="text-sm text-stone-800 whitespace-pre-wrap break-words">${esc(f.message)}</p>
+            ${ctxBlock}
             <div class="mt-3 flex items-center gap-2">
               ${isViewed
                 ? `<button onclick="unview(${f.id})" class="text-xs px-3 py-1.5 bg-stone-100 hover:bg-stone-200 rounded-lg text-stone-700">미확인으로 되돌리기</button>
