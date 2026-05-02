@@ -85,25 +85,15 @@ import anthropic
 from collections import defaultdict
 from time import time as _time_now
 
-# ── API 키 암호화/복호화 (Fernet, SECRET_KEY 파생) ─────────────────
-def _get_fernet():
-    from cryptography.fernet import Fernet
-    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-    from cryptography.hazmat.primitives import hashes
-    kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=b"cligent_v1", iterations=100_000)
-    raw = kdf.derive(_secret.encode())
-    return Fernet(base64.urlsafe_b64encode(raw))
-
-def _encrypt_key(plain: str) -> str:
-    return _get_fernet().encrypt(plain.encode()).decode()
-
-def _decrypt_key(enc: str) -> str:
-    return _get_fernet().decrypt(enc.encode()).decode()
-
-def _mask_key(plain: str) -> str:
-    if len(plain) <= 8:
-        return "****"
-    return plain[:10] + "****" + plain[-4:]
+# ── API 키 암호화/복호화 → src/crypto_utils.py 로 이동 (v0.9.0).
+# main.py 내부 호출자(어드민 OpenAI 키 라우트 등) 및 tests/test_onboarding 의
+# monkeypatch.setattr(_main, "_get_fernet", ...) 호환을 위한 backward-compat alias.
+from crypto_utils import (
+    _get_fernet,
+    encrypt_key as _encrypt_key,
+    decrypt_key as _decrypt_key,
+    mask_key as _mask_key,
+)
 
 from auth_manager import (
     COOKIE_NAME,
@@ -112,7 +102,6 @@ from auth_manager import (
     complete_onboarding,
     create_access_token,
     create_invite,
-    create_reinvite,
     decode_token,
     get_current_user,
     verify_invite,
@@ -121,17 +110,11 @@ from blog_generator import generate_blog_stream
 from youtube_generator import generate_youtube_stream
 from blog_history import get_blog_stats, purge_expired_texts, save_blog_entry, get_history_list, get_blog_text, update_naver_url
 from blog_generator import build_prompt_text
-from config_loader import load_config, save_blog_config, save_prompt
+from config_loader import load_config
 from conversation_flow import generate_conversation_flow
 from db_manager import create_clinic, init_db, seed_demo_clinic, seed_demo_owner, seed_first_announcement
 from image_prompt_generator import generate_image_prompts_stream
-from module_manager import (
-    get_allowed_modules,
-    get_module_info,
-    role_has_access,
-    save_staff_permissions,
-)
-from settings_manager import get_setup_wizard_data, save_wizard_result
+# module_manager / settings_manager → routers/clinic.py 로 이동 (v0.9.0).
 from agent_router import AgentRouter
 from agent_middleware import AgentMiddleware
 from plan_guard import (
@@ -487,8 +470,10 @@ async def _global_exc_handler(request: Request, exc: Exception):
 # ── 라우터 등록 (v0.9.0 분할) ─────────────────────────────────────
 # main.py 4,000줄 → 도메인별 6개 라우터로 분할 진행 중
 from routers import auth as _auth_router  # noqa: E402
+from routers import clinic as _clinic_router  # noqa: E402
 
 app.include_router(_auth_router.router)
+app.include_router(_clinic_router.router)
 
 # 기존 호출자 backward-compat: tests/test_beta_apply 가 main 에서 import.
 _ip_apply_buckets = _auth_router._ip_apply_buckets
@@ -532,13 +517,7 @@ async def dashboard_page(request: Request):
     return FileResponse(ROOT / "templates" / "dashboard.html", headers=_NO_CACHE)
 
 
-@app.get("/settings")
-async def settings_page(request: Request):
-    """설정 페이지"""
-    token = request.cookies.get(COOKIE_NAME)
-    if not token:
-        return RedirectResponse("/login")
-    return FileResponse(ROOT / "templates" / "settings.html", headers=_NO_CACHE)
+# /settings, /settings/setup → routers/clinic.py 로 이동 (v0.9.0).
 
 
 @app.get("/help")
@@ -548,20 +527,6 @@ async def help_page(request: Request):
     if not token:
         return RedirectResponse("/login")
     return FileResponse(ROOT / "templates" / "help.html", headers=_NO_CACHE)
-
-
-@app.get("/settings/setup")
-async def settings_setup(request: Request):
-    """RBAC 초기 설정 위자드 — 대표원장 전용"""
-    token = request.cookies.get(COOKIE_NAME)
-    if not token:
-        return RedirectResponse("/login")
-
-    template_path = ROOT / "templates" / "settings_setup.html"
-    html = template_path.read_text(encoding="utf-8")
-    wizard_data = get_setup_wizard_data()
-    html = html.replace("__RBAC_DATA__", _json.dumps(wizard_data, ensure_ascii=False))
-    return HTMLResponse(content=html, headers=_NO_CACHE)
 
 
 # /, /robots.txt, /sitemap.xml → routers/auth.py 로 이동 (v0.9.0).
@@ -576,441 +541,8 @@ async def api_version() -> JSONResponse:
 # ── 인증 API → routers/auth.py 로 이동 (v0.9.0) ─────────────────────
 
 
-# ── RBAC 설정 API ─────────────────────────────────────────────────
-
-@app.get("/api/settings/staff")
-async def get_staff_list(user: dict = Depends(get_current_user)):
-    """설정 페이지용 직원 목록 — DB에서 직접 조회"""
-    with __import__('db_manager').get_db() as conn:
-        rows = conn.execute(
-            "SELECT id, email, role, is_active FROM users WHERE clinic_id = ? ORDER BY id",
-            (user["clinic_id"],),
-        ).fetchall()
-    staff = [dict(r) for r in rows]
-    # 각 직원의 모듈 권한 읽기
-    import json as _j
-    staff_path = ROOT / "data" / "staff_permissions.json"
-    perms = _j.loads(staff_path.read_text()) if staff_path.exists() else {}
-    for s in staff:
-        key = str(s["id"])
-        s["modules"] = perms.get(key, {}).get("modules", [])
-        s["name"] = perms.get(key, {}).get("name", s["email"].split("@")[0])
-    return JSONResponse({"staff": staff})
-
-
-@app.post("/api/settings/staff/modules")
-async def save_staff_modules(request: Request, user: dict = Depends(get_current_user)):
-    """직원 모듈 권한 즉시 저장 (토글 자동저장용)"""
-    if not role_has_access(user["role"], ["chief_director", "director"]):
-        return JSONResponse({"detail": "권한이 없습니다."}, status_code=403)
-    body = await request.json()
-    staff_id = str(body.get("staff_id", "")).strip()
-    modules = body.get("modules", [])
-    if not staff_id:
-        return JSONResponse({"detail": "staff_id가 필요합니다."}, status_code=400)
-    # 이름 조회
-    with __import__('db_manager').get_db() as conn:
-        row = conn.execute("SELECT email FROM users WHERE id = ?", (staff_id,)).fetchone()
-    name = row["email"].split("@")[0] if row else staff_id
-    result = save_staff_permissions(staff_id, name, modules)
-    return JSONResponse({"ok": True, **result})
-
-
-@app.patch("/api/settings/staff/{staff_id}")
-async def update_staff(staff_id: str, request: Request, user: dict = Depends(get_current_user)):
-    """직원 이름·역할 변경 — director 이상 전용"""
-    if not role_has_access(user["role"], ["chief_director", "director"]):
-        return JSONResponse({"detail": "권한이 없습니다."}, status_code=403)
-
-    body = await request.json()
-    new_name = body.get("name", "").strip()
-    new_role = body.get("role", "").strip()
-
-    VALID_ROLES = {"team_member", "team_leader", "manager", "director", "chief_director"}
-
-    with __import__('db_manager').get_db() as conn:
-        row = conn.execute(
-            "SELECT id, email, role FROM users WHERE id = ? AND clinic_id = ?",
-            (staff_id, user["clinic_id"]),
-        ).fetchone()
-        if not row:
-            return JSONResponse({"detail": "직원을 찾을 수 없습니다."}, status_code=404)
-
-        # chief_director 역할은 변경 금지
-        if row["role"] == "chief_director" and new_role and new_role != "chief_director":
-            return JSONResponse({"detail": "대표원장 역할은 변경할 수 없습니다."}, status_code=403)
-
-        if new_role:
-            if new_role not in VALID_ROLES:
-                return JSONResponse({"detail": "유효하지 않은 역할입니다."}, status_code=400)
-            conn.execute("UPDATE users SET role = ? WHERE id = ?", (new_role, staff_id))
-
-    if new_name:
-        import json as _j
-        staff_path = ROOT / "data" / "staff_permissions.json"
-        perms = _j.loads(staff_path.read_text()) if staff_path.exists() else {}
-        if staff_id not in perms:
-            perms[staff_id] = {"modules": []}
-        perms[staff_id]["name"] = new_name
-        staff_path.write_text(_j.dumps(perms, ensure_ascii=False, indent=2))
-
-    return JSONResponse({"ok": True})
-
-
-@app.post("/api/settings/staff/{staff_id}/reinvite")
-async def reinvite_staff(staff_id: str, request: Request, user: dict = Depends(get_current_user)):
-    """비밀번호 재설정 링크 생성 — director 이상 전용"""
-    if not role_has_access(user["role"], ["chief_director", "director"]):
-        return JSONResponse({"detail": "권한이 없습니다."}, status_code=403)
-
-    # 베타 정책: 본인 클리닉 외 직원 관리 기능 차단
-    if not _is_admin_clinic(user):
-        return JSONResponse(
-            {"detail": "베타 단계에서는 직원 관리 기능이 일시 비활성화되어 있습니다."},
-            status_code=403,
-        )
-
-    with __import__('db_manager').get_db() as conn:
-        row = conn.execute(
-            "SELECT id, email, role FROM users WHERE id = ? AND clinic_id = ? AND is_active = 1",
-            (staff_id, user["clinic_id"]),
-        ).fetchone()
-    if not row:
-        return JSONResponse({"detail": "직원을 찾을 수 없습니다."}, status_code=404)
-
-    token = create_reinvite(
-        clinic_id=user["clinic_id"],
-        email=row["email"],
-        role=row["role"],
-        created_by=user["id"],
-    )
-    base_url = str(request.base_url).rstrip("/")
-    invite_url = f"{base_url}/onboard?token={token}"
-    return JSONResponse({"ok": True, "invite_url": invite_url})
-
-
-@app.delete("/api/settings/staff/{staff_id}")
-async def deactivate_staff(staff_id: str, user: dict = Depends(get_current_user)):
-    """직원 비활성화 (소프트 딜리트) — director 이상 전용"""
-    if not role_has_access(user["role"], ["chief_director", "director"]):
-        return JSONResponse({"detail": "권한이 없습니다."}, status_code=403)
-
-    with __import__('db_manager').get_db() as conn:
-        row = conn.execute(
-            "SELECT id, role FROM users WHERE id = ? AND clinic_id = ?",
-            (staff_id, user["clinic_id"]),
-        ).fetchone()
-        if not row:
-            return JSONResponse({"detail": "직원을 찾을 수 없습니다."}, status_code=404)
-        if row["role"] == "chief_director":
-            return JSONResponse({"detail": "대표원장은 비활성화할 수 없습니다."}, status_code=403)
-        if str(staff_id) == str(user["id"]):
-            return JSONResponse({"detail": "본인 계정은 비활성화할 수 없습니다."}, status_code=403)
-
-        conn.execute("UPDATE users SET is_active = 0 WHERE id = ?", (staff_id,))
-
-    return JSONResponse({"ok": True})
-
-
-@app.post("/api/settings/staff/{staff_id}/activate")
-async def activate_staff(staff_id: str, user: dict = Depends(get_current_user)):
-    """비활성화된 직원 재활성화 — director 이상 전용"""
-    if not role_has_access(user["role"], ["chief_director", "director"]):
-        return JSONResponse({"detail": "권한이 없습니다."}, status_code=403)
-
-    with __import__('db_manager').get_db() as conn:
-        row = conn.execute(
-            "SELECT id, role FROM users WHERE id = ? AND clinic_id = ?",
-            (staff_id, user["clinic_id"]),
-        ).fetchone()
-        if not row:
-            return JSONResponse({"detail": "직원을 찾을 수 없습니다."}, status_code=404)
-
-        conn.execute("UPDATE users SET is_active = 1 WHERE id = ?", (staff_id,))
-
-    return JSONResponse({"ok": True})
-
-
-@app.get("/api/settings/clinic/profile")
-async def get_clinic_profile(user: dict = Depends(get_current_user)):
-    """한의원 프로필 조회 — 인증된 사용자라면 누구나 조회 가능"""
-    with __import__('db_manager').get_db() as conn:
-        row = conn.execute(
-            "SELECT name, phone, address, specialty, hours, intro, blog_features, naver_blog_id FROM clinics WHERE id = ?",
-            (user["clinic_id"],),
-        ).fetchone()
-    if not row:
-        return JSONResponse({"detail": "한의원 정보를 찾을 수 없습니다."}, status_code=404)
-    import json as _j
-    hours = None
-    try:
-        hours = _j.loads(row["hours"]) if row["hours"] else None
-    except Exception:
-        hours = None
-    return JSONResponse({
-        "name": row["name"] or "",
-        "phone": row["phone"] or "",
-        "address": row["address"] or "",
-        "specialty": row["specialty"] or "",
-        "hours": hours,
-        "intro": row["intro"] or "",
-        "blog_features": row["blog_features"] or "",
-        "naver_blog_id": row["naver_blog_id"] or "",
-    })
-
-
-@app.post("/api/settings/clinic/profile")
-async def save_clinic_profile(request: Request, user: dict = Depends(get_current_user)):
-    """한의원 프로필 저장 — chief_director 전용"""
-    if not role_has_access(user["role"], ["chief_director"]):
-        return JSONResponse({"detail": "대표원장만 수정할 수 있습니다."}, status_code=403)
-    body = await request.json()
-    import json as _j
-
-    name = body.get("name", "").strip()
-    phone = body.get("phone", "").strip()
-    address = body.get("address", "").strip()
-    specialty = body.get("specialty", "").strip()
-    hours = body.get("hours")  # dict or None
-    intro = body.get("intro", "").strip()
-    blog_features = body.get("blog_features", "").strip()
-    naver_blog_id = body.get("naver_blog_id", "").strip()
-
-    if not name:
-        return JSONResponse({"detail": "한의원 이름은 필수입니다."}, status_code=400)
-
-    hours_json = _j.dumps(hours, ensure_ascii=False) if hours else None
-
-    with __import__('db_manager').get_db() as conn:
-        conn.execute(
-            "UPDATE clinics SET name=?, phone=?, address=?, specialty=?, hours=?, intro=?, blog_features=?, naver_blog_id=? WHERE id=?",
-            (name, phone or None, address or None, specialty or None, hours_json, intro or None, blog_features or None, naver_blog_id or None, user["clinic_id"]),
-        )
-    return JSONResponse({"ok": True})
-
-
-_VALID_MODELS = {
-    "claude-haiku-4-5-20251001",
-    "claude-sonnet-4-6",
-    "claude-opus-4-7",
-}
-
-@app.get("/api/settings/clinic/ai")
-async def get_clinic_ai(user: dict = Depends(get_current_user)):
-    """AI 설정 조회 — chief_director 전용"""
-    if not role_has_access(user["role"], ["chief_director"]):
-        return JSONResponse({"detail": "대표원장만 접근할 수 있습니다."}, status_code=403)
-    with __import__('db_manager').get_db() as conn:
-        row = conn.execute(
-            "SELECT model, monthly_budget_krw, api_key_enc FROM clinics WHERE id = ?",
-            (user["clinic_id"],),
-        ).fetchone()
-    if not row:
-        return JSONResponse({"detail": "한의원 정보를 찾을 수 없습니다."}, status_code=404)
-
-    # DB에 API 키가 없으면 .env 키 사용 여부를 표시
-    api_key_set = bool(row["api_key_enc"])
-    env_key = os.getenv("ANTHROPIC_API_KEY", "")
-    api_key_masked = ""
-    if api_key_set:
-        try:
-            plain = _decrypt_key(row["api_key_enc"])
-            api_key_masked = _mask_key(plain)
-        except Exception:
-            api_key_masked = "복호화 오류"
-    elif env_key:
-        api_key_masked = _mask_key(env_key) + " (.env)"
-
-    return JSONResponse({
-        "model": row["model"] or "claude-sonnet-4-6",
-        "monthly_budget_krw": row["monthly_budget_krw"] or 10000,
-        "api_key_masked": api_key_masked,
-        "api_key_source": "db" if api_key_set else ("env" if env_key else "none"),
-    })
-
-
-@app.post("/api/settings/clinic/ai")
-async def save_clinic_ai(request: Request, user: dict = Depends(get_current_user)):
-    """AI 설정 저장 — chief_director 전용"""
-    if not role_has_access(user["role"], ["chief_director"]):
-        return JSONResponse({"detail": "대표원장만 수정할 수 있습니다."}, status_code=403)
-    body = await request.json()
-
-    model = body.get("model", "").strip()
-    budget = body.get("monthly_budget_krw")
-    api_key_new = body.get("api_key", "").strip()  # 빈 문자열이면 기존 유지
-
-    if model and model not in _VALID_MODELS:
-        return JSONResponse({"detail": "지원하지 않는 모델입니다."}, status_code=400)
-    if budget is not None:
-        try:
-            budget = int(budget)
-            if budget < 0:
-                raise ValueError
-        except (ValueError, TypeError):
-            return JSONResponse({"detail": "예산은 0 이상의 정수여야 합니다."}, status_code=400)
-
-    api_key_enc = None
-    clear_key = body.get("clear_key", False)  # 명시적 키 삭제 요청
-
-    if api_key_new:
-        if not api_key_new.startswith("sk-ant-"):
-            return JSONResponse({"detail": "올바른 Anthropic API 키 형식이 아닙니다. (sk-ant- 로 시작해야 함)"}, status_code=400)
-        api_key_enc = _encrypt_key(api_key_new)
-
-    with __import__('db_manager').get_db() as conn:
-        if api_key_enc:
-            conn.execute(
-                "UPDATE clinics SET model=COALESCE(NULLIF(?,''),(SELECT model FROM clinics WHERE id=?)), "
-                "monthly_budget_krw=COALESCE(?,monthly_budget_krw), api_key_enc=?, api_key_configured=1 WHERE id=?",
-                (model, user["clinic_id"], budget, api_key_enc, user["clinic_id"]),
-            )
-        elif clear_key:
-            # 키 명시적 삭제 시 api_key_configured 리셋
-            conn.execute(
-                "UPDATE clinics SET model=COALESCE(NULLIF(?,''),(SELECT model FROM clinics WHERE id=?)), "
-                "monthly_budget_krw=COALESCE(?,monthly_budget_krw), api_key_enc=NULL, api_key_configured=0 WHERE id=?",
-                (model, user["clinic_id"], budget, user["clinic_id"]),
-            )
-        else:
-            conn.execute(
-                "UPDATE clinics SET model=COALESCE(NULLIF(?,''),(SELECT model FROM clinics WHERE id=?)), "
-                "monthly_budget_krw=COALESCE(?,monthly_budget_krw) WHERE id=?",
-                (model, user["clinic_id"], budget, user["clinic_id"]),
-            )
-    return JSONResponse({"ok": True})
-
-
-@app.post("/api/settings/clinic/ai/validate")
-async def validate_clinic_ai_key(request: Request, user: dict = Depends(get_current_user)):
-    """
-    API 키 유효성 검증 — 온보딩 위자드용.
-    실제 Anthropic API를 호출해 키가 유효한지 확인한다.
-    chief_director만 호출 가능 (AI 설정 권한과 동일).
-    """
-    if not role_has_access(user["role"], ["chief_director"]):
-        return JSONResponse({"detail": "대표원장만 API 키를 설정할 수 있습니다."}, status_code=403)
-
-    body = await request.json()
-    api_key = body.get("api_key", "").strip()
-
-    if not api_key:
-        return JSONResponse({"detail": "API 키를 입력해주세요."}, status_code=400)
-    if not api_key.startswith("sk-ant-"):
-        return JSONResponse({"detail": "올바른 Claude API 키 형식이 아닙니다. (sk-ant- 로 시작해야 함)"}, status_code=400)
-
-    import anthropic
-    import httpx
-    try:
-        client = anthropic.Anthropic(api_key=api_key, timeout=8.0)
-        # models.list()는 가장 저렴한 검증용 호출
-        client.models.list(limit=1)
-        return JSONResponse({"ok": True})
-    except anthropic.AuthenticationError:
-        return JSONResponse({"detail": "유효하지 않은 API 키입니다. 키를 다시 확인해주세요."}, status_code=401)
-    except anthropic.RateLimitError:
-        return JSONResponse({"detail": "잠시 후 다시 시도해주세요. (요청 한도 초과)"}, status_code=429)
-    except (anthropic.APIConnectionError, httpx.TimeoutException):
-        return JSONResponse({"detail": "Anthropic 서버에 연결할 수 없습니다. 인터넷 연결을 확인해주세요."}, status_code=503)
-    except Exception:
-        return JSONResponse({"detail": "키 검증 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."}, status_code=500)
-
-
-@app.post("/api/settings/clinic/ai/onboarding-start")
-async def mark_onboarding_start(user: dict = Depends(get_current_user)):
-    """온보딩 위자드 첫 표시 시각 기록 (첫 블로그까지 시간 측정용)"""
-    from datetime import datetime, timezone
-    with __import__('db_manager').get_db() as conn:
-        conn.execute(
-            "UPDATE clinics SET onboarding_started_at = COALESCE(onboarding_started_at, ?) WHERE id = ?",
-            (datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S+00:00"), user["clinic_id"]),
-        )
-    return JSONResponse({"ok": True})
-
-
-@app.get("/api/settings/blog")
-async def get_blog_settings(user: dict = Depends(get_current_user)):
-    """블로그 설정 조회 — director 이상"""
-    if not role_has_access(user["role"], ["chief_director", "director"]):
-        return JSONResponse({"detail": "director 이상만 접근할 수 있습니다."}, status_code=403)
-    cfg = load_config()
-    return JSONResponse({"flow": cfg.get("flow", {}), "blog": cfg.get("blog", {})})
-
-
-@app.post("/api/settings/blog")
-async def save_blog_settings(request: Request, user: dict = Depends(get_current_user)):
-    """블로그 설정 저장 — director 이상"""
-    if not role_has_access(user["role"], ["chief_director", "director"]):
-        return JSONResponse({"detail": "director 이상만 수정할 수 있습니다."}, status_code=403)
-    body = await request.json()
-
-    flow = body.get("flow", {})
-    blog = body.get("blog", {})
-
-    # 유효성 검사
-    if "questions_count" in flow:
-        qc = int(flow["questions_count"])
-        if not (1 <= qc <= 5):
-            return JSONResponse({"detail": "질문 개수는 1~5 사이여야 합니다."}, status_code=400)
-        flow["questions_count"] = qc
-    if "questions_enabled" in flow:
-        flow["questions_enabled"] = bool(flow["questions_enabled"])
-
-    if "min_chars" in blog:
-        blog["min_chars"] = int(blog["min_chars"])
-    if "max_chars" in blog:
-        blog["max_chars"] = int(blog["max_chars"])
-    if "min_chars" in blog and "max_chars" in blog:
-        if blog["min_chars"] >= blog["max_chars"]:
-            return JSONResponse({"detail": "최소 글자 수는 최대 글자 수보다 작아야 합니다."}, status_code=400)
-
-    VALID_TONES = {"전문적", "친근한", "설명적"}
-    if "tone" in blog and blog["tone"] not in VALID_TONES:
-        return JSONResponse({"detail": f"톤은 {', '.join(VALID_TONES)} 중 하나여야 합니다."}, status_code=400)
-
-    save_blog_config(flow, blog)
-    return JSONResponse({"ok": True})
-
-
-@app.get("/api/settings/blog/prompt")
-async def get_blog_prompt(user: dict = Depends(get_current_user)):
-    """블로그 프롬프트 파일 내용 조회 — director 이상"""
-    if not role_has_access(user["role"], ["chief_director", "director"]):
-        return JSONResponse({"detail": "director 이상만 접근할 수 있습니다."}, status_code=403)
-    from config_loader import load_prompt
-    content = load_prompt("blog")
-    return JSONResponse({"content": content})
-
-
-@app.post("/api/settings/blog/prompt")
-async def save_blog_prompt(request: Request, user: dict = Depends(get_current_user)):
-    """블로그 프롬프트 파일 저장 — chief_director 전용"""
-    if not role_has_access(user["role"], ["chief_director"]):
-        return JSONResponse({"detail": "대표원장만 프롬프트를 수정할 수 있습니다."}, status_code=403)
-    body = await request.json()
-    content = body.get("content", "")
-    if not content.strip():
-        return JSONResponse({"detail": "프롬프트 내용이 비어 있습니다."}, status_code=400)
-    save_prompt("blog", content)
-    return JSONResponse({"ok": True})
-
-
-@app.post("/api/settings/blog/prompt/reset")
-async def reset_blog_prompt(user: dict = Depends(get_current_user)):
-    """블로그 프롬프트를 기본값(blog.default.txt)으로 초기화 — chief_director 전용"""
-    if not role_has_access(user["role"], ["chief_director"]):
-        return JSONResponse({"detail": "대표원장만 프롬프트를 초기화할 수 있습니다."}, status_code=403)
-    default_path = ROOT / "prompts" / "blog.default.txt"
-    if not default_path.exists():
-        return JSONResponse({"detail": "기본 프롬프트 파일이 없습니다."}, status_code=404)
-    content = default_path.read_text(encoding="utf-8")
-    save_prompt("blog", content)
-    return JSONResponse({"ok": True, "content": content})
-
-
-@app.get("/api/settings/rbac")
-async def get_rbac(user: dict = Depends(get_current_user)):
-    return JSONResponse(get_setup_wizard_data())
+# ── 직원 관리·한의원 프로필·AI 설정·블로그 설정·RBAC·모듈 →
+#    routers/clinic.py 로 이동 (v0.9.0).
 
 
 @app.get("/api/settings/plan/usage")
@@ -1331,56 +863,7 @@ async def admin_create_clinic(request: Request):
     return JSONResponse({"clinic_id": clinic_id, "trial_expires_at": trial_expires_at})
 
 
-@app.post("/api/settings/rbac")
-async def save_rbac(request: Request, user: dict = Depends(get_current_user)):
-    """RBAC 설정 저장 — chief_director 전용"""
-    if not role_has_access(user["role"], ["chief_director"]):
-        return JSONResponse({"detail": "대표원장만 RBAC 설정을 변경할 수 있습니다."}, status_code=403)
-
-    body = await request.json()
-    module_permissions = body.get("module_permissions", {})
-    settings_permissions = body.get("settings_permissions", {})
-
-    if not module_permissions or not settings_permissions:
-        return JSONResponse(
-            {"detail": "module_permissions와 settings_permissions가 필요합니다."},
-            status_code=400,
-        )
-
-    save_wizard_result(module_permissions, settings_permissions)
-    return JSONResponse({"ok": True})
-
-
-# ── 모듈 권한 API ─────────────────────────────────────────────────
-
-@app.get("/api/modules/my")
-async def my_modules(user: dict = Depends(get_current_user)):
-    """현재 로그인 사용자에게 허용된 모듈 목록"""
-    allowed = get_allowed_modules(role=user["role"], staff_id=None)
-    return JSONResponse({"role": user["role"], "modules": allowed})
-
-
-@app.get("/api/modules/info")
-async def modules_info(user: dict = Depends(get_current_user)):
-    return JSONResponse(get_module_info())
-
-
-@app.post("/api/modules/config")
-async def save_module_config(request: Request, user: dict = Depends(get_current_user)):
-    """직원 모듈 권한 저장 — director 이상 전용"""
-    if not role_has_access(user["role"], ["chief_director", "director"]):
-        return JSONResponse({"detail": "권한이 없습니다."}, status_code=403)
-
-    body = await request.json()
-    staff_id = body.get("staff_id", "").strip()
-    name = body.get("name", "").strip()
-    modules = body.get("modules", [])
-
-    if not staff_id or not name:
-        return JSONResponse({"detail": "staff_id와 name은 필수입니다."}, status_code=400)
-
-    result = save_staff_permissions(staff_id, name, modules)
-    return JSONResponse({"ok": True, "staff_id": staff_id, **result})
+# ── RBAC POST + 모듈 권한 API → routers/clinic.py 로 이동 (v0.9.0).
 
 
 # ── 블로그 API ────────────────────────────────────────────────────
@@ -2070,19 +1553,7 @@ async def agent_chat(request: Request, current_user: dict = Depends(get_current_
 
 # ── 베타 모집 — 어드민 API ─────────────────────────────────────────
 
-@app.post("/api/settings/clinic/naver-blog-id")
-async def save_naver_blog_id(request: Request, user: dict = Depends(get_current_user)):
-    """네이버 블로그 아이디 저장 — chief_director 전용"""
-    if not role_has_access(user["role"], ["chief_director"]):
-        return JSONResponse({"detail": "대표원장만 수정할 수 있습니다."}, status_code=403)
-    body = await request.json()
-    naver_blog_id = body.get("naver_blog_id", "").strip()
-    with __import__('db_manager').get_db() as conn:
-        conn.execute(
-            "UPDATE clinics SET naver_blog_id=? WHERE id=?",
-            (naver_blog_id or None, user["clinic_id"]),
-        )
-    return JSONResponse({"ok": True})
+# /api/settings/clinic/naver-blog-id → routers/clinic.py 로 이동 (v0.9.0).
 
 
 @app.get("/admin")
