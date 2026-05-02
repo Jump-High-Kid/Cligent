@@ -567,13 +567,13 @@ def process_turn(state: BlogChatState, user_input: str) -> dict:
 
 
 def _save_blog_chat_feedback(state: BlogChatState, message: str) -> None:
-    """FEEDBACK stage 자유 입력을 main._persist_feedback에 위임.
+    """FEEDBACK stage 자유 입력을 routers.dashboard._persist_feedback에 위임.
 
     실패는 fail-soft — 사용자 챗 흐름은 절대 중단하지 않음 (감사 메시지는 그대로).
     page="blog_chat" / context.source="blog_chat" 두 경로 모두 어드민에서 식별 가능.
     """
     try:
-        from main import _persist_feedback  # 라우트 정의된 모듈에서 import
+        from routers.dashboard import _persist_feedback  # 라우트 정의된 모듈에서 import
     except Exception:
         logger.warning("feedback persist helper unavailable; skipping chat feedback")
         return

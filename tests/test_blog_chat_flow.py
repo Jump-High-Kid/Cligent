@@ -607,13 +607,13 @@ class TestFeedbackStage:
         assert any(o["id"] == "new_session" for o in last_assist["options"])
 
     def test_free_input_persists_feedback(self, monkeypatch):
-        """자유 입력 → main._persist_feedback 호출 + context에 source/session/주제 메타 포함."""
-        import main as _main
+        """자유 입력 → routers.dashboard._persist_feedback 호출 + context에 source/session/주제 메타 포함."""
+        from routers import dashboard as _dashboard
         from blog_chat_flow import process_turn
         from blog_chat_state import Stage, create_session, transition
 
         calls = []
-        monkeypatch.setattr(_main, "_persist_feedback", lambda **k: calls.append(k))
+        monkeypatch.setattr(_dashboard, "_persist_feedback", lambda **k: calls.append(k))
 
         state = create_session(clinic_id=42, user_id=99)
         process_turn(state, "허리디스크")
@@ -644,12 +644,12 @@ class TestFeedbackStage:
 
     def test_skip_does_not_persist(self, monkeypatch):
         """'넘김' 입력은 저장하지 않음 (관리자 노이즈 방지)."""
-        import main as _main
+        from routers import dashboard as _dashboard
         from blog_chat_flow import process_turn
         from blog_chat_state import Stage, create_session, transition
 
         calls = []
-        monkeypatch.setattr(_main, "_persist_feedback", lambda **k: calls.append(k))
+        monkeypatch.setattr(_dashboard, "_persist_feedback", lambda **k: calls.append(k))
 
         state = create_session(clinic_id=1, user_id=10)
         process_turn(state, "허리디스크")
@@ -664,13 +664,13 @@ class TestFeedbackStage:
 
     def test_persist_failure_does_not_break_flow(self, monkeypatch):
         """저장 헬퍼가 예외를 내도 챗 흐름은 DONE까지 정상 진행 (fail-soft)."""
-        import main as _main
+        from routers import dashboard as _dashboard
         from blog_chat_flow import process_turn
         from blog_chat_state import Stage, create_session, transition
 
         def boom(**_kw):
             raise RuntimeError("DB unavailable")
-        monkeypatch.setattr(_main, "_persist_feedback", boom)
+        monkeypatch.setattr(_dashboard, "_persist_feedback", boom)
 
         state = create_session(clinic_id=1, user_id=10)
         process_turn(state, "허리디스크")
