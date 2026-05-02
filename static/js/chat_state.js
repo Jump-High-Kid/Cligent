@@ -94,6 +94,50 @@
       }
     } catch (_) { /* silent — 서버가 다음 SSE에서 image_cancelled 보낼 것 */ }
     hideImageCancelBtn();
+    showNewBlogBtn();
+  }
+
+  // ── 새 글 쓰기 버튼 ────────────────────────────────────────────
+  // 취소 후 또는 세션 복원 직후 노출. sessionStorage 정리 + /blog?new=1 재진입.
+  function showNewBlogBtn() {
+    let btn = $('newBlogBtn');
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.id = 'newBlogBtn';
+      btn.type = 'button';
+      btn.style.cssText = [
+        'position:fixed',
+        'left:50%',
+        'transform:translateX(-50%)',
+        'bottom:calc(76px + env(safe-area-inset-bottom, 0px))',
+        'z-index:9999',
+        'background:#064e3b',
+        'color:#fff',
+        'border:none',
+        'border-radius:9999px',
+        'padding:0 20px',
+        'font-size:13px',
+        'font-weight:700',
+        'height:38px',
+        'cursor:pointer',
+        'display:inline-flex',
+        'align-items:center',
+        'gap:6px',
+        'box-shadow:0 4px 14px rgba(6,78,59,0.35)',
+      ].join(';');
+      btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px">edit_square</span>새 글 쓰기';
+      btn.onclick = () => {
+        try { sessionStorage.removeItem(SESSION_KEY); } catch (_) {}
+        window.location.href = '/blog?new=1';
+      };
+      document.body.appendChild(btn);
+    }
+    btn.style.display = 'inline-flex';
+  }
+
+  function hideNewBlogBtn() {
+    const btn = $('newBlogBtn');
+    if (btn) btn.style.display = 'none';
   }
 
   function showImageCancelBtn() {
@@ -854,8 +898,9 @@
   async function sendTurn(userInput) {
     if (state.sending) return;
     state.sending = true;
-    // 새 입력 시작 — 진행 중이던 자동 이미지 timer는 취소 (사용자가 직접 입력했으므로)
+    // 새 입력 시작 — 진행 중이던 자동 이미지 timer는 취소 + 새 글 버튼은 입력 시 가림
     cancelAutoImageStart();
+    hideNewBlogBtn();
     setSendButton(false);
 
     try {
@@ -1071,6 +1116,19 @@
   // ── 세션 복구 ─────────────────────────────────────────────────
 
   async function restoreSession() {
+    // ?new=1 — 사이드바·"새 글 쓰기" 버튼 진입. 이전 세션 무시 + 정리.
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('new') === '1') {
+        try { sessionStorage.removeItem(SESSION_KEY); } catch (_) {}
+        // URL에서 ?new=1 제거 (새로고침 시 매번 무한 초기화 방지)
+        try {
+          const clean = window.location.pathname;
+          window.history.replaceState({}, '', clean);
+        } catch (_) {}
+        return false;
+      }
+    } catch (_) {}
     let sid = null;
     try { sid = sessionStorage.getItem(SESSION_KEY); } catch (_) {}
     if (!sid) return false;
@@ -1095,9 +1153,8 @@
       appendMessages(data.messages || []);
       updatePlaceholder();
       // 페이지 이탈 후 복귀 — 진행 중이던 streaming은 SSE 끊김으로 멈춰 있음.
-      // 사용자에게 재개 불가 안내 + 복원된 streaming bubble 정리.
+      // 사용자에게 재개 불가 안내 + 복원된 streaming bubble 정리 + "새 글 쓰기" 버튼.
       if (data.stage === 'image' || data.stage === 'generating') {
-        // 마지막 메시지에 streaming 흔적이 남아 있다면(태극 회전 등) 비활성화
         const inner = $('messagesInner');
         if (inner) {
           inner.querySelectorAll('.taegeuk.active').forEach((el) => el.classList.remove('active'));
@@ -1105,9 +1162,10 @@
         }
         appendMessage({
           role: 'system',
-          text: '이전 작업이 페이지 이탈로 끊겼어요. 새 글을 시작해주세요.',
+          text: '이전 작업이 페이지 이탈로 끊겼어요. "새 글 쓰기"를 눌러 시작해주세요.',
           options: [], meta: {},
         });
+        showNewBlogBtn();
       }
       return true;
     } catch (_) {

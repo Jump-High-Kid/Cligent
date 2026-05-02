@@ -923,7 +923,10 @@
   // ── 네비게이션 ─────────────────────────────────────────────
   function navigate(path) {
     if (path === '#') return;
-    document.getElementById('frame').src = path;
+    // 블로그 생성기 진입은 항상 새 글 시작 (이전 진행 자동 재개 방지, 2026-05-02)
+    let target = path;
+    if (path === '/blog') target = '/blog?new=1';
+    document.getElementById('frame').src = target;
     history.pushState({ path }, '', path);
     updateActive(path);
   }
