@@ -30,9 +30,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 > 상세는 CHANGELOG 항목 참조.
 
-- **v0.9.0 라우터 분할 (1/6)** — main.py 4,000줄 → 6 도메인 라우터(auth/clinic/billing/blog/dashboard/admin). 베타 진행+영상/재고 모듈 추가 대비. 첫 단계 auth.py 18 라우트 분리 완료(-503줄), 5 라우터 남음.
+- **v0.9.0 라우터 분할 (2/6)** — main.py 4,000줄 → 6 도메인 라우터(auth/clinic/billing/blog/dashboard/admin). 베타 진행+영상/재고 모듈 추가 대비. auth.py 18 라우트(-503), clinic.py 25 라우트(-529) 완료. main.py 4,021 → 2,989(-1,032). 4 라우터 남음(billing→blog→dashboard→admin).
   - SemVer 도입: VERSION 파일 단일 진실원, /api/version, 사이드바·어드민 footer 표시.
   - 공용 의존성: `src/dependencies.py` (is_admin_clinic, require_admin_*, NO_CACHE_HEADERS).
+  - 공용 암호화: `src/crypto_utils.py` (_get_fernet, encrypt_key/decrypt_key/mask_key). main.py에 _encrypt_key/_decrypt_key/_mask_key/`_get_fernet` alias 보존(어드민 OpenAI 키 + tests/test_onboarding monkeypatch 호환).
 - **해부학 DB Phase 1 인프라** — 30 부위 자료 수집 인프라 완성, 도메인 작업 1주 일정. 베타 critical path. Cohort 1 노출 게이트 ②번.
   - **다중 view 지원 (2026-05-01)**: 부위당 자료 1개 → 여러 view 공존. 파일명 `source_{view}.{ext}` + `meta_{view}.json`. validate 진행률은 부위 단위(30 기준) 유지. 어깨 anterior + posterior 2자료 등록(1/30).
 - **블로그 챗 UI 단일 진입점** — `/blog`가 `templates/blog_chat.html` 챗 UI 사용. 4단계 폼(`index.html`) dead code.
