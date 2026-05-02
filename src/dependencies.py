@@ -21,6 +21,14 @@ from fastapi import HTTPException, Request
 from auth_manager import COOKIE_NAME, decode_token
 
 
+# 인증 페이지·세션 보호 페이지에 공통으로 적용할 캐시 헤더.
+# 여러 라우터에서 import 해서 사용.
+NO_CACHE_HEADERS: dict = {
+    "Cache-Control": "no-store, no-cache, must-revalidate",
+    "Pragma": "no-cache",
+}
+
+
 def _admin_clinic_id() -> Optional[int]:
     """환경변수 ADMIN_CLINIC_ID 를 정수로 파싱. 미설정 시 1 (기본 시드 클리닉)."""
     raw = os.getenv("ADMIN_CLINIC_ID", "1")

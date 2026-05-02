@@ -145,9 +145,8 @@ from usage_tracker import log_usage
 agent_router = AgentRouter()
 agent_middleware = AgentMiddleware()
 
-# 신청 폼 약관 버전 (개인정보처리방침 변경 시 갱신, applicant 동의 시점 추적용)
-TERMS_VERSION = "v1.0-2026-04-29"
-APPLICANT_EXPIRY_DAYS = 30
+# TERMS_VERSION, APPLICANT_EXPIRY_DAYS → routers/auth.py 로 이동.
+# include_router 이후 backward-compat alias 재할당 (아래 참조).
 
 _error_logger = _logging.getLogger("cligent.errors")
 
@@ -177,11 +176,9 @@ def _log_error_to_file(request: Request, exc: Exception, user_id: str = "anonymo
 _rate_buckets: dict = defaultdict(list)
 _RATE_LIMIT = 60  # 분당 최대 요청 수
 
-# IP 기반 레이트 리밋 (베타 신청 공개 엔드포인트 전용)
-# 5분 창 안에 최대 3회 허용
-_ip_apply_buckets: dict = defaultdict(list)
-_IP_APPLY_WINDOW = 300   # 5분 (초)
-_IP_APPLY_LIMIT  = 3
+# IP 베타 신청 레이트 리밋 → routers/auth.py 로 이동 (_ip_apply_buckets,
+# _IP_APPLY_WINDOW, _IP_APPLY_LIMIT, _check_ip_apply_limit).
+# include_router 이후 _ip_apply_buckets backward-compat alias 재할당 (아래 참조).
 
 
 def _create_anthropic_client() -> anthropic.Anthropic:
@@ -200,14 +197,7 @@ def _check_rate_limit(clinic_id: str) -> bool:
     return True
 
 
-def _check_ip_apply_limit(ip: str) -> bool:
-    """True = 허용, False = 초과 (5분 창 3회 per IP, 베타 신청 전용)"""
-    now = _time_now()
-    _ip_apply_buckets[ip] = [t for t in _ip_apply_buckets[ip] if now - t < _IP_APPLY_WINDOW]
-    if len(_ip_apply_buckets[ip]) >= _IP_APPLY_LIMIT:
-        return False
-    _ip_apply_buckets[ip].append(now)
-    return True
+# _check_ip_apply_limit, _ip_apply_buckets, _IP_APPLY_* → routers/auth.py 로 이동.
 
 
 # 라우터 분할 후 단일 진실원 → src/dependencies.py
@@ -494,138 +484,24 @@ async def _global_exc_handler(request: Request, exc: Exception):
     return JSONResponse({"detail": "서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."}, status_code=500)
 
 
+# ── 라우터 등록 (v0.9.0 분할) ─────────────────────────────────────
+# main.py 4,000줄 → 도메인별 6개 라우터로 분할 진행 중
+from routers import auth as _auth_router  # noqa: E402
+
+app.include_router(_auth_router.router)
+
+# 기존 호출자 backward-compat: tests/test_beta_apply 가 main 에서 import.
+_ip_apply_buckets = _auth_router._ip_apply_buckets
+TERMS_VERSION = _auth_router.TERMS_VERSION
+APPLICANT_EXPIRY_DAYS = _auth_router.APPLICANT_EXPIRY_DAYS
+
+
 # ── 페이지 라우트 ─────────────────────────────────────────────────
+# /login, /onboard, /terms, /privacy, /business, /forgot-password,
+# /api/auth/forgot-password → routers/auth.py 로 이동 (v0.9.0).
 
-@app.get("/login")
-async def login_page():
-    return FileResponse(ROOT / "templates" / "login.html")
-
-
-@app.get("/onboard")
-async def onboard_page():
-    return FileResponse(ROOT / "templates" / "onboard.html")
-
-
-# ── 약관·방침·사업자정보 (B3, 2026-04-27) ───────────────────────
-@app.get("/terms")
-async def terms_page():
-    """이용약관"""
-    return FileResponse(ROOT / "templates" / "legal" / "terms.html")
-
-
-@app.get("/privacy")
-async def privacy_page():
-    """개인정보처리방침"""
-    return FileResponse(ROOT / "templates" / "legal" / "privacy.html")
-
-
-@app.get("/business")
-async def business_page():
-    """사업자정보"""
-    return FileResponse(ROOT / "templates" / "legal" / "business.html")
-
-
-# ── 비밀번호 찾기 (자가 재설정, 2026-04-27) ───────────────────
-@app.get("/forgot-password")
-async def forgot_password_page():
-    """비밀번호 찾기 페이지 — 인증 불필요"""
-    return FileResponse(ROOT / "templates" / "forgot_password.html", headers=_NO_CACHE)
-
-
-_FORGOT_PW_RATE_LIMIT_SEC = 60
-_forgot_pw_last_request: dict[str, float] = {}
-
-
-@app.post("/api/auth/forgot-password")
-async def api_forgot_password(request: Request):
-    """비밀번호 재설정 토큰 발급 + 이메일 발송.
-
-    보안:
-    - 등록 여부와 무관하게 동일 응답(200) — 이메일 enumeration 방지
-    - 같은 이메일 60초당 1회 제한 (429)
-    - 토큰은 기존 invite 흐름 재사용 (72시간 유효)
-    """
-    body = await request.json()
-    email = (body.get("email") or "").strip().lower()
-
-    if not email or "@" not in email or len(email) > 200:
-        # 형식 오류라도 200 (enumeration 방지)
-        return JSONResponse({"ok": True}, status_code=200)
-
-    # Rate limiting (in-memory, single-worker 가정)
-    now = _time_now()
-    last = _forgot_pw_last_request.get(email)
-    if last and (now - last) < _FORGOT_PW_RATE_LIMIT_SEC:
-        wait = int(_FORGOT_PW_RATE_LIMIT_SEC - (now - last)) or 1
-        return JSONResponse(
-            {"detail": f"잠시 후 다시 시도해주세요 ({wait}초)."},
-            status_code=429,
-        )
-    _forgot_pw_last_request[email] = now
-
-    # 사용자 조회
-    with __import__('db_manager').get_db() as conn:
-        user = conn.execute(
-            "SELECT id, role, clinic_id FROM users WHERE email = ? AND is_active = 1",
-            (email,),
-        ).fetchone()
-
-    # 등록되지 않은 이메일은 silent 200
-    if not user:
-        return JSONResponse({"ok": True}, status_code=200)
-
-    # 토큰 생성 (기존 reinvite 재사용)
-    try:
-        token = create_reinvite(
-            clinic_id=int(user["clinic_id"]),
-            email=email,
-            role=user["role"],
-            created_by=int(user["id"]),
-        )
-    except Exception:
-        _error_logger.exception("forgot-password 토큰 생성 실패 email=%s", email)
-        return JSONResponse({"ok": True}, status_code=200)
-
-    # 이메일 발송 (실패해도 사용자는 동일 응답 받음 — 디버깅은 로그로)
-    base_url = os.getenv("BASE_URL", str(request.base_url).rstrip("/"))
-    reset_url = f"{base_url}/onboard?token={token}"
-
-    html = f"""<!DOCTYPE html>
-<html><body style="font-family:'Apple SD Gothic Neo','Pretendard',sans-serif;color:#1a1a18;line-height:1.6;">
-<div style="max-width:560px;margin:24px auto;padding:32px;border:1px solid #e2e0d8;border-radius:12px;">
-  <div style="font-size:20px;font-weight:800;color:#064e3b;margin-bottom:16px;">Cligent</div>
-  <h2 style="font-size:18px;margin:0 0 12px;">비밀번호 재설정 링크입니다</h2>
-  <p>안녕하세요. Cligent 비밀번호 재설정을 요청하셨습니다.</p>
-  <p>아래 버튼을 누르시면 새 비밀번호를 설정할 수 있습니다.</p>
-  <p style="margin:24px 0;">
-    <a href="{reset_url}"
-       style="display:inline-block;background:#064e3b;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">
-      비밀번호 재설정
-    </a>
-  </p>
-  <p style="font-size:13px;color:#6b6960;">
-    버튼이 작동하지 않으면 아래 주소를 복사해 브라우저에 붙여넣어 주세요:<br>
-    <span style="word-break:break-all;">{reset_url}</span>
-  </p>
-  <hr style="border:none;border-top:1px solid #e2e0d8;margin:24px 0;">
-  <p style="font-size:13px;color:#6b6960;">
-    이 링크는 <strong>72시간</strong> 동안 유효합니다.<br>
-    본인이 요청하지 않으셨다면 이 메일을 무시하셔도 됩니다.
-  </p>
-</div>
-</body></html>
-"""
-
-    try:
-        from plan_notify import _send_smtp
-        _send_smtp(email, "[Cligent] 비밀번호 재설정 링크", html)
-    except Exception:
-        _error_logger.exception("forgot-password 이메일 발송 실패 email=%s", email)
-
-    return JSONResponse({"ok": True}, status_code=200)
-
-
-_NO_CACHE = {"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"}
+# _NO_CACHE 는 dependencies.NO_CACHE_HEADERS 와 동일. backward-compat alias.
+from dependencies import NO_CACHE_HEADERS as _NO_CACHE  # noqa: E402
 
 
 @app.get("/blog")
@@ -688,69 +564,7 @@ async def settings_setup(request: Request):
     return HTMLResponse(content=html, headers=_NO_CACHE)
 
 
-@app.get("/")
-async def root(request: Request):
-    """루트 — 인증 시 반응형 /app, 미인증 시 마케팅 랜딩 (B4, 2026-04-27)."""
-    token = request.cookies.get(COOKIE_NAME)
-    if token:
-        return RedirectResponse("/app")
-    # 미인증 → 마케팅 랜딩 페이지
-    return FileResponse(ROOT / "templates" / "landing.html")
-
-
-# ── SEO: robots.txt / sitemap.xml ─────────────────────────────────
-
-@app.get("/robots.txt")
-async def robots_txt() -> Response:
-    """검색엔진 크롤러용 robots.txt — 공개 페이지만 허용, 앱·관리자 차단."""
-    body = (
-        "User-agent: *\n"
-        "Allow: /\n"
-        "Disallow: /api/\n"
-        "Disallow: /admin\n"
-        "Disallow: /admin/\n"
-        "Disallow: /app\n"
-        "Disallow: /dashboard\n"
-        "Disallow: /blog\n"
-        "Disallow: /chat\n"
-        "Disallow: /settings\n"
-        "Disallow: /onboard\n"
-        "Disallow: /login\n"
-        "Disallow: /forgot-password\n"
-        "Disallow: /youtube\n"
-        "Disallow: /help\n"
-        "\n"
-        "Sitemap: https://cligent.kr/sitemap.xml\n"
-    )
-    return Response(content=body, media_type="text/plain; charset=utf-8")
-
-
-@app.get("/sitemap.xml")
-async def sitemap_xml() -> Response:
-    """검색엔진 색인용 사이트맵 — 공개 페이지 4개."""
-    today = datetime.utcnow().strftime("%Y-%m-%d")
-    urls = [
-        ("https://cligent.kr/",         "weekly",  "1.0"),
-        ("https://cligent.kr/terms",    "monthly", "0.3"),
-        ("https://cligent.kr/privacy",  "monthly", "0.3"),
-        ("https://cligent.kr/business", "monthly", "0.3"),
-    ]
-    parts = [
-        '<?xml version="1.0" encoding="UTF-8"?>',
-        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
-    ]
-    for loc, freq, prio in urls:
-        parts.append(
-            f"  <url>\n"
-            f"    <loc>{loc}</loc>\n"
-            f"    <lastmod>{today}</lastmod>\n"
-            f"    <changefreq>{freq}</changefreq>\n"
-            f"    <priority>{prio}</priority>\n"
-            f"  </url>"
-        )
-    parts.append("</urlset>")
-    body = "\n".join(parts) + "\n"
-    return Response(content=body, media_type="application/xml; charset=utf-8")
+# /, /robots.txt, /sitemap.xml → routers/auth.py 로 이동 (v0.9.0).
 
 
 @app.get("/api/version")
@@ -759,199 +573,7 @@ async def api_version() -> JSONResponse:
     return JSONResponse({"version": APP_VERSION})
 
 
-# ── 인증 API ──────────────────────────────────────────────────────
-
-@app.post("/api/auth/login")
-async def api_login(request: Request):
-    """
-    로그인 — httpOnly JWT 쿠키 발급
-
-    요청: {"email": "...", "password": "..."}
-    응답: {"ok": true, "must_change_pw": false}
-    로그인 시도(성공/실패) 모두 login_history에 기록 (PIPA 90일 보존).
-    """
-    body = await request.json()
-    email = body.get("email", "").strip()
-    password = body.get("password", "")
-
-    ip = request.client.host if request.client else None
-    user_agent = request.headers.get("user-agent")
-
-    user, reason = authenticate_user(email, password)
-
-    from auth_manager import record_login_attempt
-    if not user:
-        record_login_attempt(
-            user_id=None, email=email, clinic_id=None,
-            ip=ip, user_agent=user_agent,
-            success=False, failure_reason=reason,
-        )
-        return JSONResponse(
-            {"detail": "이메일 또는 비밀번호가 올바르지 않습니다."},
-            status_code=401,
-        )
-
-    record_login_attempt(
-        user_id=user["id"], email=user["email"], clinic_id=user["clinic_id"],
-        ip=ip, user_agent=user_agent,
-        success=True,
-    )
-
-    token = create_access_token(user["id"], user["clinic_id"], user["role"])
-    response = JSONResponse({"ok": True, "must_change_pw": bool(user["must_change_pw"])})
-    response.set_cookie(
-        key=COOKIE_NAME,
-        value=token,
-        httponly=True,
-        samesite="lax",
-        secure=os.getenv("ENV", "dev") != "dev",  # 프로덕션에서만 Secure
-        max_age=8 * 3600,
-    )
-    return response
-
-
-@app.post("/api/auth/logout")
-async def api_logout():
-    """로그아웃 — JWT 쿠키 삭제"""
-    response = JSONResponse({"ok": True})
-    response.set_cookie(
-        key=COOKIE_NAME,
-        value="",
-        httponly=True,
-        samesite="lax",
-        max_age=0,
-        expires=0,
-        path="/",
-    )
-    return response
-
-
-# _is_admin_clinic 은 dependencies.py 의 is_admin_clinic 을 alias 로 사용 (위쪽 import 참조).
-
-
-@app.get("/api/auth/me")
-async def api_me(user: dict = Depends(get_current_user)):
-    """현재 로그인 사용자 정보"""
-    with __import__('db_manager').get_db() as conn:
-        clinic = conn.execute(
-            "SELECT api_key_configured, onboarding_started_at FROM clinics WHERE id = ?",
-            (user["clinic_id"],),
-        ).fetchone()
-    api_key_configured = bool(clinic["api_key_configured"]) if clinic else False
-    is_admin = _is_admin_clinic(user) and user["role"] == "chief_director"
-    return JSONResponse({
-        "id": user["id"],
-        "email": user["email"],
-        "role": user["role"],
-        "clinic_id": user["clinic_id"],
-        "must_change_pw": bool(user["must_change_pw"]),
-        "api_key_configured": api_key_configured,
-        "can_invite": _is_admin_clinic(user),
-        "is_admin": is_admin,
-    })
-
-
-@app.get("/api/auth/login-history")
-async def api_my_login_history(user: dict = Depends(get_current_user)):
-    """현재 사용자 본인의 로그인 이력 (PIPA 권리 행사). 최근 90일 최대 50건."""
-    from db_manager import get_db as _get_db
-    with _get_db() as conn:
-        rows = conn.execute(
-            "SELECT id, ip, user_agent, success, failure_reason, created_at "
-            "FROM login_history "
-            "WHERE user_id = ? "
-            "  AND datetime(created_at) >= datetime('now', '-90 days') "
-            "ORDER BY created_at DESC LIMIT 50",
-            (user["id"],),
-        ).fetchall()
-    return JSONResponse({"rows": [dict(r) for r in rows]})
-
-
-@app.post("/api/auth/change-password")
-async def api_change_password(request: Request, user: dict = Depends(get_current_user)):
-    """비밀번호 변경"""
-    body = await request.json()
-    new_pw = body.get("new_password", "")
-    if len(new_pw) < 8:
-        return JSONResponse({"detail": "비밀번호는 8자 이상이어야 합니다."}, status_code=400)
-    change_password(user["id"], new_pw)
-    return JSONResponse({"ok": True})
-
-
-@app.post("/api/auth/invite")
-async def api_create_invite(request: Request, user: dict = Depends(get_current_user)):
-    """
-    직원 초대 토큰 생성 — director 이상 전용
-
-    요청: {"email": "staff@example.com", "role": "team_member"}
-    응답: {"token": "...", "invite_url": "http://localhost:8000/onboard?token=..."}
-    """
-    if not role_has_access(user["role"], ["chief_director", "director"]):
-        return JSONResponse({"detail": "초대 권한이 없습니다."}, status_code=403)
-
-    # 베타 정책: 본인 클리닉 외 직원 초대 차단 (이용약관 제2조·제4조)
-    if not _is_admin_clinic(user):
-        return JSONResponse(
-            {"detail": "베타 단계에서는 직원 초대 기능이 일시 비활성화되어 있습니다. 정식 서비스 출시 이후 단계적으로 지원됩니다."},
-            status_code=403,
-        )
-
-    body = await request.json()
-    email = body.get("email", "").strip()
-    role = body.get("role", "team_member")
-
-    if not email:
-        return JSONResponse({"detail": "이메일을 입력해주세요."}, status_code=400)
-
-    try:
-        token = create_invite(user["clinic_id"], email, role, user["id"])
-    except ValueError as e:
-        return JSONResponse({"detail": str(e)}, status_code=400)
-
-    base_url = str(request.base_url).rstrip("/")
-    invite_url = f"{base_url}/onboard?token={token}"
-    return JSONResponse({"token": token, "invite_url": invite_url})
-
-
-@app.get("/api/auth/invite/verify")
-async def api_verify_invite(token: str):
-    """초대 토큰 유효성 확인 (온보딩 페이지 초기 로드용)"""
-    invite = verify_invite(token)
-    if not invite:
-        return JSONResponse({"valid": False, "detail": "유효하지 않거나 만료된 초대 링크입니다."}, status_code=400)
-    return JSONResponse({"valid": True, "email": invite["email"], "role": invite["role"]})
-
-
-@app.post("/api/auth/onboard")
-async def api_onboard(request: Request):
-    """
-    온보딩 완료 — 비밀번호 설정 + JWT 발급
-
-    요청: {"token": "...", "password": "..."}
-    """
-    body = await request.json()
-    token = body.get("token", "")
-    password = body.get("password", "")
-
-    if len(password) < 8:
-        return JSONResponse({"detail": "비밀번호는 8자 이상이어야 합니다."}, status_code=400)
-
-    try:
-        user = complete_onboarding(token, password)
-    except ValueError as e:
-        return JSONResponse({"detail": str(e)}, status_code=400)
-
-    jwt_token = create_access_token(user["id"], user["clinic_id"], user["role"])
-    response = JSONResponse({"ok": True})
-    response.set_cookie(
-        key=COOKIE_NAME,
-        value=jwt_token,
-        httponly=True,
-        samesite="lax",
-        secure=os.getenv("ENV", "dev") != "dev",
-        max_age=8 * 3600,
-    )
-    return response
+# ── 인증 API → routers/auth.py 로 이동 (v0.9.0) ─────────────────────
 
 
 # ── RBAC 설정 API ─────────────────────────────────────────────────
@@ -2443,110 +2065,7 @@ async def agent_chat(request: Request, current_user: dict = Depends(get_current_
     }
 
 
-# ── 베타 모집 — 공개 페이지 & API ─────────────────────────────────
-
-@app.get("/join")
-async def join_page():
-    """베타 신청 페이지 — 공개 접근 허용"""
-    return FileResponse(ROOT / "templates" / "join.html")
-
-
-@app.post("/api/beta/apply")
-async def beta_apply(request: Request):
-    """
-    베타/일반 신청 접수 (공개 엔드포인트).
-
-    요청: {
-      "name", "clinic_name", "email", "phone"(선택), "note"(선택),
-      "terms_consent": true,        # 필수 — 개인정보 수집·이용 동의
-      "marketing_consent": false,   # 선택 — 마케팅 정보 수신 동의
-      "application_type": "beta"    # 기본 'beta', 향후 'general'
-    }
-    IP당 5분 창 3회 제한. 30일 미가입 시 자동 만료(status='expired').
-    """
-    import re as _re
-    _EMAIL_RE = _re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
-
-    ip = request.client.host if request.client else "unknown"
-    if not _check_ip_apply_limit(ip):
-        return JSONResponse({"detail": "잠시 후 다시 시도해 주세요."}, status_code=429)
-
-    try:
-        body = await request.json()
-    except Exception:
-        return JSONResponse({"detail": "JSON 파싱 오류"}, status_code=400)
-
-    name = (body.get("name") or "").strip()
-    clinic_name = (body.get("clinic_name") or "").strip()
-    email = (body.get("email") or "").strip().lower()
-    phone = (body.get("phone") or "").strip()
-    note = (body.get("note") or "").strip()
-    terms_consent = bool(body.get("terms_consent"))
-    marketing_consent = 1 if bool(body.get("marketing_consent")) else 0
-    application_type = (body.get("application_type") or "beta").strip().lower()
-    if application_type not in ("beta", "general"):
-        application_type = "beta"
-
-    if not name or not clinic_name:
-        return JSONResponse({"detail": "이름과 한의원명을 입력해 주세요."}, status_code=400)
-    if not _EMAIL_RE.match(email):
-        return JSONResponse({"detail": "유효한 이메일 주소를 입력해 주세요."}, status_code=400)
-    if not terms_consent:
-        return JSONResponse(
-            {"detail": "개인정보 수집·이용에 동의해 주세요."}, status_code=400,
-        )
-
-    user_agent = (request.headers.get("user-agent") or "")[:500]
-
-    now_dt = datetime.now(timezone.utc)
-    now_iso = now_dt.isoformat()
-    expires_iso = (now_dt + timedelta(days=APPLICANT_EXPIRY_DAYS)).isoformat()
-
-    from db_manager import get_db as _get_db
-    with _get_db() as conn:
-        # 중복 신청 방지 (pending/invited 상태에서 같은 이메일)
-        existing = conn.execute(
-            "SELECT id, status FROM beta_applicants WHERE email = ?", (email,)
-        ).fetchone()
-        if existing and existing["status"] in ("pending", "invited"):
-            return JSONResponse({"ok": True, "duplicate": True})
-        if existing and existing["status"] == "registered":
-            return JSONResponse({"detail": "이미 가입된 이메일입니다."}, status_code=409)
-
-        cur = conn.execute(
-            """
-            INSERT INTO beta_applicants (
-                name, clinic_name, phone, email, note, applied_at,
-                application_type, marketing_consent, consented_terms_version,
-                ip_address, user_agent, expires_at
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                name, clinic_name, phone, email, note, now_iso,
-                application_type, marketing_consent, TERMS_VERSION,
-                ip, user_agent, expires_iso,
-            ),
-        )
-        applicant_id = cur.lastrowid
-
-    # E1: 신청자 확인 이메일 (fail-soft)
-    try:
-        from plan_notify import send_beta_apply_confirm
-        await asyncio.to_thread(send_beta_apply_confirm, email, name, applicant_id)
-    except Exception as exc:
-        _logging.getLogger(__name__).warning("beta E1 이메일 실패: %s", exc)
-
-    # E2: 관리자 알림 (fail-soft)
-    try:
-        from plan_notify import send_beta_admin_notify
-        await asyncio.to_thread(
-            send_beta_admin_notify, name, clinic_name, email, note, applicant_id,
-        )
-    except Exception as exc:
-        _logging.getLogger(__name__).warning("beta E2 관리자 알림 실패: %s", exc)
-
-    return JSONResponse({"ok": True})
+# /join, /api/beta/apply → routers/auth.py 로 이동 (v0.9.0).
 
 
 # ── 베타 모집 — 어드민 API ─────────────────────────────────────────
