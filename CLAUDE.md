@@ -45,6 +45,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **자료 변형 자동화 보류**: ChatGPT 웹 직접 변환이 현 시점 최선. `scripts/edit_anatomy_demo.py` 보존(Phase 2 출발점), `_demo/` 결과물은 `.gitignore`.
 - **디자인 시스템 단일 진실원 분리 (2026-05-02)** — `docs/design.md` (516줄) 신규. CLAUDE.md 디자인 섹션은 포인터로 축소. canonical: `app.html` 쉘 / `dashboard.html` 일반 / `blog_chat.html` 챗 UI. 새 모듈 추가 시 design.md 7장 체크리스트 필수.
 - **설정 페이지 재설계 (2026-05-02)** — `templates/settings.html` 1,892줄 → 1,713줄. 1차 탭 6개 + 서브탭 5개 → **좌측 nav 6개 평탄화** (한의원 정보 / 팀 & 권한 / 블로그 설정 / AI 설정 / 보안 / 데이터 관리). 자동저장(debounce 600ms) + 글로벌 토스트. 준비 중 탭 3개·프롬프트 직접 편집·월 예산 한도 UI 삭제. AI 설정에 OpenAI 키(이미지) 추가, Anthropic = "문서 생성 전용" / OpenAI = "이미지 생성 전용" 명시. 블로그 이력 페이지네이션 압축(`1 2 … 17`). 4중 overflow 안전망(`feedback_flex_overflow_pattern.md` 참조). 백업: `templates/settings.html.bak.20260502`.
+- **이미지 생성 취소 UX 확립 (2026-05-02)** — 입력창 위 중앙 fixed 빨간 pill 버튼, `state.cancelling` 플래그로 SSE 진행 frame 무시 → 즉시 UI 정리(서버 ack 미대기). 취소 후 / 끊긴 세션 복원 시 emerald "새 글 쓰기" 버튼 노출 → `sessionStorage` 정리 + `/blog?new=1`. 사이드바 블로그 생성기는 항상 `/blog?new=1` 진입 (직접 URL은 복원 유지). 진행 중 1장은 OpenAI SDK 한계로 서버 측 완성 — 사용자 체감만 즉시 멈춤. 상세: 메모리 `project_image_cancel_ux.md`.
+- **doLogout 엔드포인트 수정 (2026-05-02)** — `app.html`이 `/api/logout`(404) 호출하던 버그 → `/api/auth/logout` + `sessionStorage.clear()`. 로그아웃 후에도 쿠키 잔존 + 다음 사용자에게 이전 채팅 메시지 노출되던 원인. 모든 페이지 `doLogout`은 엔드포인트 정확성 + sessionStorage 정리 동시 충족 필수. 상세: 메모리 `feedback_logout_endpoint_audit.md`.
 
 ## 폴더 구조 요약
 
