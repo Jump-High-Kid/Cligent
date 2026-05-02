@@ -34,6 +34,7 @@
     sending: false,
     pendingOptions: [],  // 마지막 assistant 메시지의 옵션 (단축키 1~9용)
     isAdmin: false,      // 비용·디버그 메타 표시 권한 (turn 응답에서 갱신)
+    cancelling: false,   // 이미지 취소 진행 중 — UI는 즉시 정리, 서버 SSE는 무시 (2026-05-02)
   };
 
   // 본문 streaming 중 갱신 대상 (1D-3 SSE 통합)
@@ -63,9 +64,26 @@
   // cancel: image_session_id가 있으면 직접 cancel API, 없으면 chat session 기반 pending cancel.
   // 헤더 레이아웃 의존성 제거 — fixed position 플로팅 버튼으로 항상 화면 우상단에 노출.
   async function _doCancelImage(btn) {
-    if (!confirm('이미지 생성을 취소하시겠습니까? 진행 중인 장은 폐기됩니다.')) return;
+    if (!confirm('이미지 생성을 취소하시겠습니까? 진행 중인 1장은 완성 후 멈춥니다.')) return;
+    // 즉시 UI 정리 — 서버 cancel ack 기다리지 않고 사용자에게 멈춘 듯한 체감 제공
+    state.cancelling = true;
     btn.disabled = true;
-    btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px">hourglass_empty</span>취소 중';
+    btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px">hourglass_empty</span>취소 중';
+    // 회전 태극 즉시 정지 + streaming bubble 정리
+    try {
+      finalizeStreamingMessage();
+      const inner = $('messagesInner');
+      if (inner) {
+        inner.querySelectorAll('.taegeuk.active').forEach((el) => el.classList.remove('active'));
+        inner.querySelectorAll('.bubble.streaming').forEach((el) => el.classList.remove('streaming'));
+      }
+    } catch (_) {}
+    appendMessage({
+      role: 'system',
+      text: '취소 요청을 보냈어요. 진행 중인 1장은 완성 후 멈춥니다.',
+      options: [], meta: {},
+    });
+    setStageText('취소 중');
     try {
       const imgSid = state.image_session_id;
       const chatSid = state.session_id;
@@ -75,6 +93,7 @@
         await fetch(`/api/blog-chat/${encodeURIComponent(chatSid)}/cancel-image`, { method: 'POST', credentials: 'same-origin' });
       }
     } catch (_) { /* silent — 서버가 다음 SSE에서 image_cancelled 보낼 것 */ }
+    hideImageCancelBtn();
   }
 
   function showImageCancelBtn() {
@@ -84,16 +103,18 @@
       btn.id = 'imageCancelBtn';
       btn.type = 'button';
       btn.title = '이미지 생성 취소';
+      // 입력창(.chat-input-area) 바로 위 중앙. safe-area 고려.
       btn.style.cssText = [
         'position:fixed',
-        'top:12px',
-        'right:12px',
+        'left:50%',
+        'transform:translateX(-50%)',
+        'bottom:calc(76px + env(safe-area-inset-bottom, 0px))',
         'z-index:9999',
         'background:#dc2626',
         'color:#fff',
         'border:none',
         'border-radius:9999px',
-        'padding:0 16px',
+        'padding:0 18px',
         'font-size:13px',
         'font-weight:700',
         'height:38px',
@@ -101,7 +122,7 @@
         'display:inline-flex',
         'align-items:center',
         'gap:6px',
-        'box-shadow:0 4px 12px rgba(220,38,38,0.35)',
+        'box-shadow:0 4px 14px rgba(220,38,38,0.4)',
       ].join(';');
       document.body.appendChild(btn);
     }
@@ -885,6 +906,17 @@
   // SSE 프레임 type별 분기 (1D-3 본문 streaming)
   function handleSSEFrame(frame) {
     if (!frame || !frame.type) return;
+    // 취소 진행 중 — 사용자에게 즉시 멈춘 듯한 체감 제공.
+    // 진행 frame(token/stage_text/message_start/replace/next_message/stage_change)은 무시.
+    // 종결 frame(image_cancelled/error/done)은 처리 + 취소 플래그 해제.
+    if (state.cancelling) {
+      if (frame.type === 'image_cancelled' || frame.type === 'error' || frame.type === 'done') {
+        state.cancelling = false;
+        // image_cancelled, error는 기존 case로 fall-through
+      } else {
+        return;
+      }
+    }
     switch (frame.type) {
       case 'user_message':
       case 'next_message':
