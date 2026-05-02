@@ -205,7 +205,7 @@ class TestAdminCreateClinic:
         """올바른 시크릿 + 유효한 name → 201/200, clinic_id 반환."""
         import os
         with patch.dict(os.environ, {"ADMIN_SECRET": "my-secret"}, clear=False):
-            with patch("main.create_clinic", return_value=7) as mock_cc:
+            with patch("routers.admin.create_clinic", return_value=7) as mock_cc:
                 client = self._get_client()
                 resp = client.post(
                     "/api/admin/clinic",

@@ -5,6 +5,43 @@ CLAUDE.md에서 분리한 구현 이력 아카이브. 최신 항목이 위.
 
 ---
 
+## 2026-05-02
+
+### v0.9.0 라우터 분할 — 6/6 admin.py (완료)
+
+main.py 4,021줄 → **506줄 (-3,515, -87.4%)** 도메인 라우터 6개로 분할 완료.
+
+**이번 단계 (6/6 admin)**: main.py 1,762 → **506 (-1,256, -71.3%)**. `routers/admin.py` 신규 1,281줄 — 어드민 페이지 9건 + 어드민 API 21건 + 공지 작성/수정/삭제/업로드 6건 + OpenAI 키 3건 = 39건.
+
+**이관 라우트 (39):**
+- 어드민 HTML 페이지 9: `/admin`, `/admin/clinics`, `/admin/usage`, `/admin/feedback`, `/admin/login-history`, `/admin/errors`, `/admin/blogs`, `/admin/settings`, `/admin/applicants`
+- 어드민 API 21: daily-report, clinic POST/PATCH/list, login-history, blogs list, errors dates/summary/list, usage, feedback list/viewed/unview, naver-config GET/POST, applicants list/emails/PATCH/reject/resend, invite-batch
+- 공지 작성 6: `/announcements/new`, `/announcements/{id}/edit`, POST/PATCH/DELETE `/api/announcements`, upload-image
+- OpenAI 키 3: `/api/admin/openai-key` GET/POST/DELETE
+
+**이관 헬퍼·상수**: `_read_error_log_file`, `_resolve_user_id_from_session`, `_ANNOUNCE_CATEGORIES`/`_ALLOWED_EXT`/`_MAX_UPLOAD`, `_ERROR_LOG_DIR`, `_DATE_RE` (admin.py 자체 정의).
+
+**main.py 잔존**: lifespan + scheduler 7종 + exception handler 3종 + `/api/version` + 라우터 include + `_log_error_to_file` (exception handler 사용) + crypto alias (`_get_fernet`/`_encrypt_key`/`_decrypt_key`/`_mask_key`, tests/test_onboarding monkeypatch 호환).
+
+**라우트 등록 순서**: `app.include_router(_admin_router.router)` 가 `app.include_router(_dashboard_router.router)` 보다 먼저 — `/announcements/new` (admin) 가 `/announcements/{ann_id}` (dashboard, int path) 보다 먼저 매칭되도록 보장.
+
+**main.py scheduler 변경**: `_error_logs_purge_scheduler` 의 `_DATE_RE.match` 호출을 함수 내 inline `_re.compile` 로 교체 (admin.py 이관 후 module-level 상수 제거).
+
+**테스트**: 410 pass / 7 fail (baseline 정확 일치). `tests/test_p0_p1.py::test_correct_secret_creates_clinic` 1건 회귀 → `patch("main.create_clinic", ...)` 를 `patch("routers.admin.create_clinic", ...)` 로 갱신.
+
+**누적 분할 통계 (v0.9.0):**
+| 라우터 | 라우트 수 | 라인 수 |
+|---|---|---|
+| auth.py | 18 | 549 |
+| clinic.py | 25 | 664 |
+| billing.py | 2 | 140 |
+| blog.py (C1+C2) | 24 + SSE 3 | 1,050 |
+| dashboard.py | 9 | 281 |
+| **admin.py** | **39** | **1,281** |
+| main.py 잔존 | 1 (`/api/version`) + 인프라 | 506 |
+
+---
+
 ## 2026-05-01
 
 ### CLAUDE.md 슬림화 + 다중 view 인프라 + 어깨 첫 자료

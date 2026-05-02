@@ -30,11 +30,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 > 상세는 CHANGELOG 항목 참조.
 
-- **v0.9.0 라우터 분할 (5/6 — dashboard)** — main.py 4,000줄 → 6 도메인 라우터(auth/clinic/billing/blog/dashboard/admin). 베타 진행+영상/재고 모듈 추가 대비. auth.py 18 라우트(-503), clinic.py 25 라우트(-529), billing.py 2 라우트(-104), blog.py C1 24 라우트(-653) + C2 SSE 3건+_stream_and_save(-279), dashboard.py 9 라우트+3 헬퍼(-196) 완료. main.py 4,021 → **1,762(-2,259, -56.2%)**, dashboard.py 281. admin.py + 정리 + CHANGELOG 남음.
-  - dashboard.py 라우트 등록 순서: `/announcements/new` (admin inline) 가 dashboard `/announcements/{ann_id}` 보다 먼저 등록되도록 dashboard router만 main.py 하단에서 include_router 호출.
+- **v0.9.0 라우터 분할 완료 (6/6)** — main.py 4,021줄 → **506줄 (-3,515, -87.4%)** + 6 도메인 라우터. 베타 진행+영상/재고 모듈 추가 대비.
+  - 라우터(라인): auth 549 / clinic 664 / billing 140 / blog 1,050 (C1 24 라우트 + C2 SSE 3건) / dashboard 281 / admin **1,281** (어드민 9 페이지 + API 21 + 공지 작성 6 + OpenAI 키 3 = 39 라우트).
+  - 라우트 등록 순서: `admin.router` 를 `dashboard.router` 보다 먼저 include — `/announcements/new` (admin) 가 `/announcements/{ann_id}` (dashboard, int path) 보다 먼저 매칭.
   - SemVer 도입: VERSION 파일 단일 진실원, /api/version, 사이드바·어드민 footer 표시.
   - 공용 의존성: `src/dependencies.py` (is_admin_clinic, require_admin_*, NO_CACHE_HEADERS).
-  - 공용 암호화: `src/crypto_utils.py` (_get_fernet, encrypt_key/decrypt_key/mask_key). main.py에 _encrypt_key/_decrypt_key/_mask_key/`_get_fernet` alias 보존(어드민 OpenAI 키 + tests/test_onboarding monkeypatch 호환).
+  - 공용 암호화: `src/crypto_utils.py` (_get_fernet, encrypt_key/decrypt_key/mask_key). main.py에 _encrypt_key/_decrypt_key/_mask_key/`_get_fernet` alias 보존(tests/test_onboarding monkeypatch 호환).
+  - main.py 잔존: lifespan + scheduler 7종 + exception handler 3종 + `/api/version` + 라우터 include + `_log_error_to_file` (exception handler 사용) + crypto alias.
+  - 테스트: 410 pass / 7 fail (baseline 정확 일치).
 - **해부학 DB Phase 1 인프라** — 30 부위 자료 수집 인프라 완성, 도메인 작업 1주 일정. 베타 critical path. Cohort 1 노출 게이트 ②번.
   - **다중 view 지원 (2026-05-01)**: 부위당 자료 1개 → 여러 view 공존. 파일명 `source_{view}.{ext}` + `meta_{view}.json`. validate 진행률은 부위 단위(30 기준) 유지. 어깨 anterior + posterior 2자료 등록(1/30).
 - **블로그 챗 UI 단일 진입점** — `/blog`가 `templates/blog_chat.html` 챗 UI 사용. 4단계 폼(`index.html`) dead code.
