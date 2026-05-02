@@ -16,10 +16,13 @@ main.py 4,021 → 2,885줄 분할의 4번째 라우터 (v0.9.0 / 2026-05-02).
 """
 from __future__ import annotations
 
+import json as _json
 import os
 from collections import defaultdict
+from datetime import datetime, timezone
 from pathlib import Path
 from time import time as _time_now
+from typing import Generator, Optional
 
 import anthropic
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -32,11 +35,13 @@ from dependencies import (
     NO_CACHE_HEADERS as _NO_CACHE,
     is_admin_clinic as _is_admin_clinic,
 )
-from blog_generator import build_prompt_text
-from blog_history import get_blog_stats, get_history_list, get_blog_text
+from blog_generator import build_prompt_text, generate_blog_stream
+from blog_history import get_blog_stats, get_history_list, get_blog_text, save_blog_entry
 from conversation_flow import generate_conversation_flow
+from image_prompt_generator import generate_image_prompts_stream
 from youtube_generator import generate_youtube_stream
-from plan_guard import check_prompt_copy_limit
+from plan_guard import check_blog_limit, check_prompt_copy_limit
+from plan_notify import check_and_notify
 from usage_tracker import log_usage
 from agent_router import AgentRouter
 from agent_middleware import AgentMiddleware
@@ -765,4 +770,281 @@ async def api_image_session_status(
             edit_used=sess["edit_count"],
         ),
     })
+
+
+# ─────────────────────────────────────────────────────────────
+# C2 — SSE 3건 (main.py 753~1032에서 이동, v0.9.0 / 2026-05-02)
+# ─────────────────────────────────────────────────────────────
+
+
+@router.post("/api/blog-chat/turn")
+async def api_blog_chat_turn(request: Request, user: dict = Depends(get_current_user)):
+    """블로그 챗 1턴.
+
+    Body: { session_id?: str, user_input?: str }
+    Response (1D-1): JSON { session_id, stage, stage_text, messages, quota }
+      - 결정론적 옵션 매칭 (번호/정확 라벨). 모호한 입력은 ambiguous 메시지.
+    Phase 1D-2: 자연어 해석 fallback (짧은 LLM 호출).
+    Phase 1D-3: generating stage 진입 시 text/event-stream으로 분기.
+    """
+    from blog_chat_flow import process_turn
+    from blog_chat_state import (
+        append_message,
+        create_session,
+        get_session,
+        save_session,
+        serialize_message,
+        stage_text,
+    )
+
+    body = await request.json()
+    session_id = (body.get("session_id") or "").strip()
+    user_input = (body.get("user_input") or "").strip()
+
+    if user_input and len(user_input) > 2000:
+        return JSONResponse(
+            {"detail": "입력은 2,000자 이내로 작성해주세요."}, status_code=400
+        )
+
+    # 신규 세션 — UUID4 발급 + 첫 인사
+    # user_input이 있으면 그 입력으로 process_turn까지 1회 진행 (사용자 첫 액션 흐름)
+    if not session_id:
+        state = create_session(clinic_id=user["clinic_id"], user_id=user["id"])
+        append_message(
+            state, "assistant",
+            "안녕하세요, 원장님. 오늘은 어떤 주제로 글을 써볼까요?\n"
+            "버튼을 클릭하시거나 직접 입력해주세요. "
+            "여러 개 선택은 해당 번호를 입력해주세요.",
+            options=[],
+            meta={"stage_text": stage_text(state.stage)},
+        )
+        save_session(state)
+        is_chat_admin = _is_admin_clinic(user) and user.get("role") == "chief_director"
+        # 빈 입력 — 인사만 반환 (현재 클라는 빈 화면을 정적으로 사용하므로 호출되지 않음)
+        if not user_input:
+            return JSONResponse({
+                "session_id": state.session_id,
+                "stage": state.stage.value,
+                "stage_text": stage_text(state.stage),
+                "messages": [serialize_message(m) for m in state.messages],
+                "quota": state.quota,
+                "is_admin": is_chat_admin,
+            })
+        # 첫 입력 — 인사 + user 메시지 + 다음 stage 메시지 모두 한 번에
+        from blog_chat_flow import process_turn
+        response = process_turn(state, user_input)
+        # 신규 세션의 첫 응답엔 인사도 포함되도록 latest_n 보정
+        response["messages"] = [
+            serialize_message(m) for m in state.messages[-3:]
+        ]
+        response["is_admin"] = is_chat_admin
+        return JSONResponse(response)
+
+    # 기존 세션 복구
+    try:
+        state = get_session(session_id, clinic_id=user["clinic_id"])
+    except LookupError:
+        return JSONResponse({"detail": "세션을 찾을 수 없습니다."}, status_code=404)
+    except PermissionError:
+        return JSONResponse({"detail": "권한이 없습니다."}, status_code=403)
+
+    # CONFIRM_IMAGE 응답(예/아니오) 진입 → 본문 SSE streaming (2026-05-01)
+    # SEO 단계는 turn JSON 응답으로 CONFIRM_IMAGE 옵션 메시지만 발송.
+    # 사용자가 CONFIRM_IMAGE에 응답하면 SSE 시작.
+    # 한도 체크는 streaming 시작 전에 수행 (사용자에게 즉시 차단 응답)
+    from blog_chat_state import Stage as _Stage
+    if state.stage == _Stage.CONFIRM_IMAGE:
+        from blog_chat_flow import (
+            CONFIRM_IMAGE_OPTIONS, match_option, process_turn, process_turn_streaming,
+        )
+        opt = match_option(CONFIRM_IMAGE_OPTIONS, user_input)
+        # 옵션 매칭 실패 → 결정론·LLM fallback은 process_turn에 위임 (JSON 응답)
+        if opt is None:
+            response = process_turn(state, user_input)
+            response["is_admin"] = _is_admin_clinic(user) and user.get("role") == "chief_director"
+            return JSONResponse(response)
+        # 매칭 성공 → state.auto_image 설정 + 본문 SSE 시작
+        try:
+            check_blog_limit(user["clinic_id"])
+        except HTTPException as e:
+            return JSONResponse(
+                {"detail": e.detail, "kind": "quota_exceeded"}, status_code=e.status_code,
+            )
+        log_usage(user["clinic_id"], "blog_generation",
+                  {"keyword": state.topic, "via": "blog_chat"})
+        check_and_notify(user["clinic_id"])
+        return StreamingResponse(
+            process_turn_streaming(state, user_input),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+
+    # IMAGE 단계 + "all" 옵션 매칭 → 5단계 텍스트 SSE (1F, M0 게이트)
+    # "none"(이미지 없이 종료)은 process_turn JSON 분기로 가야 정상.
+    if state.stage == _Stage.IMAGE:
+        from blog_chat_flow import IMAGE_OPTIONS, match_option, process_turn_streaming
+        opt = match_option(IMAGE_OPTIONS, user_input)
+        if opt and opt.get("id") == "all":
+            return StreamingResponse(
+                process_turn_streaming(state, user_input),
+                media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+            )
+
+    # 그 외 stage는 결정론 + Haiku fallback JSON 응답
+    response = process_turn(state, user_input)
+    response["is_admin"] = _is_admin_clinic(user) and user.get("role") == "chief_director"
+    return JSONResponse(response)
+
+
+def _stream_and_save(
+    base_gen: Generator, keyword: str, tone: str, seo_keywords: list,
+    clinic_id: Optional[int] = None,
+) -> Generator:
+    """SSE 스트림 통과 + done 이벤트 감지 시 이력 저장 및 첫 블로그 시각 기록"""
+    collected: list = []
+    for chunk in base_gen:
+        yield chunk
+        raw = chunk.removeprefix("data: ").strip()
+        try:
+            data = _json.loads(raw)
+            if "text" in data:
+                collected.append(data["text"])
+            elif "replace" in data:
+                # 키워드 보강 후처리로 전체 텍스트 교체
+                collected = [data["replace"]]
+            elif data.get("done"):
+                blog_text = "".join(collected)
+                char_count = len(blog_text)
+                cost_krw = data.get("usage", {}).get("cost_krw", 0)
+                entry_id = save_blog_entry(
+                    keyword, tone, char_count, cost_krw, seo_keywords, blog_text,
+                    clinic_id=clinic_id,
+                )
+                # done 직후 entry_id 이벤트를 별도로 발송 (프론트에서 발행 확인 버튼 활성화)
+                yield f"data: {_json.dumps({'entry_id': entry_id}, ensure_ascii=False)}\n\n"
+                # 첫 블로그 생성 완료 시각 기록 (COALESCE — 이후 호출은 무시)
+                if clinic_id:
+                    try:
+                        now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+                        with __import__('db_manager').get_db() as conn:
+                            conn.execute(
+                                "UPDATE clinics SET first_blog_at = COALESCE(first_blog_at, ?) WHERE id = ?",
+                                (now_iso, clinic_id),
+                            )
+                    except Exception:
+                        pass  # 통계 기록 실패 시 생성 서비스에 영향 없음
+        except Exception:
+            pass
+
+
+@router.post("/generate")
+async def generate(request: Request, user: dict = Depends(get_current_user)):
+    # 플랜 한도 체크 (무료 월 3편, 초과 시 429 반환)
+    check_blog_limit(user["clinic_id"])
+
+    body = await request.json()
+    keyword      = body.get("keyword", "").strip()
+    answers      = body.get("answers", {})
+    materials    = body.get("materials", {})
+    mode         = body.get("mode", "정보")
+    reader_level = body.get("reader_level", "일반인")
+    seo_keywords = body.get("seo_keywords", [])   # ["키워드1", "키워드2"]
+    # 쉼표 구분, 공백은 키워드 내부 문자로 보존 (앞뒤만 제거)
+    if isinstance(seo_keywords, str):
+        seo_keywords = [k.strip() for k in seo_keywords.split(",") if k.strip()]
+    else:
+        normalized: list[str] = []
+        for kw in seo_keywords:
+            for part in str(kw).split(","):
+                part = part.strip()
+                if part:
+                    normalized.append(part)
+        seo_keywords = normalized
+    clinic_info       = body.get("clinic_info", "").strip()       # 블로그 생성기 추가 입력
+    explanation_types = body.get("explanation_types", [])          # 선택된 설명 방식 목록
+    char_count        = body.get("char_count", None)               # {"min": N, "max": M} or None
+    format_id         = body.get("format_id", None)                # v0.3 형식 선택 (없으면 자동)
+
+    if not keyword:
+        async def _err():
+            yield f"data: {_json.dumps({'error': '주제를 입력해주세요.'})}\n\n"
+        return StreamingResponse(_err(), media_type="text/event-stream")
+
+    api_key = os.getenv("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        async def _err():
+            yield f"data: {_json.dumps({'error': '.env 파일에 ANTHROPIC_API_KEY를 설정해주세요.'})}\n\n"
+        return StreamingResponse(_err(), media_type="text/event-stream")
+
+    tone = answers.get("tone", "전문적") if answers else "전문적"
+
+    # DB에서 원장 소개글 + 클리닉 특징/장점 자동 조회
+    with __import__('db_manager').get_db() as _conn:
+        _clinic_row = _conn.execute(
+            "SELECT intro, blog_features FROM clinics WHERE id = ?",
+            (user["clinic_id"],),
+        ).fetchone()
+    _db_intro = (_clinic_row["intro"] or "").strip() if _clinic_row else ""
+    _db_features = (_clinic_row["blog_features"] or "").strip() if _clinic_row else ""
+
+    # 블로그 생성기 입력값이 있으면 DB의 blog_features에 저장 (다음 접속 시 유지)
+    if clinic_info:
+        with __import__('db_manager').get_db() as _conn:
+            _conn.execute(
+                "UPDATE clinics SET blog_features = ? WHERE id = ?",
+                (clinic_info, user["clinic_id"]),
+            )
+        _db_features = clinic_info  # 방금 저장한 값을 이번 생성에도 즉시 반영
+
+    # intro + blog_features 합쳐서 주입 (둘 다 있을 때만)
+    _parts = [p for p in [_db_intro, _db_features] if p]
+    clinic_info = "\n\n".join(_parts)
+
+    # 사용량 기록 (실패해도 서비스 계속)
+    log_usage(user["clinic_id"], "blog_generation", {"keyword": keyword, "mode": mode})
+    # 한도 80% 알림 — 비동기 스레드로 실행, 응답 경로에 영향 없음
+    check_and_notify(user["clinic_id"])
+
+    return StreamingResponse(
+        _stream_and_save(
+            generate_blog_stream(
+                keyword, answers, api_key, materials, mode, reader_level,
+                seo_keywords=seo_keywords, clinic_info=clinic_info,
+                explanation_types=explanation_types,
+                char_count=char_count,
+                format_id=format_id,
+            ),
+            keyword, tone, seo_keywords,
+            clinic_id=user["clinic_id"],
+        ),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@router.post("/generate-image-prompts")
+async def generate_image_prompts(request: Request, user: dict = Depends(get_current_user)):
+    body = await request.json()
+    keyword     = body.get("keyword", "").strip()
+    blog_content = body.get("blog_content", "").strip()
+    style       = body.get("style", "photorealistic")
+    tone        = body.get("tone", "warm")
+
+    if not keyword or not blog_content:
+        async def _err():
+            yield f"data: {_json.dumps({'error': '주제와 블로그 본문이 필요합니다.'})}\n\n"
+        return StreamingResponse(_err(), media_type="text/event-stream")
+
+    api_key = os.getenv("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        async def _err():
+            yield f"data: {_json.dumps({'error': '.env 파일에 ANTHROPIC_API_KEY를 설정해주세요.'})}\n\n"
+        return StreamingResponse(_err(), media_type="text/event-stream")
+
+    return StreamingResponse(
+        generate_image_prompts_stream(keyword, blog_content, api_key, style, tone),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 

@@ -62,7 +62,7 @@ class TestFormatInjection:
         """format_id 지정 시 done 이벤트에 format_id가 반환된다."""
         mock_stream = make_stream_mock()
         with patch("blog_generator.anthropic.Anthropic") as mock_cls, \
-             patch("main.check_blog_limit"), \
+             patch("routers.blog.check_blog_limit"), \
              patch("main.os.getenv", return_value="sk-ant-test"):
             mock_cls.return_value.messages.stream.return_value = mock_stream
             res = client.post("/generate", json={
@@ -81,7 +81,7 @@ class TestFormatInjection:
         valid_ids = {"information", "case_study", "qna", "comparison", "seasonal", "lifestyle"}
         mock_stream = make_stream_mock()
         with patch("blog_generator.anthropic.Anthropic") as mock_cls, \
-             patch("main.check_blog_limit"), \
+             patch("routers.blog.check_blog_limit"), \
              patch("main.os.getenv", return_value="sk-ant-test"):
             mock_cls.return_value.messages.stream.return_value = mock_stream
             res = client.post("/generate", json={
@@ -99,7 +99,7 @@ class TestFormatInjection:
         valid_hooks = {"statistic", "case", "question", "season", "classic_quote"}
         mock_stream = make_stream_mock()
         with patch("blog_generator.anthropic.Anthropic") as mock_cls, \
-             patch("main.check_blog_limit"), \
+             patch("routers.blog.check_blog_limit"), \
              patch("main.os.getenv", return_value="sk-ant-test"):
             mock_cls.return_value.messages.stream.return_value = mock_stream
             res = client.post("/generate", json={
@@ -123,7 +123,7 @@ class TestSystemPromptInjection:
             return make_stream_mock()
 
         with patch("blog_generator.anthropic.Anthropic") as mock_cls, \
-             patch("main.check_blog_limit"), \
+             patch("routers.blog.check_blog_limit"), \
              patch("main.os.getenv", return_value="sk-ant-test"):
             mock_cls.return_value.messages.stream.side_effect = fake_stream
             client.post("/generate", json={
@@ -143,7 +143,7 @@ class TestSystemPromptInjection:
             return make_stream_mock()
 
         with patch("blog_generator.anthropic.Anthropic") as mock_cls, \
-             patch("main.check_blog_limit"), \
+             patch("routers.blog.check_blog_limit"), \
              patch("main.os.getenv", return_value="sk-ant-test"):
             mock_cls.return_value.messages.stream.side_effect = fake_stream
             client.post("/generate", json={
@@ -159,7 +159,7 @@ class TestSystemPromptInjection:
         """citation 블록이 replace 이벤트로 본문 끝에 추가된다."""
         mock_stream = make_stream_mock(["본문 내용"])
         with patch("blog_generator.anthropic.Anthropic") as mock_cls, \
-             patch("main.check_blog_limit"), \
+             patch("routers.blog.check_blog_limit"), \
              patch("main.os.getenv", return_value="sk-ant-test"):
             mock_cls.return_value.messages.stream.return_value = mock_stream
             res = client.post("/generate", json={

@@ -147,7 +147,7 @@ def test_seo_input_returns_sse_with_token_frames():
 
     with patch("blog_generator.generate_blog_stream", fake_gen), \
          patch("blog_history.save_blog_entry", lambda *a, **k: 999), \
-         patch("main.check_blog_limit"), \
+         patch("routers.blog.check_blog_limit"), \
          patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test"}):
         res = client.post("/api/blog-chat/turn",
                           json={"session_id": sid, "user_input": "아니오"})
@@ -185,7 +185,7 @@ def test_quota_exceeded_returns_429():
     def raise_quota(_):
         raise HTTPException(status_code=429, detail="이번 달 한도 초과.")
 
-    with patch("main.check_blog_limit", side_effect=raise_quota):
+    with patch("routers.blog.check_blog_limit", side_effect=raise_quota):
         # CONFIRM_IMAGE 응답이 quota check 트리거
         res = client.post("/api/blog-chat/turn",
                           json={"session_id": sid, "user_input": "아니오"})

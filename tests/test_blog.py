@@ -72,7 +72,7 @@ def test_generate_success():
     mock_stream = make_stream_mock(chunks, input_tokens=500, output_tokens=800)
 
     with patch("blog_generator.anthropic.Anthropic") as mock_client_cls, \
-         patch("main.check_blog_limit"):
+         patch("routers.blog.check_blog_limit"):
         mock_client_cls.return_value.messages.stream.return_value = mock_stream
         with patch("main.os.getenv", return_value="sk-ant-test-key"):
             res = client.post(
@@ -105,7 +105,7 @@ def test_generate_invalid_api_key():
     import anthropic as anthropic_lib
 
     with patch("blog_generator.anthropic.Anthropic") as mock_client_cls, \
-         patch("main.check_blog_limit"):
+         patch("routers.blog.check_blog_limit"):
         mock_stream = MagicMock()
         mock_stream.__enter__ = MagicMock(side_effect=anthropic_lib.AuthenticationError(
             message="Invalid API key",
@@ -134,7 +134,7 @@ def test_generate_insufficient_funds():
     import anthropic as anthropic_lib
 
     with patch("blog_generator.anthropic.Anthropic") as mock_client_cls, \
-         patch("main.check_blog_limit"):
+         patch("routers.blog.check_blog_limit"):
         mock_stream = MagicMock()
         err = anthropic_lib.APIStatusError(
             message="Your credit balance is too low",
@@ -164,7 +164,7 @@ def test_generate_empty_output():
     mock_stream = make_stream_mock([], input_tokens=50, output_tokens=0)
 
     with patch("blog_generator.anthropic.Anthropic") as mock_client_cls, \
-         patch("main.check_blog_limit"):
+         patch("routers.blog.check_blog_limit"):
         mock_client_cls.return_value.messages.stream.return_value = mock_stream
         with patch("main.os.getenv", return_value="sk-ant-test"):
             res = client.post(
@@ -182,7 +182,7 @@ def test_generate_empty_output():
 def test_generate_empty_keyword():
     """빈 keyword → SSE 오류 이벤트 반환"""
     with patch("main.os.getenv", return_value="sk-ant-test"), \
-         patch("main.check_blog_limit"):
+         patch("routers.blog.check_blog_limit"):
         res = client.post("/generate", json={"keyword": "", "answers": {}})
 
     events = parse_sse(res.content)
