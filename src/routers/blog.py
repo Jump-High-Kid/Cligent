@@ -777,12 +777,7 @@ async def api_image_session_cancel(
     session_id: str,
     user: dict = Depends(get_current_user),
 ):
-    """이미지 생성 중단 마크 (2026-05-02 추가).
-
-    SSE 루프가 다음 이터에서 cancel flag를 감지해 'image_cancelled' 프레임을 보낸 뒤 종료한다.
-    이미 OpenAI 호출이 진행 중인 장은 응답을 받은 후 폐기됨 (장 단위 atomic).
-    권한: 자기 한의원의 세션만.
-    """
+    """이미지 세션 ID로 직접 취소 (image_session_started frame 수신 후)."""
     from image_session_manager import get_session
     from blog_chat_flow import cancel_image_session
 
@@ -794,6 +789,38 @@ async def api_image_session_cancel(
 
     cancel_image_session(session_id)
     return JSONResponse({"ok": True, "session_id": session_id})
+
+
+@router.post("/api/blog-chat/{chat_session_id}/cancel-image")
+async def api_blog_chat_cancel_image(
+    chat_session_id: str,
+    user: dict = Depends(get_current_user),
+):
+    """블로그 챗 세션 ID로 이미지 생성 취소 (2026-05-02 추가, image_session_id 없이도 동작).
+
+    클라이언트는 stage가 'image'에 진입하면 즉시 취소 버튼을 표시하고
+    이 엔드포인트로 호출한다. 서버가 state.image_session_id를 조회해서
+    실제 cancel set에 추가한다. 아직 image_session이 생성되기 전이면
+    'pending' cancel mark로 저장 → 생성 직후 즉시 취소 처리.
+    """
+    from blog_chat_state import load_session
+    from blog_chat_flow import cancel_image_session
+
+    state = load_session(chat_session_id)
+    if state is None:
+        raise HTTPException(status_code=404, detail="블로그 챗 세션을 찾을 수 없습니다.")
+    if state.clinic_id != user["clinic_id"]:
+        raise HTTPException(status_code=403, detail="다른 한의원의 세션입니다.")
+
+    image_sid = state.image_session_id or ""
+    if image_sid:
+        cancel_image_session(image_sid)
+        return JSONResponse({"ok": True, "image_session_id": image_sid, "mode": "direct"})
+
+    # image_session이 아직 생성되기 전 — 챗 session_id로 pending 마크
+    # (서버 _stream_generator_for_image에서 _create_image_session 직후 추가 체크)
+    cancel_image_session(f"pending:{chat_session_id}")
+    return JSONResponse({"ok": True, "image_session_id": None, "mode": "pending"})
 
 
 # ─────────────────────────────────────────────────────────────

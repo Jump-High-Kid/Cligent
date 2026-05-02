@@ -1078,10 +1078,20 @@ def _stream_generator_for_image(state: BlogChatState, user_input: str):
         yield _sse_frame({"type": "done"})
         return
 
+    # pending cancel (image_session 생성 전 클라가 취소 누른 경우) 처리
+    pending_key = f"pending:{state.session_id}"
+    if is_image_session_cancelled(pending_key):
+        _clear_cancel_flag(pending_key)
+        cancel_image_session(image_session_id)  # 즉시 취소 마크
+        yield _sse_frame({"type": "image_cancelled",
+                          "message": "이미지 생성이 취소됐어요."})
+        yield _sse_frame({"type": "done"})
+        return
+
     # ── 3. gpt-image-2 호출 (5번, 사이사이 진행 안내) ───────
     # 실측: 1장당 평균 ~60초 (조직 인증 직후·고해상도). 사용자가 다른 일 가능하도록
     # 예상 시간 + 모듈 제목 노출. 분 단위로 자연스럽게 표시.
-    # 클라이언트가 취소 버튼을 만들 수 있도록 image_session_id 사전 통지
+    # 클라이언트가 취소 버튼을 만들 수 있도록 image_session_id 사전 통지 (backup, primary는 stage_change)
     yield _sse_frame({"type": "image_session_started",
                       "image_session_id": image_session_id})
 

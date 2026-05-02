@@ -58,34 +58,69 @@
     if (el) el.textContent = state.stage_text;
   }
 
-  // ── 이미지 생성 취소 버튼 (2026-05-02) ────────────────────────
-  function showImageCancelBtn(sessionId) {
+  // ── 이미지 생성 취소 버튼 (2026-05-02 강화) ────────────────────
+  // 트리거: stage_change → 'image' 즉시 표시. image_session_started frame은 backup.
+  // cancel: image_session_id가 있으면 직접 cancel API, 없으면 chat session 기반 pending cancel.
+  function showImageCancelBtn() {
     let btn = $('imageCancelBtn');
     if (!btn) {
       btn = document.createElement('button');
       btn.id = 'imageCancelBtn';
       btn.type = 'button';
-      btn.className = 'header-icon-btn';
-      btn.style.cssText = 'background:#fef2f2;color:#dc2626;border:1px solid #fca5a5;border-radius:8px;padding:0 10px;font-size:12px;font-weight:600;height:30px;flex-shrink:0';
+      btn.style.cssText = [
+        'background:#fef2f2',
+        'color:#dc2626',
+        'border:1px solid #fca5a5',
+        'border-radius:8px',
+        'padding:0 12px',
+        'font-size:12px',
+        'font-weight:700',
+        'height:30px',
+        'flex-shrink:0',
+        'cursor:pointer',
+        'display:inline-flex',
+        'align-items:center',
+        'gap:4px',
+      ].join(';');
       btn.title = '이미지 생성 취소';
-      btn.textContent = '취소';
+      btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px">close</span>중단';
+      // 헤더 우측에 추가 (feedbackBtn 앞)
       const fb = $('feedbackBtn');
-      if (fb && fb.parentNode) fb.parentNode.insertBefore(btn, fb);
+      const header = document.querySelector('.chat-header');
+      if (fb && fb.parentNode) {
+        fb.parentNode.insertBefore(btn, fb);
+      } else if (header) {
+        header.appendChild(btn);
+      }
     }
     btn.style.display = 'inline-flex';
+    btn.disabled = false;
+    btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px">close</span>중단';
     btn.onclick = async () => {
       if (!confirm('이미지 생성을 취소하시겠습니까? 진행 중인 장은 폐기됩니다.')) return;
       btn.disabled = true;
-      btn.textContent = '취소 중...';
+      btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px">hourglass_empty</span>취소 중';
       try {
-        await fetch(`/api/image/session/${encodeURIComponent(sessionId)}/cancel`, { method: 'POST' });
-      } catch (_) { /* silent */ }
+        const imgSid = state.image_session_id;
+        const chatSid = state.session_id;
+        if (imgSid) {
+          // 정확한 image_session_id 알고 있으면 직접 취소
+          await fetch(`/api/image/session/${encodeURIComponent(imgSid)}/cancel`, { method: 'POST' });
+        } else if (chatSid) {
+          // image_session 아직 생성 전 → chat session 기반 pending 취소
+          await fetch(`/api/blog-chat/${encodeURIComponent(chatSid)}/cancel-image`, { method: 'POST' });
+        }
+      } catch (_) { /* silent — 서버가 다음 SSE에서 image_cancelled 보낼 것 */ }
     };
   }
 
   function hideImageCancelBtn() {
     const btn = $('imageCancelBtn');
-    if (btn) { btn.style.display = 'none'; btn.disabled = false; btn.textContent = '취소'; }
+    if (btn) {
+      btn.style.display = 'none';
+      btn.disabled = false;
+      btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px">close</span>중단';
+    }
   }
 
   // stage별 입력창 placeholder (이슈 6, 2026-05-02 EMPHASIS + confirm_image 추가)
@@ -913,13 +948,17 @@
         if (frame.stage) state.stage = frame.stage;
         if (frame.stage_text) setStageText(frame.stage_text);
         updatePlaceholder();
+        // 2026-05-02: image stage 진입 즉시 취소 버튼 노출 (image_session_id 없어도 chat session 기반 pending 취소 가능)
+        if (frame.stage === 'image') {
+          showImageCancelBtn();
+        }
         break;
       case 'image_session_started':
-        // 2026-05-02: 이미지 생성 취소 버튼 노출
+        // backup 트리거 — image_session_id를 state에 저장 (이후 정확한 직접 취소 가능)
         if (frame.image_session_id) {
           state.image_session_id = frame.image_session_id;
-          showImageCancelBtn(frame.image_session_id);
         }
+        showImageCancelBtn();
         break;
       case 'image_cancelled':
         hideImageCancelBtn();
