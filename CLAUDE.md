@@ -43,6 +43,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **블로그 챗 UI 단일 진입점** — `/blog`가 `templates/blog_chat.html` 챗 UI 사용. 4단계 폼(`index.html`) dead code.
 - **이미지 모듈 시스템 (`src/image_modules.py`)** — 11 모듈 분기, 5장 모두 다른 모듈, negative 본문 통합. gpt-image-2 generations / gpt-image-1.5 edits.
 - **자료 변형 자동화 보류**: ChatGPT 웹 직접 변환이 현 시점 최선. `scripts/edit_anatomy_demo.py` 보존(Phase 2 출발점), `_demo/` 결과물은 `.gitignore`.
+- **디자인 시스템 단일 진실원 분리 (2026-05-02)** — `docs/design.md` (516줄) 신규. CLAUDE.md 디자인 섹션은 포인터로 축소. canonical: `app.html` 쉘 / `dashboard.html` 일반 / `blog_chat.html` 챗 UI. 새 모듈 추가 시 design.md 7장 체크리스트 필수.
+- **설정 페이지 재설계 (2026-05-02)** — `templates/settings.html` 1,892줄 → 1,713줄. 1차 탭 6개 + 서브탭 5개 → **좌측 nav 6개 평탄화** (한의원 정보 / 팀 & 권한 / 블로그 설정 / AI 설정 / 보안 / 데이터 관리). 자동저장(debounce 600ms) + 글로벌 토스트. 준비 중 탭 3개·프롬프트 직접 편집·월 예산 한도 UI 삭제. AI 설정에 OpenAI 키(이미지) 추가, Anthropic = "문서 생성 전용" / OpenAI = "이미지 생성 전용" 명시. 블로그 이력 페이지네이션 압축(`1 2 … 17`). 4중 overflow 안전망(`feedback_flex_overflow_pattern.md` 참조). 백업: `templates/settings.html.bak.20260502`.
 
 ## 폴더 구조 요약
 
@@ -199,41 +201,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `chief_director` / `director` 선택 → 모든 토글 `disabled=true` ("항상 접근")
 - `team_member` 이하 → 자유 토글 + 즉시 자동저장 (`POST /api/settings/staff/modules`)
 
-## 디자인 시스템 원칙 (2026-04-19 확정)
+## 디자인 시스템
 
-> **핵심 규칙**: 대시보드 또는 사이드 패널 디자인이 변경되면, 모든 하위 페이지(설정·블로그 생성기 등)에 동일하게 반영.
-
-### 디자인 토큰
-
-| 항목 | 값 |
-|---|---|
-| 사이드바 배경 | `bg-stone-100` |
-| 활성 메뉴 | `bg-emerald-900 text-white rounded-xl` |
-| 비활성 메뉴 텍스트 | `text-stone-600` |
-| 비활성 메뉴 호버 | `hover:bg-stone-200` |
-| 아이콘 스타일 | `wght 300, FILL 0, GRAD 0, opsz 24` |
-| 폰트 | Pretendard (본문), Manrope (헤드라인) |
-| 주색 | `emerald-900` (#064e3b) |
-| 보조색 | sage (`--sage:#a8b5a0`, `--sage-soft:#eef1ea`, `--sage-tint:#f6f8f4`) |
-
-### 사이드바 통일 원칙
-- **기준 파일**: `dashboard.html` canonical
-- 토글 CSS: `.ios-toggle:checked ~ .ios-toggle-dot` (`+` 아님, `~`)
-- 하단 구성: `role-badge` → `invite-btn`(director 이상만) → `doLogout()`
-- collapsed 숨김: `nav-label`, `sidebar-logo-text`, `sidebar-role`, `sidebar-invite-label`
-
-### 새 페이지 추가 체크리스트
-- [ ] `app.html` 사이드바 메뉴 추가 (`data-path` 속성)
-- [ ] FastAPI 라우트 추가 (`src/main.py`)
-- [ ] 페이지 HTML iframe 감지 코드:
-  ```js
-  if (window.self !== window.top) {
-    document.getElementById('sidebar').style.display = 'none';
-    document.getElementById('main-content').style.marginLeft = '0';
-  }
-  ```
-- [ ] 폰트: Pretendard (`cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9`)
-- [ ] Material Symbols: `wght,FILL@100..700,0..1` range
+> 디자인 토큰·레이아웃·사이드바·컴포넌트·페이지 패턴(일반/챗 UI)·새 모듈 추가 체크리스트·금지 사항: **[docs/design.md](docs/design.md)** 참조 (단일 진실원).
+> 새 페이지·모듈 추가 시 반드시 design.md의 7장 체크리스트를 따른다.
 
 ## 가격·이미지 구조 v7 결정 (2026-04-30)
 
