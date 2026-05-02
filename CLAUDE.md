@@ -30,7 +30,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 > 상세는 CHANGELOG 항목 참조.
 
-- **v0.9.0 라우터 분할 (5/6 — blog C2)** — main.py 4,000줄 → 6 도메인 라우터(auth/clinic/billing/blog/dashboard/admin). 베타 진행+영상/재고 모듈 추가 대비. auth.py 18 라우트(-503), clinic.py 25 라우트(-529), billing.py 2 라우트(-104), blog.py C1 24 라우트(-653) + C2 SSE 3건+_stream_and_save(-279) 완료. main.py 4,021 → **1,958(-2,063, -51.3%)**, blog.py 1,050. dashboard + admin 남음.
+- **v0.9.0 라우터 분할 (5/6 — dashboard)** — main.py 4,000줄 → 6 도메인 라우터(auth/clinic/billing/blog/dashboard/admin). 베타 진행+영상/재고 모듈 추가 대비. auth.py 18 라우트(-503), clinic.py 25 라우트(-529), billing.py 2 라우트(-104), blog.py C1 24 라우트(-653) + C2 SSE 3건+_stream_and_save(-279), dashboard.py 9 라우트+3 헬퍼(-196) 완료. main.py 4,021 → **1,762(-2,259, -56.2%)**, dashboard.py 281. admin.py + 정리 + CHANGELOG 남음.
+  - dashboard.py 라우트 등록 순서: `/announcements/new` (admin inline) 가 dashboard `/announcements/{ann_id}` 보다 먼저 등록되도록 dashboard router만 main.py 하단에서 include_router 호출.
   - SemVer 도입: VERSION 파일 단일 진실원, /api/version, 사이드바·어드민 footer 표시.
   - 공용 의존성: `src/dependencies.py` (is_admin_clinic, require_admin_*, NO_CACHE_HEADERS).
   - 공용 암호화: `src/crypto_utils.py` (_get_fernet, encrypt_key/decrypt_key/mask_key). main.py에 _encrypt_key/_decrypt_key/_mask_key/`_get_fernet` alias 보존(어드민 OpenAI 키 + tests/test_onboarding monkeypatch 호환).
