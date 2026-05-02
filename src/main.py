@@ -210,47 +210,14 @@ def _check_ip_apply_limit(ip: str) -> bool:
     return True
 
 
-def _require_admin(request: Request) -> None:
-    """Bearer <ADMIN_SECRET> 검증. 실패 시 HTTPException 발생."""
-    admin_secret = os.getenv("ADMIN_SECRET", "")
-    if not admin_secret:
-        raise HTTPException(status_code=403, detail="관리자 기능이 비활성화되어 있습니다.")
-    auth = request.headers.get("Authorization", "")
-    if not auth.startswith("Bearer ") or auth[7:] != admin_secret:
-        raise HTTPException(status_code=401, detail="인증 실패")
-
-
-def _require_admin_or_session(request: Request) -> None:
-    """세션 쿠키(chief_director + ADMIN_CLINIC_ID) 또는 ADMIN_SECRET Bearer 둘 중 하나 통과 시 OK.
-    브라우저 진입에는 세션, CLI 스크립트에는 Bearer를 사용.
-    """
-    # 1) ADMIN_SECRET Bearer 우선
-    admin_secret = os.getenv("ADMIN_SECRET", "")
-    auth = request.headers.get("Authorization", "")
-    if admin_secret and auth.startswith("Bearer ") and auth[7:] == admin_secret:
-        return
-    # 2) 세션 쿠키 — chief_director + ADMIN_CLINIC_ID
-    token = request.cookies.get(COOKIE_NAME)
-    if not token:
-        raise HTTPException(status_code=401, detail="인증이 필요합니다.")
-    try:
-        payload = decode_token(token)
-        user_id = int(payload.get("sub", 0))
-        from db_manager import get_db as _g
-        with _g() as conn:
-            row = conn.execute(
-                "SELECT id, role, clinic_id FROM users WHERE id = ? AND is_active = 1",
-                (user_id,),
-            ).fetchone()
-        if not row:
-            raise HTTPException(status_code=401, detail="세션이 만료되었습니다.")
-        admin_cid = os.getenv("ADMIN_CLINIC_ID", "1")
-        if row["role"] != "chief_director" or int(row["clinic_id"]) != int(admin_cid):
-            raise HTTPException(status_code=403, detail="관리자 권한이 없습니다.")
-    except HTTPException:
-        raise
-    except Exception:
-        raise HTTPException(status_code=401, detail="세션 검증 실패")
+# 라우터 분할 후 단일 진실원 → src/dependencies.py
+# main.py 의 기존 호출자를 위해 동일 이름으로 alias 유지 (점진적 분할 대응)
+from dependencies import (
+    is_admin_clinic as _is_admin_clinic,
+    require_admin as _require_admin,
+    require_admin_or_session as _require_admin_or_session,
+    require_announce_admin as _require_announce_admin,
+)
 
 
 async def _midnight_scheduler() -> None:
@@ -859,16 +826,7 @@ async def api_logout():
     return response
 
 
-def _is_admin_clinic(user: dict) -> bool:
-    """베타 정책: ADMIN_CLINIC_ID와 일치하는 클리닉만 직원 초대·관리 기능 허용.
-
-    정식 서비스 출시 시 본 함수를 제거하거나 항상 True 반환으로 전환.
-    """
-    admin_cid = os.getenv("ADMIN_CLINIC_ID", "1")
-    try:
-        return int(user.get("clinic_id", 0)) == int(admin_cid)
-    except (TypeError, ValueError):
-        return False
+# _is_admin_clinic 은 dependencies.py 의 is_admin_clinic 을 alias 로 사용 (위쪽 import 참조).
 
 
 @app.get("/api/auth/me")
@@ -3493,10 +3451,7 @@ _ANNOUNCE_ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 _ANNOUNCE_MAX_UPLOAD = 5 * 1024 * 1024  # 5MB
 
 
-def _require_announce_admin(user: dict) -> None:
-    """공지 작성·수정·삭제 권한: ADMIN_CLINIC_ID + chief_director."""
-    if not (_is_admin_clinic(user) and user["role"] == "chief_director"):
-        raise HTTPException(status_code=403, detail="공지 작성 권한이 없습니다.")
+# _require_announce_admin 은 dependencies.py 의 require_announce_admin 을 alias.
 
 
 @app.get("/announcements")
