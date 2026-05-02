@@ -1103,6 +1103,8 @@ if (localStorage.getItem('cligent_sidebar') === '1') {
 }
 
 async function doLogout() {
+  // 모든 sessionStorage 정리 — 다음 사용자가 이전 진행 메시지를 보지 않도록 (2026-05-02)
+  try { sessionStorage.clear(); } catch(_) {}
   try { await fetch('/api/auth/logout', { method: 'POST' }); } catch(_) {}
   window.location.href = '/login';
 }
