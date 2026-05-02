@@ -292,6 +292,15 @@ def _seo_message() -> tuple[str, list[dict], dict]:
     return text, SEO_OPTIONS, {}
 
 
+def _emphasis_message() -> tuple[str, list[dict], dict]:
+    text = (
+        "원장님이 강조하고 싶은 치료 방법, 사례, 증상 등을 추가로 입력해주세요.\n"
+        "(이 내용은 본문에서 강조되어 작성됩니다. 없으면 [건너뛰기])"
+    )
+    opts = [{"id": "skip", "label": "건너뛰기"}]
+    return text, opts, {}
+
+
 def _confirm_image_message() -> tuple[str, list[dict], dict]:
     text = (
         "마지막으로, 글 완성 후 이미지 5장을 연속으로 출력하시겠습니까?\n"
@@ -474,6 +483,21 @@ def process_turn(state: BlogChatState, user_input: str) -> dict:
         else:
             kws = [k.strip() for k in normalized.split(",") if k.strip()]
             state.seo_keywords = kws[:5]
+        # SEO 다음에 강조 사항 입력 단계 (2026-05-02 추가)
+        transition(state, Stage.EMPHASIS)
+        text, opts, meta = _emphasis_message()
+        append_message(state, "assistant", text, options=opts, meta=meta)
+        save_session(state)
+        return _to_response(state)
+
+    # ── EMPHASIS — 원장 강조 사항 입력 (자유 입력 또는 건너뛰기) ──
+    if s == Stage.EMPHASIS:
+        normalized = (user_input or "").strip()
+        if normalized.lower() in ("skip", "건너뛰기", "넘김", "스킵", "없음", ""):
+            state.emphasis = ""
+        else:
+            # 입력값 그대로 저장 (최대 500자 제한)
+            state.emphasis = normalized[:500]
         transition(state, Stage.CONFIRM_IMAGE)
         text, opts, meta = _confirm_image_message()
         append_message(state, "assistant", text, options=opts, meta=meta)
@@ -720,12 +744,18 @@ def _stream_generator_for_seo(state: BlogChatState, user_input: str):
             answers_dict[k] = v
     blog_args = to_blog_args(answers_dict)
 
+    # 강조 사항 (2026-05-02): EMPHASIS 단계 입력값을 answers dict로 전달.
+    # blog_generator의 qa_text 빌더가 "원장 강조사항: ..." 형태로 본문 프롬프트에 삽입한다.
+    answers_to_pass: dict = {"tone": "전문적"}
+    if state.emphasis:
+        answers_to_pass["원장 강조사항 (반드시 본문에서 비중 있게 다룰 것)"] = state.emphasis
+
     collected: list[str] = []
     cost_krw = 0
     try:
         gen = generate_blog_stream(
             keyword=state.topic,
-            answers={"tone": "전문적"},
+            answers=answers_to_pass,
             api_key=api_key,
             seo_keywords=state.seo_keywords or [],
             char_count=char_count,
@@ -798,6 +828,7 @@ def _stream_generator_for_seo(state: BlogChatState, user_input: str):
     if state.auto_image:
         img_text = (
             "본문이 완성됐어요. 3초 후 이미지 5장 생성을 자동으로 시작합니다.\n"
+            "(5장 생성은 평균 6분 정도 소요됩니다.)\n"
             "지금 [전체 만들기]를 누르면 즉시 시작, [이미지 없이 종료]를 누르면 자동 시작이 취소됩니다."
         )
         # IMAGE_OPTIONS와 라벨 통일 — match_option 매칭 깨짐 방지 (2026-05-01)
@@ -873,7 +904,7 @@ def image_partial_frames() -> int:
 _IMAGE_STAGE_TEXTS = [
     "본문을 분석하고 있어요...",
     "5장의 컨셉을 정리하는 중...",
-    "이미지 세션을 준비하는 중... (전체 약 5분 예상)",
+    "이미지 세션을 준비하는 중... (전체 약 6분 소요, 5장 기준)",
     # [3], [4]는 동적 'N/5' 메시지로 대체 (2026-05-01)
 ]
 

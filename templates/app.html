@@ -30,17 +30,15 @@
   #sidebar.collapsed #toggle-btn .toggle-close { display: block; }
   #frame { flex: 1; border: none; height: 100vh; }
 
-  /* 미니 ! 아이콘: 우상단 (PC·모바일 공통, 햄버거가 좌측으로 이동했으므로 충돌 없음) */
+  /* 미니 ! 아이콘: 우상단 */
   #api-key-icon { right: 0.75rem; }
-  /* 모바일: 사이드바 숨기고 하단 네비 + 햄버거 표시 */
+  /* 모바일: 사이드바 숨기고 하단 네비만 표시 (햄버거·drawer 삭제, 2026-05-02) */
   @media (max-width: 767px) {
     #sidebar { display: none !important; }
     #frame-wrap { margin-left: 0 !important; }
     #frame { height: calc(100dvh - 64px); }
     #mobile-nav { display: flex !important; }
-    #mobile-hamburger { display: flex !important; }
   }
-  #mobile-drawer.open { transform: translateX(0) !important; }
   .mobile-nav-btn { color: #78716c; }
   .mobile-nav-btn.active { color: #064e3b; }
   .mobile-nav-btn.active .material-symbols-outlined {
@@ -72,15 +70,23 @@
     line-height: 1;
     white-space: nowrap;
   }
-  /* 접힌 상태: 세로 스택 */
+  /* 접힌 상태: 세로 스택 + 중앙 정렬 */
   #sidebar.collapsed .cligent-logo { --size: 32px; }
   #sidebar.collapsed .cligent-word { display: none; }
   #sidebar.collapsed .logo-row {
     flex-direction: column;
     align-items: center;
-    gap: 4px;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
   }
-  #sidebar.collapsed #toggle-btn { margin-left: 0; }
+  #sidebar.collapsed .cligent-logo {
+    margin: 0 auto;
+    justify-content: center;
+  }
+  #sidebar.collapsed #toggle-btn {
+    margin: 0 auto;
+  }
 </style>
 </head>
 <body class="flex flex-row h-screen bg-stone-100 overflow-hidden">
@@ -628,55 +634,9 @@
   <iframe id="frame" src="" class="w-full h-screen border-0"></iframe>
 </div>
 
-<!-- 모바일 햄버거 버튼 (좌상단 fixed) -->
-<button id="mobile-hamburger" onclick="toggleMobileDrawer(true)" style="display:none;"
-  class="fixed top-4 left-3 z-[55] w-9 h-9 bg-white border border-emerald-700 rounded-full shadow-sm flex items-center justify-center text-emerald-900 hover:bg-emerald-50">
-  <span class="material-symbols-outlined text-[20px]">menu</span>
-</button>
+<!-- 모바일 햄버거 + drawer 삭제됨 (2026-05-02): 4탭 하단 nav만 사용. -->
+<!-- 도움말·로그아웃 등 햄버거 기능은 /settings 페이지로 이전. -->
 
-<!-- 모바일 드로어 (오른쪽 슬라이드) -->
-<div id="mobile-drawer-overlay" onclick="toggleMobileDrawer(false)" style="display:none;"
-  class="fixed inset-0 z-[60] bg-black/40"></div>
-<aside id="mobile-drawer" style="display:none; transform: translateX(100%);"
-  class="fixed top-0 right-0 bottom-0 z-[61] w-72 max-w-[85vw] bg-white shadow-2xl transition-transform duration-200 flex flex-col">
-  <div class="flex items-center justify-between px-5 py-4 border-b border-stone-200">
-    <div class="text-emerald-900 font-extrabold text-lg tracking-tight">Cligent</div>
-    <button onclick="toggleMobileDrawer(false)" class="text-stone-500 hover:text-stone-800">
-      <span class="material-symbols-outlined">close</span>
-    </button>
-  </div>
-  <div class="px-3 py-4 flex-1 overflow-y-auto">
-    <div id="md-role-badge" class="px-3 py-2 mb-3 rounded-xl bg-stone-100 text-xs text-center font-semibold text-emerald-900">로딩 중...</div>
-    <button onclick="mobileNav('/help'); toggleMobileDrawer(false);"
-      class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-stone-700 hover:bg-stone-100 transition-all">
-      <span class="material-symbols-outlined">help_outline</span>
-      <span class="font-medium text-sm">도움말</span>
-    </button>
-    <button disabled
-      class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-stone-400 cursor-not-allowed">
-      <span class="material-symbols-outlined">smart_display</span>
-      <span class="font-medium text-sm">YouTube 생성기</span>
-      <span class="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-stone-200 text-stone-400">준비중</span>
-    </button>
-    <button id="md-invite-btn" onclick="navigateToInvite()" style="display:none;"
-      class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-stone-700 hover:bg-stone-100 transition-all">
-      <span class="material-symbols-outlined">person_add</span>
-      <span class="font-medium text-sm">팀원 초대</span>
-    </button>
-    <button id="md-admin-btn" onclick="mobileNav('/admin'); toggleMobileDrawer(false);" style="display:none;"
-      class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-stone-700 hover:bg-stone-100 transition-all">
-      <span class="material-symbols-outlined">admin_panel_settings</span>
-      <span class="font-medium text-sm">관리자</span>
-    </button>
-  </div>
-  <div class="px-3 py-3 border-t border-stone-200">
-    <button onclick="doLogout()"
-      class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-stone-700 hover:bg-stone-100 transition-all">
-      <span class="material-symbols-outlined">logout</span>
-      <span class="font-medium text-sm">로그아웃</span>
-    </button>
-  </div>
-</aside>
 
 <!-- 모바일 하단 네비게이션 -->
 <nav id="mobile-nav" style="display:none;"
@@ -733,19 +693,13 @@
       _apiKeyConfigured = !!user.api_key_configured;
       const roleLabel = ROLE_LABELS[user.role] || user.role;
       document.getElementById('role-badge').textContent = roleLabel;
-      const mdRole = document.getElementById('md-role-badge');
-      if (mdRole) mdRole.textContent = `${roleLabel} · ${user.email}`;
       if (DIRECTOR_ROLES.includes(user.role) && user.can_invite) {
         document.getElementById('invite-btn').style.display = 'flex';
-        const mdInvite = document.getElementById('md-invite-btn');
-        if (mdInvite) mdInvite.style.display = 'flex';
       }
       // 관리자(chief_director + ADMIN_CLINIC_ID)에게만 관리자 메뉴 노출
       if (user.is_admin) {
         const navAdmin = document.getElementById('nav-admin');
         if (navAdmin) navAdmin.style.display = 'flex';
-        const mdAdmin = document.getElementById('md-admin-btn');
-        if (mdAdmin) mdAdmin.style.display = 'flex';
       }
       // 안 읽은 공지 뱃지 갱신
       refreshUnreadBadge();
@@ -818,26 +772,7 @@
     localStorage.removeItem('cligent_apikey_banner_dismissed');
   }
 
-  // ── 모바일 드로어 ─────────────────────────────────────────
-  function toggleMobileDrawer(open) {
-    const drawer = document.getElementById('mobile-drawer');
-    const overlay = document.getElementById('mobile-drawer-overlay');
-    if (open) {
-      drawer.style.display = 'flex';
-      overlay.style.display = 'block';
-      // 다음 프레임에서 transform 적용 (애니메이션)
-      requestAnimationFrame(() => drawer.classList.add('open'));
-    } else {
-      drawer.classList.remove('open');
-      overlay.style.display = 'none';
-      setTimeout(() => { drawer.style.display = 'none'; }, 220);
-    }
-  }
-  function navigateToInvite() {
-    toggleMobileDrawer(false);
-    // PC 사이드바 초대 버튼 클릭 트리거
-    document.getElementById('invite-btn')?.click();
-  }
+  // 모바일 drawer 삭제됨 (2026-05-02): 도움말·로그아웃·초대 모두 /settings 페이지로 이전.
 
   // ── 위자드 ─────────────────────────────────────────────────
   function openWizard() {

@@ -172,9 +172,13 @@ class TestProcessTurnHappyPath:
         assert state.length_chars == 2000
         assert state.stage == Stage.SEO
 
-        # SEO: 키워드 입력 → CONFIRM_IMAGE (2026-05-01 변경)
+        # SEO: 키워드 입력 → EMPHASIS (2026-05-02 추가)
         r3 = process_turn(state, "추나치료, 디스크")
         assert state.seo_keywords == ["추나치료", "디스크"]
+        assert state.stage == Stage.EMPHASIS
+        # EMPHASIS: 강조 사항 입력 → CONFIRM_IMAGE
+        process_turn(state, "추나 + 침 병행 치료가 핵심")
+        assert state.emphasis == "추나 + 침 병행 치료가 핵심"
         assert state.stage == Stage.CONFIRM_IMAGE
         # CONFIRM_IMAGE에 "아니오" 응답 → fallback에서 DONE까지 진행
         process_turn(state, "아니오")
@@ -240,7 +244,9 @@ class TestProcessTurnSeo:
         process_turn(state, "2")
         process_turn(state, "넘김")
         assert state.seo_keywords == []
-        # SEO 뒤 CONFIRM_IMAGE 단계 추가 (2026-05-01)
+        # SEO → EMPHASIS → CONFIRM_IMAGE (2026-05-02 EMPHASIS 추가)
+        assert state.stage == Stage.EMPHASIS
+        process_turn(state, "건너뛰기")
         assert state.stage == Stage.CONFIRM_IMAGE
         process_turn(state, "아니오")
         assert state.stage == Stage.DONE
@@ -256,7 +262,9 @@ class TestProcessTurnSeo:
         # SEO stage에서 빈 입력
         process_turn(state, "")
         assert state.seo_keywords == []
-        # SEO 뒤 CONFIRM_IMAGE 단계 추가 (2026-05-01)
+        # SEO → EMPHASIS → CONFIRM_IMAGE (2026-05-02)
+        assert state.stage == Stage.EMPHASIS
+        process_turn(state, "")  # EMPHASIS 빈 입력 → skip
         assert state.stage == Stage.CONFIRM_IMAGE
         process_turn(state, "아니오")
         assert state.stage == Stage.DONE
@@ -338,7 +346,8 @@ class TestProcessTurnDone:
         process_turn(state, "허리디스크")
         process_turn(state, "2")
         process_turn(state, "넘김")
-        # CONFIRM_IMAGE → "아니오" → DONE
+        # SEO → EMPHASIS (2026-05-02) → CONFIRM_IMAGE → DONE
+        process_turn(state, "건너뛰기")
         process_turn(state, "아니오")
         assert state.stage == Stage.DONE
         # DONE 상태에서 추가 입력
@@ -476,14 +485,17 @@ class TestStreamingForSeo:
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
 
         state = create_session(clinic_id=1, user_id=10)
-        # CONFIRM_IMAGE stage까지 진행 (2026-05-01 변경: SEO → CONFIRM_IMAGE → SSE)
+        # CONFIRM_IMAGE stage까지 진행 (2026-05-02: SEO → EMPHASIS → CONFIRM_IMAGE → SSE)
         flow.process_turn(state, "허리디스크")
         flow.process_turn(state, "2")
         assert state.stage == Stage.SEO
-        # SEO 키워드 입력 → CONFIRM_IMAGE 진입
+        # SEO 키워드 입력 → EMPHASIS 진입
         flow.process_turn(state, "추나, 디스크")
-        assert state.stage == Stage.CONFIRM_IMAGE
+        assert state.stage == Stage.EMPHASIS
         assert state.seo_keywords == ["추나", "디스크"]
+        # EMPHASIS skip → CONFIRM_IMAGE 진입
+        flow.process_turn(state, "건너뛰기")
+        assert state.stage == Stage.CONFIRM_IMAGE
 
         # SSE generator 실행 — CONFIRM_IMAGE에 "아니오" 응답이 SSE 트리거 input
         gen = flow.process_turn_streaming(state, "아니오")

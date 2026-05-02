@@ -130,16 +130,19 @@ def test_first_turn_creates_session_and_advances_to_length():
 
 
 def test_seo_input_returns_sse_with_token_frames():
-    """LENGTH → SEO → CONFIRM_IMAGE → 본문 SSE (2026-05-01: CONFIRM_IMAGE 단계 추가)."""
+    """LENGTH → SEO → EMPHASIS → CONFIRM_IMAGE → 본문 SSE (2026-05-02: EMPHASIS 단계 추가)."""
     # 1) topic 입력
     r1 = client.post("/api/blog-chat/turn", json={"user_input": "허리디스크"})
     sid = r1.json()["session_id"]
     # 2) length 선택
     client.post("/api/blog-chat/turn",
                 json={"session_id": sid, "user_input": "2"})
-    # 3) SEO 키워드 입력 → CONFIRM_IMAGE 옵션 메시지 (JSON, SSE 아님)
+    # 3) SEO 키워드 입력 → EMPHASIS 옵션 메시지 (JSON, SSE 아님)
     client.post("/api/blog-chat/turn",
                 json={"session_id": sid, "user_input": "추나, 디스크"})
+    # 3b) EMPHASIS 건너뛰기 → CONFIRM_IMAGE 옵션 메시지 (JSON, SSE 아님)
+    client.post("/api/blog-chat/turn",
+                json={"session_id": sid, "user_input": "건너뛰기"})
     # 4) CONFIRM_IMAGE 응답 → 본문 SSE
     def fake_gen(*args, **kwargs):
         yield 'data: {"text": "본문 시작"}\n\n'
@@ -171,16 +174,19 @@ def test_seo_input_returns_sse_with_token_frames():
 
 
 def test_quota_exceeded_returns_429():
-    """CONFIRM_IMAGE stage 진입 시 한도 초과 → JSON 429 응답 (2026-05-01: SEO → CONFIRM_IMAGE)."""
+    """CONFIRM_IMAGE stage 진입 시 한도 초과 → JSON 429 응답 (2026-05-02: SEO → EMPHASIS → CONFIRM_IMAGE)."""
     from fastapi import HTTPException
 
     r1 = client.post("/api/blog-chat/turn", json={"user_input": "허리디스크"})
     sid = r1.json()["session_id"]
     client.post("/api/blog-chat/turn",
                 json={"session_id": sid, "user_input": "2"})
-    # SEO 키워드 → CONFIRM_IMAGE 옵션 메시지
+    # SEO 키워드 → EMPHASIS 옵션 메시지
     client.post("/api/blog-chat/turn",
                 json={"session_id": sid, "user_input": "넘김"})
+    # EMPHASIS 건너뛰기 → CONFIRM_IMAGE 옵션 메시지
+    client.post("/api/blog-chat/turn",
+                json={"session_id": sid, "user_input": "건너뛰기"})
 
     def raise_quota(_):
         raise HTTPException(status_code=429, detail="이번 달 한도 초과.")

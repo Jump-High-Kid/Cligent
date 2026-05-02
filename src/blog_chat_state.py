@@ -43,6 +43,7 @@ class Stage(str, Enum):
     LENGTH = "length"
     QUESTIONS = "questions"
     SEO = "seo"
+    EMPHASIS = "emphasis"  # 2026-05-02: 강조 사항 입력 (SEO 다음, CONFIRM_IMAGE 전)
     CONFIRM_IMAGE = "confirm_image"
     GENERATING = "generating"
     IMAGE = "image"
@@ -57,8 +58,9 @@ VALID_TRANSITIONS: dict[Stage, set[Stage]] = {
     Stage.LENGTH: {Stage.QUESTIONS, Stage.SEO},
     # 질문 N회 반복 → 끝나면 seo
     Stage.QUESTIONS: {Stage.QUESTIONS, Stage.SEO},
-    # SEO → CONFIRM_IMAGE가 정상. GENERATING/DONE은 테스트·fallback 호환.
-    Stage.SEO: {Stage.CONFIRM_IMAGE, Stage.GENERATING, Stage.DONE},
+    # SEO → EMPHASIS → CONFIRM_IMAGE가 신규 흐름. 기존 SEO → CONFIRM_IMAGE도 호환 유지.
+    Stage.SEO: {Stage.EMPHASIS, Stage.CONFIRM_IMAGE, Stage.GENERATING, Stage.DONE},
+    Stage.EMPHASIS: {Stage.CONFIRM_IMAGE, Stage.GENERATING, Stage.DONE},
     # 이미지 자동 생성 여부 확인 → 본문 생성 (DONE은 fallback)
     Stage.CONFIRM_IMAGE: {Stage.GENERATING, Stage.CONFIRM_IMAGE, Stage.DONE},
     # 본문 완료 후 이미지 / 피드백 / 종료
@@ -74,9 +76,10 @@ _STAGE_TEXTS = {
     Stage.LENGTH: "글자 수 정하는 중",
     Stage.QUESTIONS: "질문 답변 중",
     Stage.SEO: "주요 키워드 입력 중",
+    Stage.EMPHASIS: "강조 사항 입력 중",
     Stage.CONFIRM_IMAGE: "이미지 자동 생성 여부 확인 중",
     Stage.GENERATING: "본문 작성 중",
-    Stage.IMAGE: "이미지 작업 중",
+    Stage.IMAGE: "이미지 작업 중 (평균 6분 소요)",
     Stage.FEEDBACK: "피드백 입력 중",
     Stage.DONE: "완성",
 }
@@ -120,6 +123,7 @@ class BlogChatState:
     length_chars: Optional[int] = None
     questions_answered: list[dict] = field(default_factory=list)  # [{q, a}]
     seo_keywords: list[str] = field(default_factory=list)
+    emphasis: str = ""  # 2026-05-02: 원장 강조 사항 (치료법·사례·증상). 본문 생성 시 강하게 인젝션.
 
     # 결과물 메타
     blog_text: str = ""

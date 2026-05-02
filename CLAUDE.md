@@ -201,10 +201,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `chief_director` / `director` 선택 → 모든 토글 `disabled=true` ("항상 접근")
 - `team_member` 이하 → 자유 토글 + 즉시 자동저장 (`POST /api/settings/staff/modules`)
 
-## 디자인 시스템
+## 디자인 시스템 (필수 참조)
 
-> 디자인 토큰·레이아웃·사이드바·컴포넌트·페이지 패턴(일반/챗 UI)·새 모듈 추가 체크리스트·금지 사항: **[docs/design.md](docs/design.md)** 참조 (단일 진실원).
-> 새 페이지·모듈 추가 시 반드시 design.md의 7장 체크리스트를 따른다.
+> **[docs/design.md](docs/design.md)** = 디자인 단일 진실원.
+> 새 페이지·모듈·UI 컴포넌트 작성·수정 시 **반드시** 다음을 준수:
+> 1. 디자인 토큰만 사용 (임의 색상·폰트·shadow 금지)
+> 2. canonical 파일 복제: `app.html`(쉘) / `dashboard.html`(일반) / `blog_chat.html`(챗 UI) 중 1개 선택
+> 3. design.md 7장 체크리스트(백엔드·사이드바·HTML·디자인·권한) 모두 통과
+> 4. 8장 금지사항(다크 모드·외부 UI 라이브러리·임의 box-shadow 등) 위반 금지
+>
+> **모든 한의원 기능 에이전트**(blog-agent, crm-agent, inventory-agent, schedule-agent, interview-form-agent, youtube-agent, dashboard-agent, clinical-advisor-agent)는 UI 산출물 생성 시 design.md 참조 필수.
 
 ## 가격·이미지 구조 v7 결정 (2026-04-30)
 
