@@ -26,15 +26,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **처방 로직**은 의료진 최종 확인 단계 포함
 - **의료 기록 삭제**는 소프트 딜리트(soft delete) 방식
 
-## 진행 중 (2026-05-01)
+## 진행 중 (2026-05-02)
 
-> 상세는 CHANGELOG 2026-05-01 항목 참조.
+> 상세는 CHANGELOG 항목 참조.
 
+- **v0.9.0 라우터 분할 (1/6)** — main.py 4,000줄 → 6 도메인 라우터(auth/clinic/billing/blog/dashboard/admin). 베타 진행+영상/재고 모듈 추가 대비. 첫 단계 auth.py 18 라우트 분리 완료(-503줄), 5 라우터 남음.
+  - SemVer 도입: VERSION 파일 단일 진실원, /api/version, 사이드바·어드민 footer 표시.
+  - 공용 의존성: `src/dependencies.py` (is_admin_clinic, require_admin_*, NO_CACHE_HEADERS).
 - **해부학 DB Phase 1 인프라** — 30 부위 자료 수집 인프라 완성, 도메인 작업 1주 일정. 베타 critical path. Cohort 1 노출 게이트 ②번.
   - **다중 view 지원 (2026-05-01)**: 부위당 자료 1개 → 여러 view 공존. 파일명 `source_{view}.{ext}` + `meta_{view}.json`. validate 진행률은 부위 단위(30 기준) 유지. 어깨 anterior + posterior 2자료 등록(1/30).
 - **블로그 챗 UI 단일 진입점** — `/blog`가 `templates/blog_chat.html` 챗 UI 사용. 4단계 폼(`index.html`) dead code.
 - **이미지 모듈 시스템 (`src/image_modules.py`)** — 11 모듈 분기, 5장 모두 다른 모듈, negative 본문 통합. gpt-image-2 generations / gpt-image-1.5 edits.
-- **베타 직전 버그·기능 일괄 수정** — 미커밋·테스트 대기 (다음 세션에서 사용자 테스트 후 commit).
 - **자료 변형 자동화 보류**: ChatGPT 웹 직접 변환이 현 시점 최선. `scripts/edit_anatomy_demo.py` 보존(Phase 2 출발점), `_demo/` 결과물은 `.gitignore`.
 
 ## 폴더 구조 요약
