@@ -1017,7 +1017,12 @@
   })();
 
   async function doLogout() {
-    await fetch('/api/logout', { method: 'POST' });
+    // 모든 클라이언트 캐시 정리 — 다음 사용자가 이전 진행을 보지 않도록 (2026-05-02)
+    try {
+      sessionStorage.removeItem('cligent_blog_chat_session');
+      sessionStorage.clear();
+    } catch (_) {}
+    try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }); } catch (_) {}
     window.location.href = '/login';
   }
 </script>

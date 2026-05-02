@@ -58,69 +58,62 @@
     if (el) el.textContent = state.stage_text;
   }
 
-  // ── 이미지 생성 취소 버튼 (2026-05-02 강화) ────────────────────
+  // ── 이미지 생성 취소 버튼 (2026-05-02 강화 v2) ──────────────────
   // 트리거: stage_change → 'image' 즉시 표시. image_session_started frame은 backup.
   // cancel: image_session_id가 있으면 직접 cancel API, 없으면 chat session 기반 pending cancel.
+  // 헤더 레이아웃 의존성 제거 — fixed position 플로팅 버튼으로 항상 화면 우상단에 노출.
+  async function _doCancelImage(btn) {
+    if (!confirm('이미지 생성을 취소하시겠습니까? 진행 중인 장은 폐기됩니다.')) return;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px">hourglass_empty</span>취소 중';
+    try {
+      const imgSid = state.image_session_id;
+      const chatSid = state.session_id;
+      if (imgSid) {
+        await fetch(`/api/image/session/${encodeURIComponent(imgSid)}/cancel`, { method: 'POST', credentials: 'same-origin' });
+      } else if (chatSid) {
+        await fetch(`/api/blog-chat/${encodeURIComponent(chatSid)}/cancel-image`, { method: 'POST', credentials: 'same-origin' });
+      }
+    } catch (_) { /* silent — 서버가 다음 SSE에서 image_cancelled 보낼 것 */ }
+  }
+
   function showImageCancelBtn() {
     let btn = $('imageCancelBtn');
     if (!btn) {
       btn = document.createElement('button');
       btn.id = 'imageCancelBtn';
       btn.type = 'button';
+      btn.title = '이미지 생성 취소';
       btn.style.cssText = [
-        'background:#fef2f2',
-        'color:#dc2626',
-        'border:1px solid #fca5a5',
-        'border-radius:8px',
-        'padding:0 12px',
-        'font-size:12px',
+        'position:fixed',
+        'top:12px',
+        'right:12px',
+        'z-index:9999',
+        'background:#dc2626',
+        'color:#fff',
+        'border:none',
+        'border-radius:9999px',
+        'padding:0 16px',
+        'font-size:13px',
         'font-weight:700',
-        'height:30px',
-        'flex-shrink:0',
+        'height:38px',
         'cursor:pointer',
         'display:inline-flex',
         'align-items:center',
-        'gap:4px',
+        'gap:6px',
+        'box-shadow:0 4px 12px rgba(220,38,38,0.35)',
       ].join(';');
-      btn.title = '이미지 생성 취소';
-      btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px">close</span>중단';
-      // 헤더 우측에 추가 (feedbackBtn 앞)
-      const fb = $('feedbackBtn');
-      const header = document.querySelector('.chat-header');
-      if (fb && fb.parentNode) {
-        fb.parentNode.insertBefore(btn, fb);
-      } else if (header) {
-        header.appendChild(btn);
-      }
+      document.body.appendChild(btn);
     }
     btn.style.display = 'inline-flex';
     btn.disabled = false;
-    btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px">close</span>중단';
-    btn.onclick = async () => {
-      if (!confirm('이미지 생성을 취소하시겠습니까? 진행 중인 장은 폐기됩니다.')) return;
-      btn.disabled = true;
-      btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px">hourglass_empty</span>취소 중';
-      try {
-        const imgSid = state.image_session_id;
-        const chatSid = state.session_id;
-        if (imgSid) {
-          // 정확한 image_session_id 알고 있으면 직접 취소
-          await fetch(`/api/image/session/${encodeURIComponent(imgSid)}/cancel`, { method: 'POST' });
-        } else if (chatSid) {
-          // image_session 아직 생성 전 → chat session 기반 pending 취소
-          await fetch(`/api/blog-chat/${encodeURIComponent(chatSid)}/cancel-image`, { method: 'POST' });
-        }
-      } catch (_) { /* silent — 서버가 다음 SSE에서 image_cancelled 보낼 것 */ }
-    };
+    btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px">stop_circle</span>이미지 생성 중단';
+    btn.onclick = () => _doCancelImage(btn);
   }
 
   function hideImageCancelBtn() {
     const btn = $('imageCancelBtn');
-    if (btn) {
-      btn.style.display = 'none';
-      btn.disabled = false;
-      btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px">close</span>중단';
-    }
+    if (btn) btn.style.display = 'none';
   }
 
   // stage별 입력창 placeholder (이슈 6, 2026-05-02 EMPHASIS + confirm_image 추가)
@@ -1051,7 +1044,12 @@
     if (!sid) return false;
     try {
       const res = await fetch(SESSION_GET_URL(sid), { credentials: 'same-origin' });
-      if (res.status === 401) { window.location.href = '/login'; return false; }
+      if (res.status === 401) {
+        // 인증 실패 — sessionStorage 정리 후 로그인 (다음 사용자가 이전 진행 안 보도록)
+        try { sessionStorage.removeItem(SESSION_KEY); } catch (_) {}
+        window.location.href = '/login';
+        return false;
+      }
       if (!res.ok) {
         // 세션 만료/없음 → 신규로 시작
         try { sessionStorage.removeItem(SESSION_KEY); } catch (_) {}
@@ -1064,6 +1062,21 @@
       setQuota(data.quota || {});
       appendMessages(data.messages || []);
       updatePlaceholder();
+      // 페이지 이탈 후 복귀 — 진행 중이던 streaming은 SSE 끊김으로 멈춰 있음.
+      // 사용자에게 재개 불가 안내 + 복원된 streaming bubble 정리.
+      if (data.stage === 'image' || data.stage === 'generating') {
+        // 마지막 메시지에 streaming 흔적이 남아 있다면(태극 회전 등) 비활성화
+        const inner = $('messagesInner');
+        if (inner) {
+          inner.querySelectorAll('.taegeuk.active').forEach((el) => el.classList.remove('active'));
+          inner.querySelectorAll('.bubble.streaming').forEach((el) => el.classList.remove('streaming'));
+        }
+        appendMessage({
+          role: 'system',
+          text: '이전 작업이 페이지 이탈로 끊겼어요. 새 글을 시작해주세요.',
+          options: [], meta: {},
+        });
+      }
       return true;
     } catch (_) {
       return false;
