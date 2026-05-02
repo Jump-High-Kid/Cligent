@@ -56,7 +56,7 @@
         fetch('/api/announcements'),
         fetch('/api/announcements/unread-count').catch(() => null),
       ]);
-      if (!meRes.ok) { window.location.href = '/login'; return; }
+      if (!meRes.ok) { (window.top || window).location.href = '/login'; return; }
       const me = await meRes.json();
       if (me.is_admin) document.getElementById('newBtn').style.display = 'inline-flex';
 

@@ -1021,6 +1021,10 @@
         // 2026-05-02: image stage 진입 즉시 취소 버튼 노출 (image_session_id 없어도 chat session 기반 pending 취소 가능)
         if (frame.stage === 'image') {
           showImageCancelBtn();
+          // 2026-05-03: 이미지 단계 진입 시 강제 바닥 앵커. 텍스트 finalize·취소 버튼 부착으로
+          // 사용자가 nearBottom 임계값 밖으로 밀리면 이후 stage_text 진행이 자동 스크롤 못 따라옴.
+          const m = $('chatMessages');
+          if (m) m.scrollTop = m.scrollHeight;
         }
         break;
       case 'image_session_started':
@@ -1029,6 +1033,9 @@
           state.image_session_id = frame.image_session_id;
         }
         showImageCancelBtn();
+        // 강제 바닥 앵커 — stage_change('image')와 동일한 이유.
+        const _m = $('chatMessages');
+        if (_m) _m.scrollTop = _m.scrollHeight;
         break;
       case 'image_cancelled':
         hideImageCancelBtn();

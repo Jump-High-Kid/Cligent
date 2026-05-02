@@ -210,15 +210,26 @@ async def submit_feedback(request: Request, user: dict = Depends(get_current_use
 
 
 @router.get("/announcements")
-async def announcements_page(_user: dict = Depends(get_current_user)):
-    """공지사항 목록 페이지 (인증 필수)."""
-    return FileResponse(ROOT / "templates" / "announcements.html")
+async def announcements_page(request: Request):
+    """공지사항 목록 페이지.
+
+    iframe 안에서 401 raw 응답이 표시되지 않도록 token 직접 검사 후 RedirectResponse.
+    Depends(get_current_user) 패턴은 HTTPException(401)을 raise하여
+    iframe에 "로그인이 필요합니다" 텍스트만 표시되는 문제 발생 (2026-05-03 수정).
+    """
+    token = request.cookies.get(COOKIE_NAME)
+    if not token:
+        return RedirectResponse("/login")
+    return FileResponse(ROOT / "templates" / "announcements.html", headers=NO_CACHE_HEADERS)
 
 
 @router.get("/announcements/{ann_id}")
-async def announcement_detail_page(ann_id: int, _user: dict = Depends(get_current_user)):
-    """공지 상세 페이지 (인증 필수)."""
-    return FileResponse(ROOT / "templates" / "announcement_detail.html")
+async def announcement_detail_page(ann_id: int, request: Request):
+    """공지 상세 페이지. /announcements 와 동일한 redirect 패턴."""
+    token = request.cookies.get(COOKIE_NAME)
+    if not token:
+        return RedirectResponse("/login")
+    return FileResponse(ROOT / "templates" / "announcement_detail.html", headers=NO_CACHE_HEADERS)
 
 
 @router.get("/api/announcements")

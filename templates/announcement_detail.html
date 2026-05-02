@@ -89,7 +89,7 @@
         fetch('/api/auth/me'),
         fetch(`/api/announcements/${annId}`),
       ]);
-      if (!meRes.ok) { window.location.href = '/login'; return; }
+      if (!meRes.ok) { (window.top || window).location.href = '/login'; return; }
       const me = await meRes.json();
       if (!detailRes.ok) {
         document.getElementById('article').innerHTML =
