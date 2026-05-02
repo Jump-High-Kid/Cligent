@@ -77,6 +77,7 @@ if not _secret:
 
 # ── 옵저버빌리티 초기화 (Sentry + structlog, B2 / 2026-04-27) ─────
 from observability import init_observability, RequestLoggingMiddleware
+from version import __version__ as APP_VERSION
 
 init_observability()
 
@@ -783,6 +784,12 @@ async def sitemap_xml() -> Response:
     parts.append("</urlset>")
     body = "\n".join(parts) + "\n"
     return Response(content=body, media_type="application/xml; charset=utf-8")
+
+
+@app.get("/api/version")
+async def api_version() -> JSONResponse:
+    """현재 배포 버전 — 어드민·푸터 표시용. 공개 엔드포인트."""
+    return JSONResponse({"version": APP_VERSION})
 
 
 # ── 인증 API ──────────────────────────────────────────────────────

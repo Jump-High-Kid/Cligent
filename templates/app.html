@@ -181,6 +181,9 @@
       <span class="material-symbols-outlined flex-shrink-0">logout</span>
       <span class="nav-label font-medium text-sm whitespace-nowrap">로그아웃</span>
     </button>
+    <div id="app-version" class="nav-label px-3 pt-2 text-[0.65rem] text-stone-400 text-center select-none">
+      v—
+    </div>
   </div>
 </aside>
 
@@ -748,6 +751,17 @@
       refreshUnreadBadge();
       // 배너 표시 — 일일 닫기 정책에 따라 펼침/아이콘 결정 (테스트 편의상 등록·미등록 무관 노출)
       showApiKeyBannerOrIcon();
+    } catch (_) {}
+  })();
+
+  // ── 앱 버전 표시 (사이드바 footer) ──────────────────────────
+  (async function loadVersion() {
+    try {
+      const res = await fetch('/api/version');
+      if (!res.ok) return;
+      const data = await res.json();
+      const el = document.getElementById('app-version');
+      if (el && data.version) el.textContent = `v${data.version}`;
     } catch (_) {}
   })();
 

@@ -140,6 +140,18 @@
       </div>
     </div>
   </div>
+
+  <div class="mt-6 text-center text-xs text-stone-400 select-none">
+    Cligent <span id="admin-app-version">v—</span>
+  </div>
+  <script>
+    fetch('/api/version').then(r => r.ok ? r.json() : null).then(d => {
+      if (d && d.version) {
+        const el = document.getElementById('admin-app-version');
+        if (el) el.textContent = `v${d.version}`;
+      }
+    }).catch(() => {});
+  </script>
 </main>
 
 </body>
