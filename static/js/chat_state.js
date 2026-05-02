@@ -58,16 +58,49 @@
     if (el) el.textContent = state.stage_text;
   }
 
-  // stage별 입력창 placeholder (이슈 6)
+  // ── 이미지 생성 취소 버튼 (2026-05-02) ────────────────────────
+  function showImageCancelBtn(sessionId) {
+    let btn = $('imageCancelBtn');
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.id = 'imageCancelBtn';
+      btn.type = 'button';
+      btn.className = 'header-icon-btn';
+      btn.style.cssText = 'background:#fef2f2;color:#dc2626;border:1px solid #fca5a5;border-radius:8px;padding:0 10px;font-size:12px;font-weight:600;height:30px;flex-shrink:0';
+      btn.title = '이미지 생성 취소';
+      btn.textContent = '취소';
+      const fb = $('feedbackBtn');
+      if (fb && fb.parentNode) fb.parentNode.insertBefore(btn, fb);
+    }
+    btn.style.display = 'inline-flex';
+    btn.onclick = async () => {
+      if (!confirm('이미지 생성을 취소하시겠습니까? 진행 중인 장은 폐기됩니다.')) return;
+      btn.disabled = true;
+      btn.textContent = '취소 중...';
+      try {
+        await fetch(`/api/image/session/${encodeURIComponent(sessionId)}/cancel`, { method: 'POST' });
+      } catch (_) { /* silent */ }
+    };
+  }
+
+  function hideImageCancelBtn() {
+    const btn = $('imageCancelBtn');
+    if (btn) { btn.style.display = 'none'; btn.disabled = false; btn.textContent = '취소'; }
+  }
+
+  // stage별 입력창 placeholder (이슈 6, 2026-05-02 EMPHASIS + confirm_image 추가)
+  // 흐름: TOPIC → LENGTH → QUESTIONS → SEO → EMPHASIS → CONFIRM_IMAGE → GENERATING → IMAGE → FEEDBACK → DONE
   const PLACEHOLDER_BY_STAGE = {
-    topic:      '오늘 쓸 주제를 입력하세요...',
-    length:     '번호 (1~4) 또는 직접 글자 수 입력...',
-    questions:  '답변을 입력하거나 옵션을 선택하세요...',
-    seo:        '쉼표 구분 키워드 또는 [넘김]...',
-    generating: '본문 작성 중...',
-    image:      '"전체 만들기" 또는 "이미지 없이 종료"',
-    feedback:   '의견을 자유롭게 남겨주세요 (또는 [넘김])',
-    done:       '완성됐어요. 새 글 시작 버튼을 눌러주세요.',
+    topic:         '오늘 쓸 주제를 입력하세요...',
+    length:        '번호 (1~4) 또는 직접 글자 수 입력...',
+    questions:     '답변을 입력하거나 옵션을 선택하세요...',
+    seo:           '쉼표 구분 키워드 또는 [넘김]...',
+    emphasis:      '강조하고 싶은 치료법·사례·증상 (선택, [건너뛰기])',
+    confirm_image: '번호 (1·2) 또는 옵션 선택',
+    generating:    '본문 작성 중...',
+    image:         '"전체 만들기" 또는 "이미지 없이 종료"',
+    feedback:      '의견을 자유롭게 남겨주세요 (또는 [넘김])',
+    done:          '완성됐어요. 새 글 시작 버튼을 눌러주세요.',
   };
 
   function updatePlaceholder() {
@@ -856,6 +889,10 @@
         break;
       case 'message_done':
         finalizeStreamingMessage(frame.message);
+        // 이미지 갤러리 메시지면 cancel 버튼 자동 숨김 (정상 완료)
+        if (frame.message && frame.message.meta && frame.message.meta.kind === 'image_gallery') {
+          hideImageCancelBtn();
+        }
         break;
       case 'stage_text':
         if (frame.text) {
@@ -877,7 +914,24 @@
         if (frame.stage_text) setStageText(frame.stage_text);
         updatePlaceholder();
         break;
+      case 'image_session_started':
+        // 2026-05-02: 이미지 생성 취소 버튼 노출
+        if (frame.image_session_id) {
+          state.image_session_id = frame.image_session_id;
+          showImageCancelBtn(frame.image_session_id);
+        }
+        break;
+      case 'image_cancelled':
+        hideImageCancelBtn();
+        finalizeStreamingMessage();
+        appendMessage({
+          role: 'system',
+          text: frame.message || '이미지 생성이 취소됐어요.',
+          options: [], meta: {},
+        });
+        break;
       case 'error':
+        hideImageCancelBtn();
         finalizeStreamingMessage();
         appendMessage({
           role: 'system',

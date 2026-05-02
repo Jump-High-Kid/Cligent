@@ -483,7 +483,7 @@ def process_turn(state: BlogChatState, user_input: str) -> dict:
         else:
             kws = [k.strip() for k in normalized.split(",") if k.strip()]
             state.seo_keywords = kws[:5]
-        # SEO 다음에 강조 사항 입력 단계 (2026-05-02 추가)
+        # SEO 다음에 강조 사항 입력 단계
         transition(state, Stage.EMPHASIS)
         text, opts, meta = _emphasis_message()
         append_message(state, "assistant", text, options=opts, meta=meta)
@@ -631,8 +631,7 @@ def _advance_to_seo(state: BlogChatState) -> dict:
     """LENGTH 완료 후 다음 단계로 이동.
 
     questions_enabled (config.flow) 가 활성이고 BLOG_OPTION_STAGES가 비어있지 않으면
-    QUESTIONS 진입 + 첫 옵션 stage 메시지 발송.
-    아니면 SEO 직진 (이전 동작 보존).
+    QUESTIONS 진입 + 첫 옵션 stage 메시지 발송. 아니면 SEO 직진.
     """
     from blog_chat_options import BLOG_OPTION_STAGES, get_stage
 
@@ -909,6 +908,29 @@ _IMAGE_STAGE_TEXTS = [
 ]
 
 
+# ── 이미지 생성 취소 (2026-05-02) ────────────────────────────────
+# 단일 worker 메모리 set으로 cancel flag 관리.
+# 멀티 worker 환경 시 DB 컬럼으로 이전 필요.
+_CANCELLED_IMAGE_SESSIONS: set[str] = set()
+
+
+def cancel_image_session(session_id: str) -> bool:
+    """이미지 생성 중단을 마크. 다음 루프 이터에서 break."""
+    if not session_id:
+        return False
+    _CANCELLED_IMAGE_SESSIONS.add(session_id)
+    return True
+
+
+def is_image_session_cancelled(session_id: str) -> bool:
+    return bool(session_id) and session_id in _CANCELLED_IMAGE_SESSIONS
+
+
+def _clear_cancel_flag(session_id: str) -> None:
+    """완료·실패 시 set에서 제거 (메모리 누수 방지)."""
+    _CANCELLED_IMAGE_SESSIONS.discard(session_id)
+
+
 def _stream_generator_for_image(state: BlogChatState, user_input: str):
     """IMAGE stage '전체 만들기' → 프롬프트 자동 추출 → image2 호출 → 갤러리 메시지.
 
@@ -1059,6 +1081,10 @@ def _stream_generator_for_image(state: BlogChatState, user_input: str):
     # ── 3. gpt-image-2 호출 (5번, 사이사이 진행 안내) ───────
     # 실측: 1장당 평균 ~60초 (조직 인증 직후·고해상도). 사용자가 다른 일 가능하도록
     # 예상 시간 + 모듈 제목 노출. 분 단위로 자연스럽게 표시.
+    # 클라이언트가 취소 버튼을 만들 수 있도록 image_session_id 사전 통지
+    yield _sse_frame({"type": "image_session_started",
+                      "image_session_id": image_session_id})
+
     SECONDS_PER_IMAGE = 60
     try:
         from image_generator import get_plan_dimensions
@@ -1066,6 +1092,13 @@ def _stream_generator_for_image(state: BlogChatState, user_input: str):
         size, quality = get_plan_dimensions(plan_id)
         images: list[str] = []
         for idx, p in enumerate(prompt_list):
+            # 매 루프 시작 시 cancel flag 체크 (2026-05-02)
+            if is_image_session_cancelled(image_session_id):
+                _clear_cancel_flag(image_session_id)
+                yield _sse_frame({"type": "image_cancelled",
+                                  "message": f"{idx}/5장에서 사용자가 취소했어요."})
+                yield _sse_frame({"type": "done"})
+                return
             remaining_sec = (5 - idx) * SECONDS_PER_IMAGE
             if remaining_sec >= 60:
                 remaining_label = f"약 {remaining_sec // 60}분 남음"
@@ -1081,11 +1114,21 @@ def _stream_generator_for_image(state: BlogChatState, user_input: str):
                 prompt=p, size=size, quality=quality, n=1,
             )
             if not responses:
+                _clear_cancel_flag(image_session_id)
                 yield _sse_frame({"type": "error",
                                   "message": "OpenAI에서 이미지를 받지 못했어요."})
                 yield _sse_frame({"type": "done"})
                 return
             images.append(responses[0].content)
+            # OpenAI 응답 후에도 한 번 더 체크 — 마지막 장 직전에 취소되었을 때
+            if is_image_session_cancelled(image_session_id) and idx < len(prompt_list) - 1:
+                _clear_cancel_flag(image_session_id)
+                yield _sse_frame({"type": "image_cancelled",
+                                  "message": f"{idx + 1}/5장 완료 후 취소됐어요. 완료된 장은 폐기됩니다."})
+                yield _sse_frame({"type": "done"})
+                return
+        # 정상 완료 — flag 정리
+        _clear_cancel_flag(image_session_id)
 
         # ImageSet 호환 객체 (gallery_meta가 result.* 필드 사용)
         from image_generator import ImageSet, normalize_plan_id

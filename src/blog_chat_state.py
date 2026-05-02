@@ -52,13 +52,15 @@ class Stage(str, Enum):
 
 
 # stage 전이 화이트리스트 — 잘못된 전이는 ValueError
+# 2026-05-02 (현재 흐름): TOPIC → LENGTH → QUESTIONS → SEO → EMPHASIS → CONFIRM_IMAGE
+# TODO(다음 세션): "타이핑 먼저 → 번호 나중" 흐름으로 재배치 + 테스트 31개 일괄 갱신
 VALID_TRANSITIONS: dict[Stage, set[Stage]] = {
     Stage.TOPIC: {Stage.LENGTH},
     # 질문 비활성 시 length → seo 직진
     Stage.LENGTH: {Stage.QUESTIONS, Stage.SEO},
     # 질문 N회 반복 → 끝나면 seo
     Stage.QUESTIONS: {Stage.QUESTIONS, Stage.SEO},
-    # SEO → EMPHASIS → CONFIRM_IMAGE가 신규 흐름. 기존 SEO → CONFIRM_IMAGE도 호환 유지.
+    # SEO → EMPHASIS → CONFIRM_IMAGE
     Stage.SEO: {Stage.EMPHASIS, Stage.CONFIRM_IMAGE, Stage.GENERATING, Stage.DONE},
     Stage.EMPHASIS: {Stage.CONFIRM_IMAGE, Stage.GENERATING, Stage.DONE},
     # 이미지 자동 생성 여부 확인 → 본문 생성 (DONE은 fallback)

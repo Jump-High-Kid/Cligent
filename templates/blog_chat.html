@@ -439,7 +439,7 @@
       background: #fafaf9;
     }
     .image-edit-panel {
-      padding: 8px;
+      padding: 6px 8px;
       border-top: 1px dashed #e7e5e4;
       background: #fafaf9;
     }
@@ -447,10 +447,12 @@
       width: 100%;
       border: 1px solid #e7e5e4;
       border-radius: 8px;
-      padding: 6px 8px;
-      font: 12px/1.4 inherit;
+      padding: 5px 8px;
+      font: 12px/1.35 inherit;
       resize: vertical;
       background: #fff;
+      display: block;
+      margin: 0;
     }
     .image-edit-panel textarea:focus {
       outline: 2px solid #a8b5a0;
@@ -459,11 +461,15 @@
     .image-edit-actions {
       display: flex;
       gap: 6px;
-      margin-top: 6px;
+      margin-top: 4px;
       justify-content: flex-end;
     }
+    .image-edit-actions .image-action-btn {
+      flex: 0 0 auto;
+      padding: 5px 12px;
+    }
     .image-edit-status {
-      margin: 6px 0 0;
+      margin: 4px 0 0;
       font-size: 11px;
       color: #57534e;
     }
@@ -490,9 +496,7 @@
 <div class="chat-app" id="chatApp">
   <!-- 헤더 ─────────────────────────────────────── -->
   <header class="chat-header" role="banner">
-    <button class="header-icon-btn" id="backBtn" aria-label="대시보드로 돌아가기" title="대시보드">
-      <span class="material-symbols-outlined" style="font-size:20px">arrow_back</span>
-    </button>
+    <!-- 뒤로가기 버튼 삭제(2026-05-02): 사이드바·하단 nav로 대체 -->
     <a href="/dashboard" class="header-wordmark" aria-label="Cligent 대시보드"
        style="text-decoration:none">Cligent</a>
     <div class="header-stage" id="stageText" aria-live="polite">주제 입력 중</div>

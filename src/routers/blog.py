@@ -772,6 +772,30 @@ async def api_image_session_status(
     })
 
 
+@router.post("/api/image/session/{session_id}/cancel")
+async def api_image_session_cancel(
+    session_id: str,
+    user: dict = Depends(get_current_user),
+):
+    """이미지 생성 중단 마크 (2026-05-02 추가).
+
+    SSE 루프가 다음 이터에서 cancel flag를 감지해 'image_cancelled' 프레임을 보낸 뒤 종료한다.
+    이미 OpenAI 호출이 진행 중인 장은 응답을 받은 후 폐기됨 (장 단위 atomic).
+    권한: 자기 한의원의 세션만.
+    """
+    from image_session_manager import get_session
+    from blog_chat_flow import cancel_image_session
+
+    sess = get_session(session_id)
+    if sess is None:
+        raise HTTPException(status_code=404, detail="이미지 세션을 찾을 수 없습니다.")
+    if sess["clinic_id"] != user["clinic_id"]:
+        raise HTTPException(status_code=403, detail="다른 한의원의 세션입니다.")
+
+    cancel_image_session(session_id)
+    return JSONResponse({"ok": True, "session_id": session_id})
+
+
 # ─────────────────────────────────────────────────────────────
 # C2 — SSE 3건 (main.py 753~1032에서 이동, v0.9.0 / 2026-05-02)
 # ─────────────────────────────────────────────────────────────

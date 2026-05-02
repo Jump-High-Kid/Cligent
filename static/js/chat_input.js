@@ -173,13 +173,7 @@
     if (fb) {
       fb.addEventListener('click', enterFeedbackMode);
     }
-    // 헤더 좌측 ← 버튼 — 대시보드로 이동 (이슈 10)
-    const backBtn = $('backBtn');
-    if (backBtn) {
-      backBtn.addEventListener('click', () => {
-        window.location.href = '/dashboard';
-      });
-    }
+    // 헤더 뒤로가기 버튼은 2026-05-02 삭제 — 사이드바·하단 nav로 대체
 
     document.addEventListener('keydown', handleShortcutKey);
 
