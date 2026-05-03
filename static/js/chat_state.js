@@ -1266,10 +1266,12 @@
     let lastStage = null;
     let lastMsgCount = null;
     let stuckTicks = 0;
-    // stuck threshold — 60초 동안 stage·msg 변동 0이면 서버 generator가 죽었다고 판정.
-    // 1.5s × 40 = 60s. 백그라운드 진입으로 클라 disconnect 시 서버 generator BrokenPipe로
-    // 같이 죽고 stage가 'generating'에 stuck됨 (베타 단계 회피책. 근본 fix는 옵션 A).
-    const STUCK_THRESHOLD_TICKS = 40;
+    // stuck threshold — stage별 분리.
+    //   generating: 60s — 본문 token stream은 1~2분 안에 완료, 60s 변동 0이면 죽음
+    //   image: 8분 — 이미지 5장 평균 6분, 한 번 시작되면 messages 변동 없이 진행
+    //   (false positive 회피용. 근본 fix는 옵션 A — background task 분리)
+    const STUCK_TICKS_GENERATING = 40;   // 1.5s × 40 = 60s
+    const STUCK_TICKS_IMAGE = 320;       // 1.5s × 320 = 8분
     const tick = async () => {
       _pollingTimer = null;
       if (document.hidden) return;
@@ -1279,10 +1281,11 @@
       if (data) {
         const curStage = data.stage;
         const curMsgCount = (data.messages || []).length;
+        const threshold = curStage === 'image' ? STUCK_TICKS_IMAGE : STUCK_TICKS_GENERATING;
         // stuck 감지 — stage·msg 모두 동일하면 카운트 증가, 변동 있으면 리셋
         if (lastStage === curStage && lastMsgCount === curMsgCount) {
           stuckTicks += 1;
-          if (stuckTicks >= STUCK_THRESHOLD_TICKS) {
+          if (stuckTicks >= threshold) {
             _markGenerationStuck();
             return;
           }
