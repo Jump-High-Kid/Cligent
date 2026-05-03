@@ -73,8 +73,22 @@
       const reader = res.body.getReader();
       const decoder = new TextDecoder('utf-8');
       let buffer = '';
+      // read() timeout — 서버 keepalive(15s)가 살아있으면 절대 발화 안 함.
+      // 모바일 백그라운드에서 fetch가 stalled 상태로 영원히 await하는 케이스 방어.
+      // timeout 발화 시 controller.abort() → catch → onError → onDone 정상 루트로 빠짐.
+      const READ_TIMEOUT_MS = 30000;
       while (true) {
-        const { value, done } = await reader.read();
+        let timeoutId;
+        const timeoutPromise = new Promise((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error('SSE read timeout')), READ_TIMEOUT_MS);
+        });
+        let result;
+        try {
+          result = await Promise.race([reader.read(), timeoutPromise]);
+        } finally {
+          clearTimeout(timeoutId);
+        }
+        const { value, done } = result;
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
         // SSE 이벤트 경계: '\n\n'
@@ -89,6 +103,8 @@
       if (on.onDone) on.onDone();
     } catch (err) {
       if (err.name === 'AbortError') return handle;
+      // SSE read timeout 또는 네트워크 오류 — 명시적 abort로 stream 정리
+      try { controller.abort(); } catch (_) {}
       if (on.onError) on.onError(err);
       if (on.onDone) on.onDone();
     }

@@ -237,6 +237,8 @@
   function makeBubbleRow(msg) {
     const row = document.createElement('div');
     row.className = `msg-row ${msg.role}`;
+    // ts(ISO) 부착 — 백그라운드 복귀 시 서버 messages와 중복 비교 키 (2026-05-04)
+    if (msg && msg.ts) row.setAttribute('data-ts', msg.ts);
     if (msg.role === 'assistant') {
       // 태극 액센트
       const tpl = $('taegeukTemplate');
@@ -911,6 +913,18 @@
         onJson: handleTurnResponse,
         onChunk: handleSSEFrame,
         onError: (err) => {
+          // 진행 stage(generating/image)에서 fetch가 끊기는 건 모바일 백그라운드
+          // 진입 시 OS가 강제 abort하는 것이 대부분이다. 이때 사용자에게 즉시
+          // "오류" 메시지를 띄우면 false alarm이 되고, 실제로는 서버가 계속 작업해
+          // syncOnResume·startStatePolling이 따라잡는다. 진행 텍스트만 갱신하고 silent.
+          if (state.stage === 'generating' || state.stage === 'image') {
+            if (streamRef.progress) {
+              streamRef.progress.textContent = '연결이 잠시 끊겼어요. 다시 받아오는 중...';
+            } else {
+              setStageText('재연결 중...');
+            }
+            return;
+          }
           finalizeStreamingMessage();
           appendMessage({
             role: 'system',
@@ -922,6 +936,12 @@
     } finally {
       state.sending = false;
       setSendButton(true);
+      // SSE가 abort/네트워크 끊김으로 종료돼도 서버는 작업을 끝까지 수행.
+      // 진행 stage면 폴링 시작 → visible 동안 stage 전환 따라잡음.
+      // (document.hidden이면 첫 tick에서 자체 종료, visible 복귀 시 syncOnResume이 재개)
+      if (state.stage === 'generating' || state.stage === 'image') {
+        startStatePolling();
+      }
     }
   }
 
@@ -1018,6 +1038,13 @@
         if (frame.stage) state.stage = frame.stage;
         if (frame.stage_text) setStageText(frame.stage_text);
         updatePlaceholder();
+        // 2026-05-04 옵션 C: progress stage 진입 시 wakeLock + 모바일 안내
+        if (frame.stage === 'generating' || frame.stage === 'image') {
+          _requestWakeLock();
+          _showMobileBackgroundWarning();
+        } else {
+          _releaseWakeLock();
+        }
         // 2026-05-02: image stage 진입 즉시 취소 버튼 노출 (image_session_id 없어도 chat session 기반 pending 취소 가능)
         if (frame.stage === 'image') {
           showImageCancelBtn();
@@ -1038,6 +1065,7 @@
         if (_m) _m.scrollTop = _m.scrollHeight;
         break;
       case 'image_cancelled':
+        _releaseWakeLock();
         hideImageCancelBtn();
         finalizeStreamingMessage();
         appendMessage({
@@ -1047,6 +1075,7 @@
         });
         break;
       case 'error':
+        _releaseWakeLock();
         hideImageCancelBtn();
         finalizeStreamingMessage();
         appendMessage({
@@ -1059,6 +1088,8 @@
         // 전체 turn 종료. 이미지 SSE는 quota·image_session_id를 같이 보냄 — 헤더 카운터 갱신
         if (frame.quota) setQuota(frame.quota);
         if (frame.image_session_id) state.imageSessionId = frame.image_session_id;
+        // progress stage 종료(done/feedback 등)면 wakeLock 해제
+        if (!_stageInProgress(state.stage)) _releaseWakeLock();
         break;
       default:
         break;
@@ -1118,6 +1149,230 @@
       }
     });
     return btn;
+  }
+
+  // ── WakeLock + 모바일 안내 (2026-05-04 옵션 C, v2 모바일 활성화) ─
+  // PC: 노트북 절전 진입 방지.
+  // 모바일: 화면 자동 꺼짐(=disconnect 주원인) 방지. iOS Safari 16.4+ / Android Chrome 84+
+  // / Samsung Internet 모두 지원. 미지원 브라우저는 silent fail.
+  // 배터리 영향: 본문 생성 1~2분만 유지 → 무시할 수준.
+  let _wakeLock = null;
+  let _mobileWarningShown = false;
+
+  function _isMobile() {
+    return /Android|iPhone|iPad|iPod|Mobile|Samsung/i.test(navigator.userAgent || '');
+  }
+
+  async function _requestWakeLock() {
+    if (_wakeLock) return;
+    if (!('wakeLock' in navigator)) return;
+    if (document.visibilityState !== 'visible') return;  // hidden에선 reject됨
+    try {
+      _wakeLock = await navigator.wakeLock.request('screen');
+      _wakeLock.addEventListener('release', () => { _wakeLock = null; });
+    } catch (_) {
+      _wakeLock = null;
+    }
+  }
+
+  function _releaseWakeLock() {
+    if (_wakeLock) {
+      try { _wakeLock.release(); } catch (_) {}
+      _wakeLock = null;
+    }
+  }
+
+  function _showMobileBackgroundWarning() {
+    if (_mobileWarningShown) return;
+    if (!_isMobile()) return;
+    _mobileWarningShown = true;
+    // WakeLock 활성화 시 자동으로 화면이 꺼지지 않으므로 안내 톤 변경
+    const supported = 'wakeLock' in navigator;
+    appendMessage({
+      role: 'system',
+      text: supported
+        ? '본문 생성 1~2분 동안 화면이 자동으로 켜진 채 유지돼요. 다른 앱으로 전환만 피해주세요.'
+        : '본문 생성에 1~2분 걸려요. 그 사이에 다른 앱 사용·화면 잠금은 작업 중단의 원인이 돼요. 잠시만 켜두세요.',
+      options: [], meta: {},
+    });
+  }
+
+  // ── 백그라운드 복귀 동기화 + 폴링 fallback (2026-05-04) ──────────
+  // 모바일 백그라운드 진입 시 SSE가 OS·캐리어 정책으로 끊길 수 있음.
+  // foreground 복귀 시 GET /api/blog-chat/session/{sid}로 서버 진실 동기화.
+  // 여전히 progress stage면 1.5s 간격 폴링으로 stage 전환을 따라잡음.
+
+  let _pollingTimer = null;
+  const POLL_INTERVAL_MS = 1500;
+  const POLL_MAX_MS = 30 * 60 * 1000;  // 본문 3분 + 이미지 6분 + 여유
+
+  function _stageInProgress(stage) {
+    return stage === 'generating' || stage === 'image';
+  }
+
+  function _renderedTimestamps() {
+    const inner = $('messagesInner');
+    if (!inner) return new Set();
+    const set = new Set();
+    inner.querySelectorAll('.msg-row[data-ts]').forEach((r) => {
+      const t = r.getAttribute('data-ts');
+      if (t) set.add(t);
+    });
+    return set;
+  }
+
+  function _mergeServerMessages(serverMessages) {
+    if (!Array.isArray(serverMessages) || serverMessages.length === 0) return 0;
+    // 진행 중 streaming placeholder는 서버 진실 기준으로 정리
+    if (streamRef.bubble) finalizeStreamingMessage();
+    const seen = _renderedTimestamps();
+    let added = 0;
+    for (const msg of serverMessages) {
+      const ts = msg && msg.ts;
+      if (ts && seen.has(ts)) continue;
+      appendMessage(msg);
+      if (ts) seen.add(ts);
+      added += 1;
+    }
+    return added;
+  }
+
+  async function _fetchServerSession() {
+    if (!state.session_id) return null;
+    try {
+      const res = await fetch(SESSION_GET_URL(state.session_id), { credentials: 'same-origin' });
+      if (res.status === 401) { window.location.href = '/login'; return null; }
+      if (!res.ok) return null;
+      return await res.json();
+    } catch (_) { return null; }
+  }
+
+  function _applyServerState(data) {
+    if (!data) return 0;
+    if (data.stage) state.stage = data.stage;
+    if (data.stage_text) setStageText(data.stage_text);
+    if (data.quota) setQuota(data.quota);
+    const added = _mergeServerMessages(data.messages || []);
+    updatePlaceholder();
+    if (data.stage === 'done' || data.stage === 'feedback') {
+      hideImageCancelBtn();
+    }
+    return added;
+  }
+
+  function startStatePolling() {
+    if (_pollingTimer) return;
+    let elapsed = 0;
+    let lastStage = null;
+    let lastMsgCount = null;
+    let stuckTicks = 0;
+    // stuck threshold — 60초 동안 stage·msg 변동 0이면 서버 generator가 죽었다고 판정.
+    // 1.5s × 40 = 60s. 백그라운드 진입으로 클라 disconnect 시 서버 generator BrokenPipe로
+    // 같이 죽고 stage가 'generating'에 stuck됨 (베타 단계 회피책. 근본 fix는 옵션 A).
+    const STUCK_THRESHOLD_TICKS = 40;
+    const tick = async () => {
+      _pollingTimer = null;
+      if (document.hidden) return;
+      if (!state.session_id) return;
+      if (!_stageInProgress(state.stage)) return;
+      const data = await _fetchServerSession();
+      if (data) {
+        const curStage = data.stage;
+        const curMsgCount = (data.messages || []).length;
+        // stuck 감지 — stage·msg 모두 동일하면 카운트 증가, 변동 있으면 리셋
+        if (lastStage === curStage && lastMsgCount === curMsgCount) {
+          stuckTicks += 1;
+          if (stuckTicks >= STUCK_THRESHOLD_TICKS) {
+            _markGenerationStuck();
+            return;
+          }
+        } else {
+          stuckTicks = 0;
+          lastStage = curStage;
+          lastMsgCount = curMsgCount;
+        }
+        _applyServerState(data);
+      }
+      if (!_stageInProgress(state.stage)) return;
+      elapsed += POLL_INTERVAL_MS;
+      if (elapsed >= POLL_MAX_MS) return;
+      _pollingTimer = setTimeout(tick, POLL_INTERVAL_MS);
+    };
+    _pollingTimer = setTimeout(tick, POLL_INTERVAL_MS);
+  }
+
+  // 폴링이 stuck을 확정한 직후 — 회전 멈추고 사용자에게 명확한 종료 신호 + 새 글 쓰기.
+  function _markGenerationStuck() {
+    stopStatePolling();
+    _releaseWakeLock();
+    finalizeStreamingMessage();
+    const inner = $('messagesInner');
+    if (inner) {
+      inner.querySelectorAll('.taegeuk.active').forEach((el) => el.classList.remove('active'));
+      inner.querySelectorAll('.bubble.streaming').forEach((el) => el.classList.remove('streaming'));
+    }
+    hideImageCancelBtn();
+    setStageText('중단됨');
+    appendMessage({
+      role: 'system',
+      text: '백그라운드 진입으로 본문 생성이 중단된 것 같아요. "새 글 쓰기"를 눌러 다시 시작해주세요.',
+      options: [], meta: {},
+    });
+    showNewBlogBtn();
+    // sending stuck 강제 해제
+    if (state.sending) {
+      state.sending = false;
+      setSendButton(true);
+    }
+  }
+
+  function stopStatePolling() {
+    if (_pollingTimer) { clearTimeout(_pollingTimer); _pollingTimer = null; }
+  }
+
+  /**
+   * visibilitychange hidden → visible 진입점.
+   *
+   * 가드 완화 (2026-05-04 v2): stage_change frame을 못 받아 클라 stage가 stale일
+   * 가능성에 대비. 다음 중 하나라도 참이면 sync 시도:
+   *   - 명시적 progress stage (generating/image)
+   *   - streaming bubble 살아있음 (서버는 본문 streaming 중인데 stage 미갱신)
+   *   - sending=true (postSSE await가 stalled, finally 미진입)
+   *
+   * 추가로 sending이 stuck인 경우(서버는 진행 끝, 클라는 sending 그대로) 강제 reset.
+   */
+  async function syncOnResume() {
+    if (!state.session_id) return;
+    const possiblyStalled = _stageInProgress(state.stage)
+      || streamRef.bubble != null
+      || state.sending;
+    if (!possiblyStalled) return;
+
+    const data = await _fetchServerSession();
+    if (!data) return;
+    _applyServerState(data);
+
+    // sending stuck 해제 — 서버가 진행을 마쳤으면 클라 sending 강제 false
+    if (state.sending && !_stageInProgress(data.stage)) {
+      state.sending = false;
+      setSendButton(true);
+    }
+
+    if (data.stage === 'done' || data.stage === 'feedback') {
+      stopStatePolling();
+      _releaseWakeLock();
+      appendMessage({
+        role: 'system',
+        text: '백그라운드 동안 작업이 완료됐어요. 결과를 표시했습니다.',
+        options: [], meta: {},
+      });
+      return;
+    }
+    if (_stageInProgress(data.stage)) {
+      // 진행 중이면 WakeLock 재요청 (hidden 시 자동 release됨)
+      _requestWakeLock();
+      startStatePolling();
+    }
   }
 
   // ── 세션 복구 ─────────────────────────────────────────────────
@@ -1199,5 +1454,7 @@
     getSessionId,
     isSending,
     getPendingOptions,
+    syncOnResume,
+    stopStatePolling,
   };
 })(window);

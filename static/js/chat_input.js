@@ -177,6 +177,15 @@
 
     document.addEventListener('keydown', handleShortcutKey);
 
+    // 백그라운드 → foreground 복귀 시 서버 진실 동기화 (2026-05-04)
+    // 모바일 OS·캐리어가 SSE를 끊더라도 서버는 작업을 끝까지 수행함.
+    // 복귀 즉시 GET session으로 진행 상태 확인 → 완료면 결과 표시, 진행 중이면 폴링 시작.
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && global.ChatState && global.ChatState.syncOnResume) {
+        global.ChatState.syncOnResume();
+      }
+    });
+
     // 세션 복구 시도 → 실패하면 빈 화면 칩 노출 (인사는 빈 화면에 정적 표시)
     // 첫 turn 호출은 사용자 첫 액션(칩 클릭/입력) 시점 — v9 명세 Pass 7 D7
     let restored = false;
