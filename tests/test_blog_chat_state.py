@@ -137,7 +137,7 @@ class TestSaveSession:
         original_last = s.last_active_at
 
         s.topic = "허리디스크"
-        transition(s, Stage.LENGTH)
+        transition(s, Stage.SEO)
         append_message(s, "user", "허리디스크")
         save_session(s)
 
@@ -145,7 +145,7 @@ class TestSaveSession:
         blog_chat_state._cache_clear()
         loaded = blog_chat_state._load_from_db(s.session_id)
         assert loaded.topic == "허리디스크"
-        assert loaded.stage == Stage.LENGTH
+        assert loaded.stage == Stage.SEO
         assert len(loaded.messages) == 1
         assert loaded.messages[0].text == "허리디스크"
         assert loaded.last_active_at >= original_last
@@ -159,8 +159,8 @@ class TestTransition:
         from blog_chat_state import Stage, create_session, transition
 
         s = create_session(clinic_id=1, user_id=10)
-        transition(s, Stage.LENGTH)
-        assert s.stage == Stage.LENGTH
+        transition(s, Stage.SEO)
+        assert s.stage == Stage.SEO
 
     def test_same_stage_is_noop(self):
         from blog_chat_state import Stage, create_session, transition
@@ -181,6 +181,9 @@ class TestTransition:
         from blog_chat_state import Stage, create_session, transition
 
         s = create_session(clinic_id=1, user_id=10)
+        # 신 흐름 (2026-05-03): TOPIC → SEO → EMPHASIS → LENGTH → QUESTIONS
+        transition(s, Stage.SEO)
+        transition(s, Stage.EMPHASIS)
         transition(s, Stage.LENGTH)
         transition(s, Stage.QUESTIONS)
         # questions → questions 반복 OK (n번 질문)

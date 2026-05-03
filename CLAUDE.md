@@ -52,6 +52,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   2. **iframe 401 raw 응답 차단**: `/announcements`·`/announcements/{id}` 라우트 `Depends(get_current_user)` → `token` 직접 검사 + `RedirectResponse('/login')`. iframe 안 검은 화면 + "로그인이 필요합니다" 텍스트 노출 해결.
   3. **iframe 안 redirect 탈출**: `announcements.html`·`announcement_detail.html` `window.location.href = '/login'` → `(window.top || window).location.href`. iframe 안에 /login → /app 쉘 중첩으로 mobile-nav·사이드바 2중 출력되던 버그 해결. 메모리: `feedback_iframe_auth_redirect.md`.
   4. **이미지 단계 자동 스크롤 복구**: `chat_state.js` `stage_change(image)` + `image_session_started`에서 `m.scrollTop = m.scrollHeight` 강제 앵커. 텍스트 finalize·취소 버튼 부착으로 nearBottom 임계값 밖으로 밀려 이후 stage_text 스크롤이 멈추던 PC 버그 해결.
+- **블로그 챗 흐름 재배치 (2026-05-03)** — `TOPIC → SEO → EMPHASIS → LENGTH → QUESTIONS → CONFIRM_IMAGE → ...` 신 흐름. 자유 입력(키워드·강조사항) 먼저, 번호 선택(글자수·질문) 뒤로 — 인지부하 최소화. `src/blog_chat_state.py` `VALID_TRANSITIONS` 단일 진실원, 우회로 금지. flow.py에서 `_advance_to_seo` → `_advance_after_length` 리네임. blog_chat 테스트 31건 일괄 갱신(state 3 + flow 17 + route 11). 회귀 410 pass / 7 fail (baseline 정확 일치). 라우트·프롬프트·JS 변경 없음 (stage_text는 서버가 SSE frame으로 전달). 메모리: `project_blog_chat_flow_reorder.md`.
 
 ## 폴더 구조 요약
 

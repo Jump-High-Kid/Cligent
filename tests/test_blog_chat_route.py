@@ -1,9 +1,9 @@
 """
 test_blog_chat_route.py — Step 1 Phase 1F smoke test
 
-검증:
-  - /api/blog-chat/turn 첫 호출 (신규 세션 + 첫 사용자 입력 → 인사 + LENGTH)
-  - SEO 진입 시 SSE 응답 (Content-Type + 본문 token 프레임)
+검증 (2026-05-03 신 흐름: TOPIC → SEO → EMPHASIS → LENGTH → CONFIRM_IMAGE → ...):
+  - /api/blog-chat/turn 첫 호출 (신규 세션 + 첫 사용자 입력 → 인사 + SEO)
+  - CONFIRM_IMAGE 진입 시 SSE 응답 (Content-Type + 본문 token 프레임)
   - 한도 초과 → 429 + kind=quota_exceeded
   - /blog/chat 베타 게이트 (chat_beta_enabled=0 → /blog 리다이렉트)
   - IMAGE 'all' 옵션 → SSE 5단계 stage_text 발송
@@ -92,7 +92,7 @@ def _isolated_db(monkeypatch, tmp_path):
 
 @pytest.fixture(autouse=True)
 def _disable_questions_default(monkeypatch):
-    """기존 LENGTH→SEO 직진 회귀 보존 — BLOG_OPTION_STAGES 비활성.
+    """기본은 BLOG_OPTION_STAGES 비활성 — LENGTH → CONFIRM_IMAGE 직진 흐름 (2026-05-03 신 흐름).
 
     QUESTIONS 흐름 검증은 test_blog_chat_flow.py::TestProcessTurnQuestions 참조.
     """
@@ -103,47 +103,49 @@ def _disable_questions_default(monkeypatch):
 client = TestClient(app)
 
 
-# ── 1) 첫 turn — 신규 세션 + LENGTH 진입 ─────────────────────
+# ── 1) 첫 turn — 신규 세션 + SEO 진입 (2026-05-03 신 흐름) ─────────────────────
 
 
 def test_first_turn_creates_session_and_advances_to_length():
-    """session_id=null + user_input='허리디스크' → 인사 + 사용자 + LENGTH 옵션."""
+    """session_id=null + user_input='허리디스크' → 인사 + 사용자 + SEO 옵션 (신 흐름)."""
     res = client.post("/api/blog-chat/turn",
                       json={"user_input": "허리디스크"})
     assert res.status_code == 200
     data = res.json()
     assert data["session_id"]  # UUID 발급
-    assert data["stage"] == "length"
-    assert data["stage_text"] == "글자 수 정하는 중"
+    assert data["stage"] == "seo"
+    assert data["stage_text"] == "주요 키워드 입력 중"
     msgs = data["messages"]
-    # 인사 + 사용자 + LENGTH 옵션 메시지 (3건)
+    # 인사 + 사용자 + SEO 옵션 메시지 (3건)
     assert len(msgs) == 3
     assert msgs[0]["role"] == "assistant"
     assert "원장님" in msgs[0]["text"]
     assert msgs[1]["role"] == "user"
     assert msgs[1]["text"] == "허리디스크"
     assert msgs[2]["role"] == "assistant"
-    assert len(msgs[2]["options"]) == 4
+    # SEO_OPTIONS는 [자동 생성] 1개
+    assert len(msgs[2]["options"]) == 1
+    assert msgs[2]["options"][0]["id"] == "skip"
 
 
 # ── 2) SEO 진입 → SSE streaming ───────────────────────────────
 
 
 def test_seo_input_returns_sse_with_token_frames():
-    """LENGTH → SEO → EMPHASIS → CONFIRM_IMAGE → 본문 SSE (2026-05-02: EMPHASIS 단계 추가)."""
-    # 1) topic 입력
+    """TOPIC → SEO → EMPHASIS → LENGTH → CONFIRM_IMAGE → 본문 SSE (2026-05-03 신 흐름)."""
+    # 1) topic 입력 → SEO
     r1 = client.post("/api/blog-chat/turn", json={"user_input": "허리디스크"})
     sid = r1.json()["session_id"]
-    # 2) length 선택
-    client.post("/api/blog-chat/turn",
-                json={"session_id": sid, "user_input": "2"})
-    # 3) SEO 키워드 입력 → EMPHASIS 옵션 메시지 (JSON, SSE 아님)
+    # 2) SEO 키워드 입력 → EMPHASIS
     client.post("/api/blog-chat/turn",
                 json={"session_id": sid, "user_input": "추나, 디스크"})
-    # 3b) EMPHASIS 건너뛰기 → CONFIRM_IMAGE 옵션 메시지 (JSON, SSE 아님)
+    # 3) EMPHASIS 건너뛰기 → LENGTH
     client.post("/api/blog-chat/turn",
                 json={"session_id": sid, "user_input": "건너뛰기"})
-    # 4) CONFIRM_IMAGE 응답 → 본문 SSE
+    # 4) LENGTH 선택 → CONFIRM_IMAGE
+    client.post("/api/blog-chat/turn",
+                json={"session_id": sid, "user_input": "2"})
+    # 5) CONFIRM_IMAGE 응답 → 본문 SSE
     def fake_gen(*args, **kwargs):
         yield 'data: {"text": "본문 시작"}\n\n'
         yield 'data: {"done": true, "usage": {"cost_krw": 5}}\n\n'
@@ -174,19 +176,23 @@ def test_seo_input_returns_sse_with_token_frames():
 
 
 def test_quota_exceeded_returns_429():
-    """CONFIRM_IMAGE stage 진입 시 한도 초과 → JSON 429 응답 (2026-05-02: SEO → EMPHASIS → CONFIRM_IMAGE)."""
+    """CONFIRM_IMAGE stage 진입 시 한도 초과 → JSON 429 응답 (2026-05-03 신 흐름).
+
+    TOPIC → SEO → EMPHASIS → LENGTH → CONFIRM_IMAGE → SSE 트리거 시 quota 검사.
+    """
     from fastapi import HTTPException
 
     r1 = client.post("/api/blog-chat/turn", json={"user_input": "허리디스크"})
     sid = r1.json()["session_id"]
-    client.post("/api/blog-chat/turn",
-                json={"session_id": sid, "user_input": "2"})
-    # SEO 키워드 → EMPHASIS 옵션 메시지
+    # SEO skip → EMPHASIS
     client.post("/api/blog-chat/turn",
                 json={"session_id": sid, "user_input": "넘김"})
-    # EMPHASIS 건너뛰기 → CONFIRM_IMAGE 옵션 메시지
+    # EMPHASIS skip → LENGTH
     client.post("/api/blog-chat/turn",
                 json={"session_id": sid, "user_input": "건너뛰기"})
+    # LENGTH 선택 → CONFIRM_IMAGE
+    client.post("/api/blog-chat/turn",
+                json={"session_id": sid, "user_input": "2"})
 
     def raise_quota(_):
         raise HTTPException(status_code=429, detail="이번 달 한도 초과.")
@@ -244,8 +250,11 @@ def test_image_all_option_yields_gallery_and_advances_to_feedback(monkeypatch):
     state.length_chars = 2000
     state.seo_keywords = ["추나"]
     state.blog_text = "본문 더미"
-    transition(state, Stage.LENGTH)
+    # 2026-05-03 신 흐름: TOPIC → SEO → EMPHASIS → LENGTH → CONFIRM_IMAGE → GENERATING → IMAGE
     transition(state, Stage.SEO)
+    transition(state, Stage.EMPHASIS)
+    transition(state, Stage.LENGTH)
+    transition(state, Stage.CONFIRM_IMAGE)
     transition(state, Stage.GENERATING)
     transition(state, Stage.IMAGE)
     append_message(state, "assistant", "이미지 5장을 만들까요?",
@@ -353,8 +362,11 @@ def test_negatives_injected_into_prompt_body(monkeypatch):
     state = create_session(clinic_id=1, user_id=1)
     state.topic = "허리디스크"
     state.blog_text = "본문 더미"
-    transition(state, Stage.LENGTH)
+    # 2026-05-03 신 흐름: TOPIC → SEO → EMPHASIS → LENGTH → CONFIRM_IMAGE → GENERATING → IMAGE
     transition(state, Stage.SEO)
+    transition(state, Stage.EMPHASIS)
+    transition(state, Stage.LENGTH)
+    transition(state, Stage.CONFIRM_IMAGE)
     transition(state, Stage.GENERATING)
     transition(state, Stage.IMAGE)
     append_message(state, "assistant", "이미지 5장을 만들까요?",
@@ -433,8 +445,11 @@ def test_negatives_can_be_disabled_by_env(monkeypatch):
     state = create_session(clinic_id=1, user_id=1)
     state.topic = "허리디스크"
     state.blog_text = "본문 더미"
-    transition(state, Stage.LENGTH)
+    # 2026-05-03 신 흐름: TOPIC → SEO → EMPHASIS → LENGTH → CONFIRM_IMAGE → GENERATING → IMAGE
     transition(state, Stage.SEO)
+    transition(state, Stage.EMPHASIS)
+    transition(state, Stage.LENGTH)
+    transition(state, Stage.CONFIRM_IMAGE)
     transition(state, Stage.GENERATING)
     transition(state, Stage.IMAGE)
     append_message(state, "assistant", "이미지 5장을 만들까요?",
@@ -503,8 +518,11 @@ def test_image_all_option_without_api_key_yields_error(monkeypatch):
     state = create_session(clinic_id=1, user_id=1)
     state.topic = "허리디스크"
     state.blog_text = "본문 더미"
-    transition(state, Stage.LENGTH)
+    # 2026-05-03 신 흐름: TOPIC → SEO → EMPHASIS → LENGTH → CONFIRM_IMAGE → GENERATING → IMAGE
     transition(state, Stage.SEO)
+    transition(state, Stage.EMPHASIS)
+    transition(state, Stage.LENGTH)
+    transition(state, Stage.CONFIRM_IMAGE)
     transition(state, Stage.GENERATING)
     transition(state, Stage.IMAGE)
     append_message(state, "assistant", "이미지 5장을 만들까요?",

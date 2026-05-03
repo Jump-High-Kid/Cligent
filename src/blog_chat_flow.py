@@ -350,13 +350,14 @@ def process_turn(state: BlogChatState, user_input: str) -> dict:
     s = state.stage
 
     # ── TOPIC ──
+    # 2026-05-03 신 흐름: TOPIC → SEO (키워드 자유 입력 먼저)
     if s == Stage.TOPIC:
         if not user_input:
             save_session(state)
             return _to_response(state, latest_n=1)
         state.topic = user_input.strip()[:200]
-        transition(state, Stage.LENGTH)
-        text, opts, meta = _length_message()
+        transition(state, Stage.SEO)
+        text, opts, meta = _seo_message()
         append_message(state, "assistant", text, options=opts, meta=meta)
         save_session(state)
         return _to_response(state)
@@ -370,7 +371,7 @@ def process_turn(state: BlogChatState, user_input: str) -> dict:
                 n = int(user_input.strip())
                 if 500 <= n <= 9999:
                     state.length_chars = n
-                    return _advance_to_seo(state)
+                    return _advance_after_length(state)
             except (ValueError, AttributeError):
                 pass
             # Haiku 자연어 fallback (1D-2)
@@ -386,7 +387,7 @@ def process_turn(state: BlogChatState, user_input: str) -> dict:
             save_session(state)
             return _to_response(state)
         state.length_chars = int(opt["id"])
-        return _advance_to_seo(state)
+        return _advance_after_length(state)
 
     # ── QUESTIONS (옵션 카탈로그 진행) ──────────────────────────
     # blog_chat_options.BLOG_OPTION_STAGES 4개 stage를 chip으로 순차 노출.
@@ -409,9 +410,9 @@ def process_turn(state: BlogChatState, user_input: str) -> dict:
         if user_input:
             current = get_stage(answered_count)
             if current is None:
-                # 모두 답한 상태에서 추가 입력 — SEO로 직진
-                transition(state, Stage.SEO)
-                text, opts, meta = _seo_message()
+                # 모두 답한 상태에서 추가 입력 — CONFIRM_IMAGE로 직진 (2026-05-03 신 흐름)
+                transition(state, Stage.CONFIRM_IMAGE)
+                text, opts, meta = _confirm_image_message()
                 append_message(state, "assistant", text, options=opts, meta=meta)
                 save_session(state)
                 return _to_response(state)
@@ -458,11 +459,11 @@ def process_turn(state: BlogChatState, user_input: str) -> dict:
                 })
                 answered_count += 1
 
-        # 다음 stage 또는 SEO 진입
+        # 다음 stage 또는 CONFIRM_IMAGE 진입 (2026-05-03 신 흐름)
         next_stage = get_stage(answered_count)
         if next_stage is None:
-            transition(state, Stage.SEO)
-            text, opts, meta = _seo_message()
+            transition(state, Stage.CONFIRM_IMAGE)
+            text, opts, meta = _confirm_image_message()
             append_message(state, "assistant", text, options=opts, meta=meta)
             save_session(state)
             return _to_response(state)
@@ -473,9 +474,8 @@ def process_turn(state: BlogChatState, user_input: str) -> dict:
         save_session(state)
         return _to_response(state)
 
-    # ── SEO ──
-    # SEO 입력은 자유 입력. 키워드 저장 후 CONFIRM_IMAGE 단계로 진입해서
-    # "이미지 자동 생성" 옵션을 묻는다 (2026-05-01 추가).
+    # ── SEO (2026-05-03 신 흐름: TOPIC 다음) ──
+    # SEO 입력은 자유 입력. 키워드 저장 후 강조 사항 단계로 진입.
     if s == Stage.SEO:
         normalized = (user_input or "").strip()
         if normalized in ("넘김", "skip", "스킵", "자동 생성", "자동생성", ""):
@@ -491,6 +491,7 @@ def process_turn(state: BlogChatState, user_input: str) -> dict:
         return _to_response(state)
 
     # ── EMPHASIS — 원장 강조 사항 입력 (자유 입력 또는 건너뛰기) ──
+    # 2026-05-03 신 흐름: 강조 사항 다음에 글자 수 선택(LENGTH).
     if s == Stage.EMPHASIS:
         normalized = (user_input or "").strip()
         if normalized.lower() in ("skip", "건너뛰기", "넘김", "스킵", "없음", ""):
@@ -498,8 +499,8 @@ def process_turn(state: BlogChatState, user_input: str) -> dict:
         else:
             # 입력값 그대로 저장 (최대 500자 제한)
             state.emphasis = normalized[:500]
-        transition(state, Stage.CONFIRM_IMAGE)
-        text, opts, meta = _confirm_image_message()
+        transition(state, Stage.LENGTH)
+        text, opts, meta = _length_message()
         append_message(state, "assistant", text, options=opts, meta=meta)
         save_session(state)
         return _to_response(state)
@@ -627,11 +628,11 @@ def _save_blog_chat_feedback(state: BlogChatState, message: str) -> None:
 # ── 내부 헬퍼 ─────────────────────────────────────────────────
 
 
-def _advance_to_seo(state: BlogChatState) -> dict:
-    """LENGTH 완료 후 다음 단계로 이동.
+def _advance_after_length(state: BlogChatState) -> dict:
+    """LENGTH 완료 후 다음 단계로 이동 (2026-05-03 신 흐름).
 
     questions_enabled (config.flow) 가 활성이고 BLOG_OPTION_STAGES가 비어있지 않으면
-    QUESTIONS 진입 + 첫 옵션 stage 메시지 발송. 아니면 SEO 직진.
+    QUESTIONS 진입 + 첫 옵션 stage 메시지 발송. 아니면 CONFIRM_IMAGE 직진.
     """
     from blog_chat_options import BLOG_OPTION_STAGES, get_stage
 
@@ -649,9 +650,9 @@ def _advance_to_seo(state: BlogChatState) -> dict:
         transition(state, Stage.QUESTIONS)
         first = get_stage(len(state.questions_answered))
         if first is None:
-            # 안전망 — 카탈로그 비어 있으면 SEO 직진
-            transition(state, Stage.SEO)
-            text, opts, meta = _seo_message()
+            # 안전망 — 카탈로그 비어 있으면 CONFIRM_IMAGE 직진
+            transition(state, Stage.CONFIRM_IMAGE)
+            text, opts, meta = _confirm_image_message()
             append_message(state, "assistant", text, options=opts, meta=meta)
             save_session(state)
             return _to_response(state)
@@ -660,8 +661,8 @@ def _advance_to_seo(state: BlogChatState) -> dict:
         save_session(state)
         return _to_response(state)
 
-    transition(state, Stage.SEO)
-    text, opts, meta = _seo_message()
+    transition(state, Stage.CONFIRM_IMAGE)
+    text, opts, meta = _confirm_image_message()
     append_message(state, "assistant", text, options=opts, meta=meta)
     save_session(state)
     return _to_response(state)

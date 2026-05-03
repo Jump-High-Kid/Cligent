@@ -3,7 +3,7 @@ blog_chat_flow 단위 테스트 (Step 1 Phase 1D-1)
 
 검증:
   - match_option: 번호 / 정확 라벨 / 부분 일치 / 동그라미숫자 / 한국어 서수
-  - process_turn: TOPIC → LENGTH → SEO → DONE 흐름
+  - process_turn: TOPIC → SEO → EMPHASIS → LENGTH → (QUESTIONS) → CONFIRM_IMAGE → DONE 흐름 (2026-05-03 신 흐름)
     · 정상 흐름 (옵션 칩 클릭)
     · 직접 글자 수 입력 (custom)
     · 모호한 입력 → ambiguous 메시지
@@ -51,7 +51,7 @@ def _isolated_db(monkeypatch, tmp_path):
 
 @pytest.fixture(autouse=True)
 def _disable_questions_default(monkeypatch):
-    """기본은 BLOG_OPTION_STAGES 비활성 — 기존 LENGTH→SEO 직진 흐름 보존.
+    """기본은 BLOG_OPTION_STAGES 비활성 — LENGTH → CONFIRM_IMAGE 직진 흐름 보존 (2026-05-03 신 흐름).
 
     QUESTIONS 흐름 검증은 TestProcessTurnQuestions 클래스에서
     명시적으로 _enable_questions fixture로 활성.
@@ -151,35 +151,36 @@ class TestMatchOption:
 
 class TestProcessTurnHappyPath:
     def test_full_flow_with_chips(self):
-        """주제 입력 → length 옵션 2번 → SEO 키워드 → DONE."""
+        """신 흐름 (2026-05-03): TOPIC → SEO → EMPHASIS → LENGTH → CONFIRM_IMAGE → DONE."""
         from blog_chat_flow import process_turn
         from blog_chat_state import Stage, create_session
 
         state = create_session(clinic_id=1, user_id=10)
 
-        # TOPIC: 주제 입력
+        # TOPIC: 주제 입력 → SEO 진입
         r1 = process_turn(state, "허리디스크")
         assert state.topic == "허리디스크"
-        assert state.stage == Stage.LENGTH
-        # 응답: 사용자 메시지 + assistant 옵션 메시지
-        assert any(m["role"] == "assistant" for m in r1["messages"])
-        # 옵션 4개 포함
-        last_assist = [m for m in r1["messages"] if m["role"] == "assistant"][-1]
-        assert len(last_assist["options"]) == 4
-
-        # LENGTH: "2" → 표준 2000자
-        r2 = process_turn(state, "2")
-        assert state.length_chars == 2000
         assert state.stage == Stage.SEO
+        assert any(m["role"] == "assistant" for m in r1["messages"])
 
-        # SEO: 키워드 입력 → EMPHASIS (2026-05-02 추가)
-        r3 = process_turn(state, "추나치료, 디스크")
+        # SEO: 키워드 입력 → EMPHASIS
+        r2 = process_turn(state, "추나치료, 디스크")
         assert state.seo_keywords == ["추나치료", "디스크"]
         assert state.stage == Stage.EMPHASIS
-        # EMPHASIS: 강조 사항 입력 → CONFIRM_IMAGE
-        process_turn(state, "추나 + 침 병행 치료가 핵심")
+
+        # EMPHASIS: 강조 사항 입력 → LENGTH
+        r3 = process_turn(state, "추나 + 침 병행 치료가 핵심")
         assert state.emphasis == "추나 + 침 병행 치료가 핵심"
+        assert state.stage == Stage.LENGTH
+        # 응답에 LENGTH 옵션 4개
+        last_assist = [m for m in r3["messages"] if m["role"] == "assistant"][-1]
+        assert len(last_assist["options"]) == 4
+
+        # LENGTH: "2" → 표준 2000자 → CONFIRM_IMAGE (BLOG_OPTION_STAGES 비활성)
+        process_turn(state, "2")
+        assert state.length_chars == 2000
         assert state.stage == Stage.CONFIRM_IMAGE
+
         # CONFIRM_IMAGE에 "아니오" 응답 → fallback에서 DONE까지 진행
         process_turn(state, "아니오")
         assert state.stage == Stage.DONE
@@ -188,43 +189,51 @@ class TestProcessTurnHappyPath:
 
 class TestProcessTurnLengthCustom:
     def test_custom_label_then_direct_number(self):
-        """[직접 입력] 클릭 → 안내 → 숫자 입력 → SEO."""
+        """[직접 입력] 클릭 → 안내 → 숫자 입력 → CONFIRM_IMAGE (2026-05-03 신 흐름)."""
         from blog_chat_flow import process_turn
-        from blog_chat_state import Stage, create_session, transition
+        from blog_chat_state import Stage, create_session
 
         state = create_session(clinic_id=1, user_id=10)
-        # 주제 입력 → LENGTH
+        # 신 흐름: TOPIC → SEO → EMPHASIS → LENGTH
         process_turn(state, "허리디스크")
+        process_turn(state, "추나, 디스크")
+        process_turn(state, "건너뛰기")
         assert state.stage == Stage.LENGTH
         # 직접 입력 클릭
         process_turn(state, "직접 입력")
         # 여전히 LENGTH (custom 분기 → 안내 메시지만)
         assert state.stage == Stage.LENGTH
-        # 숫자 입력
+        # 숫자 입력 → CONFIRM_IMAGE (questions 비활성)
         process_turn(state, "1800")
         assert state.length_chars == 1800
-        assert state.stage == Stage.SEO
+        assert state.stage == Stage.CONFIRM_IMAGE
 
     def test_direct_number_first(self):
-        """LENGTH에서 옵션 매칭 실패 + 숫자 직접 입력 fallback."""
+        """LENGTH에서 옵션 매칭 실패 + 숫자 직접 입력 fallback (2026-05-03 신 흐름)."""
         from blog_chat_flow import process_turn
         from blog_chat_state import Stage, create_session
 
         state = create_session(clinic_id=1, user_id=10)
         process_turn(state, "허리디스크")
+        process_turn(state, "추나, 디스크")
+        process_turn(state, "건너뛰기")
         process_turn(state, "1800")
         assert state.length_chars == 1800
-        assert state.stage == Stage.SEO
+        assert state.stage == Stage.CONFIRM_IMAGE
 
 
 class TestProcessTurnAmbiguous:
     def test_unparseable_length_input(self):
-        """모호한 입력 → ambiguous 메시지 + stage 유지."""
+        """LENGTH에서 모호한 입력 → ambiguous 메시지 + stage 유지 (2026-05-03 신 흐름)."""
         from blog_chat_flow import process_turn
         from blog_chat_state import Stage, create_session
 
         state = create_session(clinic_id=1, user_id=10)
+        # 신 흐름: TOPIC → SEO → EMPHASIS → LENGTH
         process_turn(state, "허리디스크")
+        process_turn(state, "추나, 디스크")
+        process_turn(state, "건너뛰기")
+        assert state.stage == Stage.LENGTH
         r = process_turn(state, "음... 잘 모르겠어요")
         assert state.stage == Stage.LENGTH  # 전이 안 함
         # ambiguous 메시지
@@ -235,18 +244,21 @@ class TestProcessTurnAmbiguous:
 
 
 class TestProcessTurnSeo:
+    """2026-05-03 신 흐름: TOPIC → SEO 직진. SEO 다음은 EMPHASIS."""
+
     def test_skip_keyword(self):
         from blog_chat_flow import process_turn
         from blog_chat_state import Stage, create_session
 
         state = create_session(clinic_id=1, user_id=10)
         process_turn(state, "허리디스크")
-        process_turn(state, "2")
+        # SEO에서 "넘김" → 키워드 비움 + EMPHASIS
         process_turn(state, "넘김")
         assert state.seo_keywords == []
-        # SEO → EMPHASIS → CONFIRM_IMAGE (2026-05-02 EMPHASIS 추가)
         assert state.stage == Stage.EMPHASIS
         process_turn(state, "건너뛰기")
+        assert state.stage == Stage.LENGTH
+        process_turn(state, "2")
         assert state.stage == Stage.CONFIRM_IMAGE
         process_turn(state, "아니오")
         assert state.stage == Stage.DONE
@@ -258,13 +270,13 @@ class TestProcessTurnSeo:
 
         state = create_session(clinic_id=1, user_id=10)
         process_turn(state, "허리디스크")
-        process_turn(state, "2")
         # SEO stage에서 빈 입력
         process_turn(state, "")
         assert state.seo_keywords == []
-        # SEO → EMPHASIS → CONFIRM_IMAGE (2026-05-02)
         assert state.stage == Stage.EMPHASIS
-        process_turn(state, "")  # EMPHASIS 빈 입력 → skip
+        process_turn(state, "")  # EMPHASIS 빈 입력 → LENGTH
+        assert state.stage == Stage.LENGTH
+        process_turn(state, "2")
         assert state.stage == Stage.CONFIRM_IMAGE
         process_turn(state, "아니오")
         assert state.stage == Stage.DONE
@@ -275,13 +287,22 @@ class TestProcessTurnSeo:
 
         state = create_session(clinic_id=1, user_id=10)
         process_turn(state, "허리디스크")
-        process_turn(state, "2")
+        # SEO에서 6개 이상 입력 → 5개로 절단
         process_turn(state, "a, b, c, d, e, f, g")
         assert state.seo_keywords == ["a", "b", "c", "d", "e"]
 
 
 class TestLLMFallback:
-    """1D-2: 결정론 매칭 None일 때 Haiku fallback 호출 + 옵션 매칭 성공 시 정상 진행."""
+    """1D-2: 결정론 매칭 None일 때 Haiku fallback 호출 + 옵션 매칭 성공 시 정상 진행 (2026-05-03 신 흐름).
+
+    LENGTH stage는 EMPHASIS 이후 진입.
+    """
+
+    def _advance_to_length(self, state):
+        from blog_chat_flow import process_turn
+        process_turn(state, "허리디스크")
+        process_turn(state, "추나, 디스크")
+        process_turn(state, "건너뛰기")
 
     def test_llm_fallback_invoked_when_ambiguous(self, monkeypatch):
         import blog_chat_flow as flow
@@ -297,12 +318,12 @@ class TestLLMFallback:
         monkeypatch.setattr(flow, "llm_match_option", fake_llm)
 
         state = create_session(clinic_id=1, user_id=10)
-        flow.process_turn(state, "허리디스크")
-        # 결정론 매칭이 안 되는 자연어
+        self._advance_to_length(state)
+        # LENGTH에서 결정론 매칭이 안 되는 자연어
         flow.process_turn(state, "추천으로 갈게")
         assert called["n"] == 1
         assert state.length_chars == 2000
-        assert state.stage == Stage.SEO
+        assert state.stage == Stage.CONFIRM_IMAGE
 
     def test_llm_fallback_returns_none_keeps_ambiguous(self, monkeypatch):
         import blog_chat_flow as flow
@@ -311,7 +332,7 @@ class TestLLMFallback:
         monkeypatch.setattr(flow, "llm_match_option", lambda o, u: None)
 
         state = create_session(clinic_id=1, user_id=10)
-        flow.process_turn(state, "허리디스크")
+        self._advance_to_length(state)
         r = flow.process_turn(state, "음... 잘 모르겠어요")
         assert state.stage == Stage.LENGTH
         last_assist = [m for m in r["messages"] if m["role"] == "assistant"][-1]
@@ -320,7 +341,7 @@ class TestLLMFallback:
     def test_llm_not_called_when_deterministic_matches(self, monkeypatch):
         """결정론으로 매칭되면 LLM 호출 안 함 (비용 절감)."""
         import blog_chat_flow as flow
-        from blog_chat_state import Stage, create_session
+        from blog_chat_state import create_session
 
         called = {"n": 0}
 
@@ -331,7 +352,7 @@ class TestLLMFallback:
         monkeypatch.setattr(flow, "llm_match_option", fake_llm)
 
         state = create_session(clinic_id=1, user_id=10)
-        flow.process_turn(state, "허리디스크")
+        self._advance_to_length(state)
         flow.process_turn(state, "2")  # 번호 매칭 → LLM 미호출
         assert called["n"] == 0
         assert state.length_chars == 2000
@@ -343,12 +364,12 @@ class TestProcessTurnDone:
         from blog_chat_state import Stage, create_session
 
         state = create_session(clinic_id=1, user_id=10)
+        # 신 흐름 (2026-05-03): TOPIC → SEO → EMPHASIS → LENGTH → CONFIRM_IMAGE → DONE
         process_turn(state, "허리디스크")
-        process_turn(state, "2")
-        process_turn(state, "넘김")
-        # SEO → EMPHASIS (2026-05-02) → CONFIRM_IMAGE → DONE
-        process_turn(state, "건너뛰기")
-        process_turn(state, "아니오")
+        process_turn(state, "넘김")          # SEO skip → EMPHASIS
+        process_turn(state, "건너뛰기")       # EMPHASIS skip → LENGTH
+        process_turn(state, "2")              # LENGTH → CONFIRM_IMAGE
+        process_turn(state, "아니오")         # CONFIRM_IMAGE → DONE
         assert state.stage == Stage.DONE
         # DONE 상태에서 추가 입력
         r = process_turn(state, "또 쓸게요")
@@ -360,19 +381,25 @@ class TestProcessTurnDone:
 
 
 class TestProcessTurnQuestions:
-    """LENGTH 완료 후 BLOG_OPTION_STAGES 4 stage를 chip으로 순차 노출.
+    """LENGTH 완료 후 BLOG_OPTION_STAGES 4 stage를 chip으로 순차 노출 (2026-05-03 신 흐름).
 
     각 stage 답변이 state.questions_answered에 누적되고
-    마지막 stage 후 SEO로 진입.
+    마지막 stage 후 CONFIRM_IMAGE로 진입.
     """
+
+    def _advance_to_length(self, state):
+        from blog_chat_flow import process_turn
+        process_turn(state, "허리디스크")
+        process_turn(state, "추나, 디스크")
+        process_turn(state, "건너뛰기")
 
     def test_full_flow_topic_length_questions_seo(self, _enable_questions):
         from blog_chat_flow import process_turn
         from blog_chat_state import Stage, create_session
 
         state = create_session(clinic_id=1, user_id=10)
-        process_turn(state, "허리디스크")
-        # LENGTH "2" → QUESTIONS 진입 (직진 SEO 아님)
+        self._advance_to_length(state)
+        # LENGTH "2" → QUESTIONS 진입 (직진 CONFIRM_IMAGE 아님)
         process_turn(state, "2")
         assert state.stage == Stage.QUESTIONS
         assert state.length_chars == 2000
@@ -394,10 +421,10 @@ class TestProcessTurnQuestions:
         assert state.questions_answered[-1]["key"] == "explanation_type"
         assert state.questions_answered[-1]["id"] == "skip"
 
-        # Q4 format_id: "1" → auto. 마지막 → SEO 전이
+        # Q4 format_id: "1" → auto. 마지막 → CONFIRM_IMAGE 전이
         process_turn(state, "1")
         assert state.questions_answered[-1]["key"] == "format_id"
-        assert state.stage == Stage.SEO
+        assert state.stage == Stage.CONFIRM_IMAGE
 
     def test_ambiguous_input_keeps_same_question_stage(self, _enable_questions):
         """질문 stage에서 모호한 입력 → 같은 질문 재노출 + answered 미증가."""
@@ -405,7 +432,7 @@ class TestProcessTurnQuestions:
         from blog_chat_state import Stage, create_session
 
         state = create_session(clinic_id=1, user_id=10)
-        process_turn(state, "허리디스크")
+        self._advance_to_length(state)
         process_turn(state, "2")  # → QUESTIONS Q1
         before_count = len(state.questions_answered)
 
@@ -485,16 +512,15 @@ class TestStreamingForSeo:
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
 
         state = create_session(clinic_id=1, user_id=10)
-        # CONFIRM_IMAGE stage까지 진행 (2026-05-02: SEO → EMPHASIS → CONFIRM_IMAGE → SSE)
+        # 신 흐름 (2026-05-03): TOPIC → SEO → EMPHASIS → LENGTH → CONFIRM_IMAGE → SSE
         flow.process_turn(state, "허리디스크")
-        flow.process_turn(state, "2")
         assert state.stage == Stage.SEO
-        # SEO 키워드 입력 → EMPHASIS 진입
         flow.process_turn(state, "추나, 디스크")
         assert state.stage == Stage.EMPHASIS
         assert state.seo_keywords == ["추나", "디스크"]
-        # EMPHASIS skip → CONFIRM_IMAGE 진입
         flow.process_turn(state, "건너뛰기")
+        assert state.stage == Stage.LENGTH
+        flow.process_turn(state, "2")
         assert state.stage == Stage.CONFIRM_IMAGE
 
         # SSE generator 실행 — CONFIRM_IMAGE에 "아니오" 응답이 SSE 트리거 input
@@ -534,8 +560,12 @@ class TestStreamingForSeo:
 
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         state = create_session(clinic_id=1, user_id=10)
+        # 신 흐름 (2026-05-03): TOPIC → SEO → EMPHASIS → LENGTH → CONFIRM_IMAGE → SSE
         flow.process_turn(state, "허리디스크")
+        flow.process_turn(state, "추나, 디스크")
+        flow.process_turn(state, "건너뛰기")
         flow.process_turn(state, "2")
+        assert state.stage == Stage.CONFIRM_IMAGE
         gen = flow.process_turn_streaming(state, "넘김")
         import json as _json
         frames = [_json.loads(r[len("data: "):].strip()) for r in gen]
@@ -550,14 +580,14 @@ class TestImageStage:
     """IMAGE stage placeholder: 옵션 매칭 → FEEDBACK 전이."""
 
     def _force_image_stage(self, state):
+        """2026-05-03 신 흐름: TOPIC → SEO → EMPHASIS → LENGTH → CONFIRM_IMAGE → GENERATING → IMAGE."""
         from blog_chat_state import Stage, transition
-        # 일반 흐름 따라 IMAGE까지 (직접 transition은 valid path만 허용됨)
         from blog_chat_flow import process_turn
-        process_turn(state, "허리디스크")
-        process_turn(state, "2")
-        # SEO에서 process_turn은 placeholder generating 후 DONE으로 이동시키므로
-        # IMAGE 진입은 streaming 경로를 통해야 함. 테스트에선 직접 transition.
-        # 안전하게 SEO → GENERATING → IMAGE 순서로 수동 전이.
+        process_turn(state, "허리디스크")    # TOPIC → SEO
+        process_turn(state, "추나, 디스크")   # SEO → EMPHASIS
+        process_turn(state, "건너뛰기")       # EMPHASIS → LENGTH
+        process_turn(state, "2")              # LENGTH → CONFIRM_IMAGE
+        # CONFIRM_IMAGE → GENERATING → IMAGE 직접 전이 (SSE 우회)
         transition(state, Stage.GENERATING)
         transition(state, Stage.IMAGE)
 
@@ -586,29 +616,34 @@ class TestImageStage:
 
 
 class TestFeedbackStage:
-    def test_skip_to_done(self):
-        from blog_chat_flow import process_turn
-        from blog_chat_state import Stage, create_session, transition
+    """2026-05-03 신 흐름: TOPIC → SEO → EMPHASIS → LENGTH → CONFIRM_IMAGE → GENERATING → IMAGE → FEEDBACK."""
 
-        state = create_session(clinic_id=1, user_id=10)
+    def _advance_to_feedback(self, state):
+        from blog_chat_state import Stage, transition
+        from blog_chat_flow import process_turn
         process_turn(state, "허리디스크")
+        process_turn(state, "추나, 디스크")
+        process_turn(state, "건너뛰기")
         process_turn(state, "2")
         transition(state, Stage.GENERATING)
         transition(state, Stage.IMAGE)
         transition(state, Stage.FEEDBACK)
+
+    def test_skip_to_done(self):
+        from blog_chat_flow import process_turn
+        from blog_chat_state import Stage, create_session
+
+        state = create_session(clinic_id=1, user_id=10)
+        self._advance_to_feedback(state)
         process_turn(state, "넘김")
         assert state.stage == Stage.DONE
 
     def test_free_input_to_done(self):
         from blog_chat_flow import process_turn
-        from blog_chat_state import Stage, create_session, transition
+        from blog_chat_state import Stage, create_session
 
         state = create_session(clinic_id=1, user_id=10)
-        process_turn(state, "허리디스크")
-        process_turn(state, "2")
-        transition(state, Stage.GENERATING)
-        transition(state, Stage.IMAGE)
-        transition(state, Stage.FEEDBACK)
+        self._advance_to_feedback(state)
         r = process_turn(state, "이미지 생성이 좀 느렸어요")
         assert state.stage == Stage.DONE
         # 응답에 감사 인사 + [새 글 시작] 옵션 메시지 둘 다 있어야 함
@@ -628,9 +663,12 @@ class TestFeedbackStage:
         monkeypatch.setattr(_dashboard, "_persist_feedback", lambda **k: calls.append(k))
 
         state = create_session(clinic_id=42, user_id=99)
-        process_turn(state, "허리디스크")
-        process_turn(state, "2")  # 표준 2000자
-        state.seo_keywords = ["추나치료", "디스크"]
+        # 신 흐름 진행 + 추가 메타 세팅 (seo_keywords는 흐름에서 이미 채워지지만 명시적 덮어쓰기)
+        from blog_chat_flow import process_turn as _pt
+        _pt(state, "허리디스크")
+        _pt(state, "추나치료, 디스크")  # 흐름에서 SEO에 저장됨
+        _pt(state, "건너뛰기")
+        _pt(state, "2")  # 표준 2000자
         state.blog_history_id = 7
         transition(state, Stage.GENERATING)
         transition(state, Stage.IMAGE)
@@ -658,17 +696,13 @@ class TestFeedbackStage:
         """'넘김' 입력은 저장하지 않음 (관리자 노이즈 방지)."""
         from routers import dashboard as _dashboard
         from blog_chat_flow import process_turn
-        from blog_chat_state import Stage, create_session, transition
+        from blog_chat_state import Stage, create_session
 
         calls = []
         monkeypatch.setattr(_dashboard, "_persist_feedback", lambda **k: calls.append(k))
 
         state = create_session(clinic_id=1, user_id=10)
-        process_turn(state, "허리디스크")
-        process_turn(state, "2")
-        transition(state, Stage.GENERATING)
-        transition(state, Stage.IMAGE)
-        transition(state, Stage.FEEDBACK)
+        self._advance_to_feedback(state)
 
         process_turn(state, "넘김")
         assert calls == []
@@ -678,18 +712,14 @@ class TestFeedbackStage:
         """저장 헬퍼가 예외를 내도 챗 흐름은 DONE까지 정상 진행 (fail-soft)."""
         from routers import dashboard as _dashboard
         from blog_chat_flow import process_turn
-        from blog_chat_state import Stage, create_session, transition
+        from blog_chat_state import Stage, create_session
 
         def boom(**_kw):
             raise RuntimeError("DB unavailable")
         monkeypatch.setattr(_dashboard, "_persist_feedback", boom)
 
         state = create_session(clinic_id=1, user_id=10)
-        process_turn(state, "허리디스크")
-        process_turn(state, "2")
-        transition(state, Stage.GENERATING)
-        transition(state, Stage.IMAGE)
-        transition(state, Stage.FEEDBACK)
+        self._advance_to_feedback(state)
 
         r = process_turn(state, "오류 났어요")
         assert state.stage == Stage.DONE

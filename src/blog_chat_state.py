@@ -52,17 +52,19 @@ class Stage(str, Enum):
 
 
 # stage 전이 화이트리스트 — 잘못된 전이는 ValueError
-# 2026-05-02 (현재 흐름): TOPIC → LENGTH → QUESTIONS → SEO → EMPHASIS → CONFIRM_IMAGE
-# TODO(다음 세션): "타이핑 먼저 → 번호 나중" 흐름으로 재배치 + 테스트 31개 일괄 갱신
+# 2026-05-03 신 흐름 (타이핑 먼저 → 번호 나중):
+#   TOPIC → SEO → EMPHASIS → LENGTH → QUESTIONS → CONFIRM_IMAGE → GENERATING → IMAGE → FEEDBACK → DONE
+#   주제·키워드·강조사항(자유 입력)을 먼저 모으고, 글자수·질문(번호 선택)을 뒤로 모음.
 VALID_TRANSITIONS: dict[Stage, set[Stage]] = {
-    Stage.TOPIC: {Stage.LENGTH},
-    # 질문 비활성 시 length → seo 직진
-    Stage.LENGTH: {Stage.QUESTIONS, Stage.SEO},
-    # 질문 N회 반복 → 끝나면 seo
-    Stage.QUESTIONS: {Stage.QUESTIONS, Stage.SEO},
-    # SEO → EMPHASIS → CONFIRM_IMAGE
-    Stage.SEO: {Stage.EMPHASIS, Stage.CONFIRM_IMAGE, Stage.GENERATING, Stage.DONE},
-    Stage.EMPHASIS: {Stage.CONFIRM_IMAGE, Stage.GENERATING, Stage.DONE},
+    Stage.TOPIC: {Stage.SEO},
+    # SEO 키워드 입력 후 강조 사항으로
+    Stage.SEO: {Stage.EMPHASIS},
+    # 강조 사항 입력(또는 skip) 후 글자 수 선택으로
+    Stage.EMPHASIS: {Stage.LENGTH},
+    # 질문 비활성 시 length → confirm_image 직진
+    Stage.LENGTH: {Stage.QUESTIONS, Stage.CONFIRM_IMAGE},
+    # 질문 N회 반복 → 끝나면 confirm_image
+    Stage.QUESTIONS: {Stage.QUESTIONS, Stage.CONFIRM_IMAGE},
     # 이미지 자동 생성 여부 확인 → 본문 생성 (DONE은 fallback)
     Stage.CONFIRM_IMAGE: {Stage.GENERATING, Stage.CONFIRM_IMAGE, Stage.DONE},
     # 본문 완료 후 이미지 / 피드백 / 종료
