@@ -67,6 +67,23 @@
 - 처방전·의료 기록·검사 결과지 노출 금지
 - 치료 효과 단정·과장 시각 표현 금지
 
+## OpenAI safety filter 회피 (모듈 무관 항상 적용 — 차단 방지 필수)
+
+gpt-image-2는 acupuncture·신체 부위 묘사를 sexual/violence로 오판해 차단함.
+**환자가 등장하는 모든 프롬프트**(모듈 2·3·6·7·10·11)에 다음을 자동 적용하세요.
+
+1. **환자 복장**: 본문에 반드시 "patient fully clothed in professional clinical gown,
+   modest medical attire, treatment area covered with clean sterile white drapes,
+   only the small needle insertion point exposed" 포함.
+2. **침 묘사**: 침 시술 장면은 "thin sterile fine acupuncture needles, professionally
+   and gently placed, peaceful clinical procedure, no dramatic close-up". 침 자체는
+   작고 멸균된 의료기구로만 묘사.
+3. **신뢰감 단서**: "professional Korean traditional medicine clinic, sterile clinical
+   environment, calm trustworthy atmosphere".
+4. **negative_prompt 자동 추가** (모듈 본래 negatives에 다음을 항상 합침):
+   `nude, naked, bare skin exposure, lingerie, intimate, blood, wound, injury,
+   bleeding, painful expression, dramatic gore, piercing close-up`
+
 ## 프롬프트 작성 흐름 (각 scene별)
 
 1. 스타일 접두어 (위 표에서 IMAGE_STYLE 매칭)

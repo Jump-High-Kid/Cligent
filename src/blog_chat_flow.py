@@ -1160,9 +1160,9 @@ def _stream_generator_for_image(state: BlogChatState, user_input: str):
         if "moderation" in low or "safety_violations" in low or "safety system" in low:
             friendly = (
                 "OpenAI 안전성 필터가 이미지 생성을 차단했어요. "
-                "한의학 주제 중 인체 부위 묘사(골반·산부인과·전립선·갱년기 등)가 "
-                "포함된 글은 필터에 걸릴 수 있어요. "
-                "주제를 살짝 다르게 표현해 다시 시도하거나, "
+                "침 시술·인체 부위(골반·산부인과·전립선·갱년기 등) 이미지는 "
+                "AI가 의료 맥락임에도 종종 오판해 차단합니다. "
+                "한 번 더 시도해 주시거나(같은 주제도 재시도 시 통과되는 경우 많음), "
                 "본문만 사용하고 이미지는 다른 도구로 만들어 주세요."
             )
         else:
