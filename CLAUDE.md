@@ -26,7 +26,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **처방 로직**은 의료진 최종 확인 단계 포함
 - **의료 기록 삭제**는 소프트 딜리트(soft delete) 방식
 
-## 진행 중 (2026-05-03)
+## 진행 중 (2026-05-04)
 
 > 상세는 CHANGELOG 항목 참조.
 
@@ -53,6 +53,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   3. **iframe 안 redirect 탈출**: `announcements.html`·`announcement_detail.html` `window.location.href = '/login'` → `(window.top || window).location.href`. iframe 안에 /login → /app 쉘 중첩으로 mobile-nav·사이드바 2중 출력되던 버그 해결. 메모리: `feedback_iframe_auth_redirect.md`.
   4. **이미지 단계 자동 스크롤 복구**: `chat_state.js` `stage_change(image)` + `image_session_started`에서 `m.scrollTop = m.scrollHeight` 강제 앵커. 텍스트 finalize·취소 버튼 부착으로 nearBottom 임계값 밖으로 밀려 이후 stage_text 스크롤이 멈추던 PC 버그 해결.
 - **블로그 챗 흐름 재배치 (2026-05-03)** — `TOPIC → SEO → EMPHASIS → LENGTH → QUESTIONS → CONFIRM_IMAGE → ...` 신 흐름. 자유 입력(키워드·강조사항) 먼저, 번호 선택(글자수·질문) 뒤로 — 인지부하 최소화. `src/blog_chat_state.py` `VALID_TRANSITIONS` 단일 진실원, 우회로 금지. flow.py에서 `_advance_to_seo` → `_advance_after_length` 리네임. blog_chat 테스트 31건 일괄 갱신(state 3 + flow 17 + route 11). 회귀 410 pass / 7 fail (baseline 정확 일치). 라우트·프롬프트·JS 변경 없음 (stage_text는 서버가 SSE frame으로 전달). 메모리: `project_blog_chat_flow_reorder.md`.
+- **백그라운드/절전 시 SSE 보호 4 layer (2026-05-04)** — 모바일 백그라운드/화면 자동 절전으로 SSE 끊김 + 본문 손실 방어. 4중 안전망:
+  1. **서버 keepalive**: `src/sse_utils.with_keepalive(gen, interval=15)` — sync/async generator 모두 감싸 idle 시 `: ping\n\n` SSE 코멘트 발송. 4 SSE 엔드포인트(turn·generate·image-prompts·youtube) 모두 적용. NAT/리버스 프록시 idle 끊김 방어.
+  2. **클라 read timeout**: `chat_sse.js` `Promise.race`로 `reader.read()` 30s timeout. 서버 keepalive 살아있으면 발화 안 함. 모바일 stalled fetch 강제 abort → finally 정상 루트.
+  3. **visibilitychange + 폴링 fallback**: `chat_state.js` `syncOnResume()` (visible 복귀 시 GET session 동기화) + `startStatePolling()` (1.5s 간격, 최대 30분, hidden 시 자체 종료). ts 기반 messages merge로 중복 append 방지. **stuck 감지**: 60초(40 tick) 동안 stage·msg수 변동 0이면 `_markGenerationStuck` → "백그라운드 진입으로 본문 생성이 중단됐어요. 새 글 쓰기" 안내.
+  4. **WakeLock (모바일·PC)**: stage='generating'/'image' 진입 시 `navigator.wakeLock.request('screen')` — 화면 자동 절전 진입 자체를 차단. iOS Safari 16.4+ / Android Chrome 84+ / Samsung Internet 모두 지원. 미지원은 silent fail. 모바일 1회 안내 메시지 동봉.
+
+  **남은 근본 문제 (옵션 A 보류)**: 서버 generator가 클라 disconnect 시 `BrokenPipe`로 같이 죽어 본문이 미완성·DB 미저장. 본문 생성을 background task로 분리하는 작업은 v0.10.0 단독 세션 예정. 현재 4 layer로 실사용 disconnect 케이스 거의 전부 커버 — 베타 데이터 보고 우선순위 결정.
+
+  **검증 (모바일 삼성 인터넷)**: ① 백그라운드 5분 → "중단" 안내 ✓ / ② 1회 안내 노출 ✓ / ③ 화면 절전 시간 도달 → 안 꺼지고 정상 완성 ✓. 회귀 0 (414 pass / 7 fail = 410 baseline + sse_utils 신규 4건).
 
 ## 폴더 구조 요약
 
@@ -62,7 +71,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `data/` — `cligent.db`, `anatomy/{slug}/meta_{view}.json` + `source_{view}.png`, `blog_stats.json`(영구), `blog_texts.json`(30일 TTL), `pending_checks.json`, `academic_cache.json`(24h), `error_logs/{date}.jsonl`, `agent_log.jsonl`
 - `prompts/` — `blog.txt`, `blog_patterns.txt`(서론 7+본론 8+결론 7+화제전환 6), `image_analysis.txt`(Stage1), `image_generation.txt`(Stage2), `formats/`(6종), `references/sasang.txt`, `agents/`(8개)
 - `src/` 핵심:
-  - **공통**: `main.py`, `auth_manager.py`, `db_manager.py`, `module_manager.py`, `settings_manager.py`, `secret_manager.py`(Fernet), `observability.py`(Sentry+structlog+PII), `plan_guard.py`(60s TTL), `plan_notify.py`, `usage_tracker.py`
+  - **공통**: `main.py`, `auth_manager.py`, `db_manager.py`, `module_manager.py`, `settings_manager.py`, `secret_manager.py`(Fernet), `observability.py`(Sentry+structlog+PII), `plan_guard.py`(60s TTL), `plan_notify.py`, `usage_tracker.py`, `sse_utils.py`(SSE keepalive)
   - **AI 래퍼**: `ai_client.py`(Anthropic+OpenAI), `metadata_generator.py`(Haiku 4.5)
   - **블로그**: `blog_generator.py`(SSE+RAG), `blog_history.py`, `blog_chat_flow.py`, `blog_chat_options.py`, `pattern_selector.py`, `format_selector.py`, `hook_selector.py`, `citation_provider.py`, `academic_search.py`(jkom·PubMed·Naver doc)
   - **이미지**: `image_modules.py`(11 모듈), `image_generator.py`(한도/해상도), `image_session_manager.py`, `image_prompt_generator.py`(2단계)
