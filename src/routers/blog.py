@@ -46,6 +46,7 @@ from usage_tracker import log_usage
 from agent_router import AgentRouter
 from agent_middleware import AgentMiddleware
 from config_loader import load_config
+from sse_utils import with_keepalive
 
 # 프로젝트 루트 (src/routers/blog.py 기준 3단계 위)
 ROOT = Path(__file__).resolve().parent.parent.parent
@@ -406,11 +407,11 @@ async def generate_youtube(request: Request, user: dict = Depends(get_current_us
     }
 
     return StreamingResponse(
-        generate_youtube_stream(
+        with_keepalive(generate_youtube_stream(
             topic=topic,
             clinic_id=user["clinic_id"],
             options=options,
-        ),
+        )),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
@@ -925,7 +926,7 @@ async def api_blog_chat_turn(request: Request, user: dict = Depends(get_current_
                   {"keyword": state.topic, "via": "blog_chat"})
         check_and_notify(user["clinic_id"])
         return StreamingResponse(
-            process_turn_streaming(state, user_input),
+            with_keepalive(process_turn_streaming(state, user_input)),
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
@@ -937,7 +938,7 @@ async def api_blog_chat_turn(request: Request, user: dict = Depends(get_current_
         opt = match_option(IMAGE_OPTIONS, user_input)
         if opt and opt.get("id") == "all":
             return StreamingResponse(
-                process_turn_streaming(state, user_input),
+                with_keepalive(process_turn_streaming(state, user_input)),
                 media_type="text/event-stream",
                 headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
             )
@@ -1058,7 +1059,7 @@ async def generate(request: Request, user: dict = Depends(get_current_user)):
     check_and_notify(user["clinic_id"])
 
     return StreamingResponse(
-        _stream_and_save(
+        with_keepalive(_stream_and_save(
             generate_blog_stream(
                 keyword, answers, api_key, materials, mode, reader_level,
                 seo_keywords=seo_keywords, clinic_info=clinic_info,
@@ -1068,7 +1069,7 @@ async def generate(request: Request, user: dict = Depends(get_current_user)):
             ),
             keyword, tone, seo_keywords,
             clinic_id=user["clinic_id"],
-        ),
+        )),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
@@ -1094,7 +1095,9 @@ async def generate_image_prompts(request: Request, user: dict = Depends(get_curr
         return StreamingResponse(_err(), media_type="text/event-stream")
 
     return StreamingResponse(
-        generate_image_prompts_stream(keyword, blog_content, api_key, style, tone),
+        with_keepalive(
+            generate_image_prompts_stream(keyword, blog_content, api_key, style, tone)
+        ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
