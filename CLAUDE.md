@@ -63,6 +63,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
   **검증 (모바일 삼성 인터넷)**: ① 백그라운드 5분 → "중단" 안내 ✓ / ② 1회 안내 노출 ✓ / ③ 화면 절전 시간 도달 → 안 꺼지고 정상 완성 ✓. 회귀 0 (414 pass / 7 fail = 410 baseline + sse_utils 신규 4건).
 
+  **추가 후속 fix (2026-05-04)**:
+  - **이미지 단계 stuck threshold 분리**: generating 60s / image 8분(320 tick). 5장 평균 6분 + msg수 변동 0 특성 반영 (false positive 방지).
+  - **이미지 단계 _mergeServerMessages skip**: `state.stage === 'image' && serverStage === 'image'`일 때 messages merge 건너뜀. 안 그러면 visibility toggle마다 streamRef.bubble finalize → 새 bubble + 태극 누적 + stage_text 깜빡임.
+  - **stage_change 핸들러 hideImageCancelBtn**: `frame.stage !== 'image'` 진입 시 자동 호출. 갤러리는 next_message로 오고 이후 stage_change('feedback')이 와서 cancel 버튼 잔존하던 버그.
+  - **iframe redirect 안전망**: `chat_state.js`·`chat_input.js`·`chat_sse.js`의 5곳 `/login` redirect를 `(window.top || window).location.href`로 일괄. iframe 안 401 시 mobile-nav 2중 출력 방지.
+  - **OpenAI gpt-image-2 safety filter 우회**: `prompts/image_generation.txt`에 "OpenAI safety filter 회피" 섹션 신규 (환자 복장·침 묘사·negative_prompt 자동 추가). 침 시술 등 한의학 흔한 주제도 차단되던 케이스 대응. friendly error 메시지 갱신.
+
 ## 폴더 구조 요약
 
 - `run.py` (서버 시작), `conftest.py`, `config.yaml`, `requirements.txt`, `.env(.example)`
