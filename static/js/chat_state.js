@@ -1249,12 +1249,18 @@
 
   function _applyServerState(data) {
     if (!data) return 0;
-    if (data.stage) state.stage = data.stage;
+    const serverStage = data.stage;
+    // 이미지 단계 진행 중 + 서버도 image면 SSE stage_text가 진행 메시지를 활발히
+    // 갱신하므로 폴링·sync 측은 messages 미터치 (finalize → 깜빡임 + 태극 누적 방지).
+    // 사용자 보고 (2026-05-04): "stage_text 짧게 뜨고 태극 8개 누적, 5장 완성 후 정상".
+    const skipMerge = state.stage === 'image' && serverStage === 'image';
+    if (serverStage) state.stage = serverStage;
     if (data.stage_text) setStageText(data.stage_text);
     if (data.quota) setQuota(data.quota);
-    const added = _mergeServerMessages(data.messages || []);
+    let added = 0;
+    if (!skipMerge) added = _mergeServerMessages(data.messages || []);
     updatePlaceholder();
-    if (data.stage === 'done' || data.stage === 'feedback') {
+    if (serverStage === 'done' || serverStage === 'feedback') {
       hideImageCancelBtn();
     }
     return added;
