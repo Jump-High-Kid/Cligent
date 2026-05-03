@@ -1151,9 +1151,23 @@ def _stream_generator_for_image(state: BlogChatState, user_input: str):
             mode="initial",
         )
     except _AIClientError as exc:
-        logger.warning("image generation failed (%s)", exc)
-        yield _sse_frame({"type": "error",
-                          "message": f"이미지 생성에 실패했어요: {getattr(exc, 'message', str(exc))}"})
+        raw_msg = getattr(exc, "message", str(exc))
+        logger.warning("image generation failed (%s)", raw_msg)
+        # moderation_blocked 케이스 — gpt-image-2가 한의학 주제(인체 부위 묘사)를
+        # sexual/violent로 오판해 차단. raw OpenAI 에러 대신 사용자가 이해할 수 있는
+        # 안내로 변환. (베타 보고 2026-05-04 — Stage 1+2 프롬프트 가이드 강화는 별도)
+        low = raw_msg.lower()
+        if "moderation" in low or "safety_violations" in low or "safety system" in low:
+            friendly = (
+                "OpenAI 안전성 필터가 이미지 생성을 차단했어요. "
+                "한의학 주제 중 인체 부위 묘사(골반·산부인과·전립선·갱년기 등)가 "
+                "포함된 글은 필터에 걸릴 수 있어요. "
+                "주제를 살짝 다르게 표현해 다시 시도하거나, "
+                "본문만 사용하고 이미지는 다른 도구로 만들어 주세요."
+            )
+        else:
+            friendly = f"이미지 생성에 실패했어요: {raw_msg}"
+        yield _sse_frame({"type": "error", "message": friendly})
         yield _sse_frame({"type": "done"})
         return
     except Exception:
