@@ -273,15 +273,48 @@ def _length_message() -> tuple[str, list[dict], dict]:
     return text, LENGTH_OPTIONS, {}
 
 
-def _question_stage_message(stage: dict, answered_count: int) -> tuple[str, list[dict], dict]:
-    """질문 stage 메시지 빌더 — prompt + 옵션 번호 목록 + 옵션 chip."""
-    opts = stage.get("options") or []
+def _question_stage_message(
+    stage: dict, answered_count: int, clinic_id: Optional[int] = None,
+) -> tuple[str, list[dict], dict]:
+    """질문 stage 메시지 빌더 — prompt + 옵션 번호 목록 + 옵션 chip.
+
+    tone stage는 한의원 5문항 ① blog_tone 값과 일치하는 옵션 라벨에 [기본] 표기.
+    사용자가 다른 톤을 선택하면 그게 그대로 적용 (per-blog override).
+    """
+    opts = list(stage.get("options") or [])
+
+    # tone stage [기본] 라벨링: clinic.blog_tone과 일치하는 옵션을 시각적으로 마킹
+    if stage.get("key") == "tone" and clinic_id:
+        default_tone = _get_clinic_blog_tone(clinic_id)
+        if default_tone:
+            opts = [
+                {**o, "label": f"{o.get('label', '')} [기본]"}
+                if o.get("id") == default_tone
+                else o
+                for o in opts
+            ]
+
     lines = [stage.get("prompt", "선택해주세요.")]
     for i, o in enumerate(opts):
         lines.append(f"{i + 1}) {o.get('label', '')}")
     text = "\n".join(lines)
     meta = {"question_key": stage.get("key"), "question_index": answered_count}
     return text, opts, meta
+
+
+def _get_clinic_blog_tone(clinic_id: int) -> Optional[str]:
+    """한의원 5문항 ① blog_tone 값 조회. 없거나 실패 시 None."""
+    try:
+        from db_manager import get_db
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT blog_tone FROM clinics WHERE id = ?", (clinic_id,),
+            ).fetchone()
+        if row and row["blog_tone"]:
+            return row["blog_tone"]
+    except Exception:
+        pass
+    return None
 
 
 def _seo_message() -> tuple[str, list[dict], dict]:
@@ -469,7 +502,7 @@ def process_turn(state: BlogChatState, user_input: str) -> dict:
             return _to_response(state)
 
         # 다음 stage 메시지 발송
-        text, opts, meta = _question_stage_message(next_stage, answered_count)
+        text, opts, meta = _question_stage_message(next_stage, answered_count, state.clinic_id)
         append_message(state, "assistant", text, options=opts, meta=meta)
         save_session(state)
         return _to_response(state)
@@ -656,7 +689,7 @@ def _advance_after_length(state: BlogChatState) -> dict:
             append_message(state, "assistant", text, options=opts, meta=meta)
             save_session(state)
             return _to_response(state)
-        text, opts, meta = _question_stage_message(first, len(state.questions_answered))
+        text, opts, meta = _question_stage_message(first, len(state.questions_answered), state.clinic_id)
         append_message(state, "assistant", text, options=opts, meta=meta)
         save_session(state)
         return _to_response(state)
@@ -746,7 +779,10 @@ def _stream_generator_for_seo(state: BlogChatState, user_input: str):
 
     # 강조 사항 (2026-05-02): EMPHASIS 단계 입력값을 answers dict로 전달.
     # blog_generator의 qa_text 빌더가 "원장 강조사항: ..." 형태로 본문 프롬프트에 삽입한다.
-    answers_to_pass: dict = {"tone": "전문적"}
+    # tone (2026-05-04): 챗에서 선택한 글 말투를 우선 적용. 미선택 시 clinic.blog_tone 또는 config 기본.
+    answers_to_pass: dict = {}
+    if blog_args.get("tone"):
+        answers_to_pass["tone"] = blog_args["tone"]
     if state.emphasis:
         answers_to_pass["원장 강조사항 (반드시 본문에서 비중 있게 다룰 것)"] = state.emphasis
 

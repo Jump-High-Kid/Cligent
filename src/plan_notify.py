@@ -301,7 +301,7 @@ def send_beta_invite_email(
     applicant_id: Optional[int] = None,
 ) -> bool:
     """E3: 신청자에게 초대 링크 발송 (invite-batch 시 호출)."""
-    subject = "[Cligent] Cligent 베타 초대장이 도착했습니다"
+    subject = "[Cligent] 1차 베타에 초대드립니다"
     body_html = f"""
 <html>
 <body style="font-family: 'Pretendard', sans-serif; color: #1c1917; max-width: 600px;">
@@ -309,15 +309,34 @@ def send_beta_invite_email(
     <h1 style="color:#fff; margin:0; font-size:20px;">Cligent</h1>
   </div>
   <div style="padding:32px; background:#fafaf9; border:1px solid #e7e5e4; border-top:none; border-radius:0 0 16px 16px;">
-    <h2 style="font-size:18px; color:#064e3b; margin-top:0;">베타 초대장</h2>
-    <p>안녕하세요, <strong>{name}</strong> 선생님.</p>
-    <p>Cligent 베타 서비스에 초대되셨습니다.<br>
-       아래 버튼을 클릭하여 계정을 설정해 주세요.</p>
+    <h2 style="font-size:18px; color:#064e3b; margin-top:0;">1차 베타 초대장</h2>
+    <p>안녕하세요, 원장님.</p>
+    <p>원장님의 시간을 아껴드릴 medical AI agent,<br>
+       <strong>Cligent</strong>입니다.</p>
+    <p>1차 베타에 초대드립니다. 5인 한정으로 모집했고,<br>
+       <strong>{name}</strong> 원장님께서 그 중 한 분이세요.</p>
+    <div style="background:#ecfdf5; border:1px solid #6ee7b7; border-radius:12px; padding:16px 20px; margin:20px 0;">
+      <p style="margin:0 0 8px 0; font-size:13px; color:#065f46; font-weight:600;">베타 조건</p>
+      <ul style="margin:0; padding-left:18px; font-size:14px; line-height:1.8;">
+        <li>기간: <strong>15일</strong></li>
+        <li>블로그 생성 한도: <strong>25편</strong></li>
+        <li>비용: 제한적 무료</li>
+      </ul>
+    </div>
     <p style="margin:24px 0;">
       <a href="{invite_url}" style="background:#064e3b; color:#fff; padding:14px 28px; border-radius:10px; text-decoration:none; font-size:16px;">초대 수락하기</a>
     </p>
     <p style="color:#78716c; font-size:13px;">이 링크는 72시간 후 만료됩니다.</p>
-    <p style="margin-top:32px; color:#78716c; font-size:12px;">
+    <p style="font-size:14px; line-height:1.7; margin-top:24px;">
+      사용 중 불편한 점이나 개선 제안은 언제든
+      앱 안 도움말 우측 패널 또는
+      <a href="mailto:cligent.ai@gmail.com" style="color:#064e3b;">cligent.ai@gmail.com</a>
+      으로 알려주세요.
+    </p>
+    <p style="margin-top:24px; color:#1c1917; font-size:14px;">
+      - Cligent 운영팀 -
+    </p>
+    <p style="margin-top:24px; color:#a8a29e; font-size:11px;">
       이 메일은 Cligent 서비스에서 자동 발송되었습니다.
     </p>
   </div>

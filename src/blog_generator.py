@@ -556,11 +556,14 @@ def _load_clinic_personalization(clinic_id: int) -> Optional[dict]:
     }
 
 
-def _build_personalization_section(clinic_id: int) -> str:
+def _build_personalization_section(clinic_id: int, override_tone: Optional[str] = None) -> str:
     """한의원 콘텐츠 개인화 프롬프트 블록 생성 (5문항).
 
     5문항 모두 미입력이면 빈 문자열 반환 (디폴트 톤으로 작동).
     한 항목이라도 입력돼 있으면 해당 항목만 블록에 포함.
+
+    override_tone: chat에서 사용자가 선택한 글 말투 (per-blog override).
+    제공 시 clinic.blog_tone 대신 이 값을 글 말투 라인에 사용.
     """
     p = _load_clinic_personalization(clinic_id)
     if not p:
@@ -568,9 +571,10 @@ def _build_personalization_section(clinic_id: int) -> str:
 
     lines: list[str] = []
 
-    # ① 글 말투 — 가장 큰 lever, 첫 문장부터 갈라지게
-    if p["blog_tone"] and p["blog_tone"] in _BLOG_TONE_INSTRUCTIONS:
-        lines.append(f"- 글 말투: **{p['blog_tone']}** — {_BLOG_TONE_INSTRUCTIONS[p['blog_tone']]}")
+    # ① 글 말투 — chat override가 있으면 그걸, 없으면 clinic.blog_tone
+    effective_tone = override_tone or p["blog_tone"]
+    if effective_tone and effective_tone in _BLOG_TONE_INSTRUCTIONS:
+        lines.append(f"- 글 말투: **{effective_tone}** — {_BLOG_TONE_INSTRUCTIONS[effective_tone]}")
 
     # ② 타겟 환자층 — 글의 청자
     if p["target_patients"]:
@@ -671,12 +675,15 @@ def build_prompt_text(
     반환: {"system_prompt": str, "user_message": str, "format_id": str|None, "hook_id": str|None}
     """
     config = load_config()
-    # 5문항 글 말투(blog_tone)가 있으면 우선 적용. answers.tone은 호환용 보조.
+    # tone 우선순위 (2026-05-04): chat answers.tone > 5문항 blog_tone > config 기본
     personalization = _load_clinic_personalization(clinic_id) if clinic_id else None
-    if personalization and personalization["blog_tone"]:
+    chat_tone = (answers.get("tone") if answers else None) or None
+    if chat_tone:
+        tone = chat_tone
+    elif personalization and personalization["blog_tone"]:
         tone = personalization["blog_tone"]
     else:
-        tone = answers.get("tone", config["blog"]["tone"]) if answers else config["blog"]["tone"]
+        tone = config["blog"]["tone"]
     history_path = Path(__file__).parent.parent / "data" / "blog_history.json"
 
     diversity_cfg = config.get("diversity", {})
@@ -698,8 +705,8 @@ def build_prompt_text(
     )
     recent_posts = get_recent_posts(limit=5)
 
-    # 콘텐츠 개인화 섹션 + 기존 clinic_info(deprecated) 합성
-    _personalization = _build_personalization_section(clinic_id) if clinic_id else ""
+    # 콘텐츠 개인화 섹션 + 기존 clinic_info(deprecated) 합성. chat tone이 있으면 personalization 라인도 그걸로 동기화.
+    _personalization = _build_personalization_section(clinic_id, override_tone=chat_tone) if clinic_id else ""
     _legacy_info = _build_clinic_info_section(clinic_info)
     _combined_clinic_section = "\n\n".join(
         s for s in [_personalization, _legacy_info] if s
@@ -799,12 +806,15 @@ def generate_blog_stream(
     clinic_id: 콘텐츠 개인화(5문항) DB 조회용. None이면 개인화 섹션 생략.
     """
     config = load_config()
-    # 5문항 글 말투(blog_tone)가 있으면 우선 적용. answers.tone은 호환용 보조.
+    # tone 우선순위 (2026-05-04): chat answers.tone > 5문항 blog_tone > config 기본
     personalization = _load_clinic_personalization(clinic_id) if clinic_id else None
-    if personalization and personalization["blog_tone"]:
+    chat_tone = (answers.get("tone") if answers else None) or None
+    if chat_tone:
+        tone = chat_tone
+    elif personalization and personalization["blog_tone"]:
         tone = personalization["blog_tone"]
     else:
-        tone = answers.get("tone", config["blog"]["tone"]) if answers else config["blog"]["tone"]
+        tone = config["blog"]["tone"]
 
     history_path = Path(__file__).parent.parent / "data" / "blog_history.json"
 
@@ -836,8 +846,8 @@ def generate_blog_stream(
     min_chars = char_count["min"] if char_count and "min" in char_count else config["blog"]["min_chars"]
     max_chars = char_count["max"] if char_count and "max" in char_count else config["blog"]["max_chars"]
 
-    # 콘텐츠 개인화 섹션 + 기존 clinic_info(deprecated) 합성
-    _personalization = _build_personalization_section(clinic_id) if clinic_id else ""
+    # 콘텐츠 개인화 섹션 + 기존 clinic_info(deprecated) 합성. chat tone이 있으면 personalization 라인도 그걸로 동기화.
+    _personalization = _build_personalization_section(clinic_id, override_tone=chat_tone) if clinic_id else ""
     _legacy_info = _build_clinic_info_section(clinic_info)
     _combined_clinic_section = "\n\n".join(
         s for s in [_personalization, _legacy_info] if s

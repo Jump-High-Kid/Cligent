@@ -5,7 +5,7 @@ beta:
   image_regen_per_blog: 1
   image_edit_per_blog: 2
 flow:
-  questions_enabled: false
+  questions_enabled: true
   questions_count: 3
 blog:
   min_chars: 1500

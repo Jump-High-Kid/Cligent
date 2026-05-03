@@ -1,0 +1,16 @@
+{
+  "asset_id": "anatomy_lumbar_posterior_v1",
+  "body_part_slug": "lumbar",
+  "body_part_ko": "요부",
+  "view_angle": "posterior",
+  "source": "Custom (in-house)",
+  "source_url": "https://chatgpt.com",
+  "license": "CC0",
+  "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "attribution_text": "Custom (in-house) licensed under CC0",
+  "downloaded_at": "2026-05-04",
+  "file_path": "data/anatomy/lumbar/source_posterior.png",
+  "modifications": "원본 1254×1254 (anterior+posterior 합성) 우측 절반 627×1254로 crop",
+  "acupoints": [],
+  "notes": "ChatGPT(DALL-E) 생성 — 요추 5분절 + 천골 + 미골 후면, 추간공·후지 가시 노란색"
+}

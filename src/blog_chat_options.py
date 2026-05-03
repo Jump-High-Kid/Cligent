@@ -21,6 +21,19 @@ from typing import Optional
 
 BLOG_OPTION_STAGES: list[dict] = [
     {
+        "key": "tone",
+        "prompt": "어떤 말투로 쓸까요?",
+        "options": [
+            {"id": "공감형", "label": "공감형"},
+            {"id": "전문가형", "label": "전문가형"},
+            {"id": "친근형", "label": "친근형"},
+            {"id": "절제형", "label": "절제형"},
+            {"id": "위트형", "label": "위트형"},
+        ],
+        # 한의원 5문항 ① blog_tone 값과 일치하는 옵션은 라벨에 [기본] 표기 (chat 흐름에서 처리)
+        # skip_id 없음 — 사용자가 chip 1개 반드시 선택
+    },
+    {
         "key": "mode",
         "prompt": "어떤 목적의 글인가요?",
         "options": [
@@ -86,15 +99,15 @@ def to_blog_args(answers: dict) -> dict:
 
     Args:
         answers: {key: option_id}.
-            예) {"mode": "정보", "reader_level": "일반인",
+            예) {"tone": "공감형", "mode": "정보", "reader_level": "일반인",
                  "explanation_type": "변증시치", "format_id": "auto"}.
 
     Returns:
-        {mode, reader_level, explanation_types, format_id}.
+        {tone, mode, reader_level, explanation_types, format_id}.
         skip 처리: explanation_type==skip → explanation_types=None
                    format_id==auto       → format_id=None  (blog_generator default 사용)
 
-    누락된 키는 보수적 default ("정보" / "일반인" / None / None).
+    누락된 키는 보수적 default (tone=None → blog_generator가 clinic.blog_tone 또는 config 기본 사용).
 
     explanation_type은 multi-select 지원: value가 list거나 str 모두 허용.
     "skip"은 무시. 나머지는 그대로 list로 정규화.
@@ -104,6 +117,7 @@ def to_blog_args(answers: dict) -> dict:
             return (v[-1] if v else "") or ""
         return (v or "").strip() if isinstance(v, str) else ""
 
+    tone = _as_str(answers.get("tone")) or None
     mode = _as_str(answers.get("mode")) or "정보"
     reader_level = _as_str(answers.get("reader_level")) or "일반인"
 
@@ -123,6 +137,7 @@ def to_blog_args(answers: dict) -> dict:
         format_id = fmt
 
     return {
+        "tone": tone,
         "mode": mode,
         "reader_level": reader_level,
         "explanation_types": explanation_types,

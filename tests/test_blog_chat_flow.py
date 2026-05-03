@@ -62,9 +62,23 @@ def _disable_questions_default(monkeypatch):
 
 @pytest.fixture
 def _enable_questions(monkeypatch):
-    """원래 BLOG_OPTION_STAGES 4개 stage 복원."""
+    """BLOG_OPTION_STAGES 5개 stage 복원 (2026-05-04 tone 추가).
+
+    LENGTH 다음 첫 question = tone (5문항 ① blog_tone 매핑용).
+    """
     import blog_chat_options
     original_stages = [
+        {
+            "key": "tone",
+            "prompt": "어떤 말투로 쓸까요?",
+            "options": [
+                {"id": "공감형", "label": "공감형"},
+                {"id": "전문가형", "label": "전문가형"},
+                {"id": "친근형", "label": "친근형"},
+                {"id": "절제형", "label": "절제형"},
+                {"id": "위트형", "label": "위트형"},
+            ],
+        },
         {
             "key": "mode",
             "prompt": "어떤 목적의 글인가요?",
@@ -404,24 +418,31 @@ class TestProcessTurnQuestions:
         assert state.stage == Stage.QUESTIONS
         assert state.length_chars == 2000
 
-        # Q1 mode: "1" → 정보
+        # Q1 tone: "1" → 공감형
+        process_turn(state, "1")
+        assert state.stage == Stage.QUESTIONS
+        assert state.questions_answered[-1] == {
+            "key": "tone", "id": "공감형", "label": "공감형",
+        }
+
+        # Q2 mode: "1" → 정보
         process_turn(state, "1")
         assert state.stage == Stage.QUESTIONS
         assert state.questions_answered[-1] == {
             "key": "mode", "id": "정보", "label": "정보 제공",
         }
 
-        # Q2 reader_level: "1" → 일반인
+        # Q3 reader_level: "1" → 일반인
         process_turn(state, "1")
         assert state.questions_answered[-1]["key"] == "reader_level"
         assert state.questions_answered[-1]["id"] == "일반인"
 
-        # Q3 explanation_type: "3" → skip
+        # Q4 explanation_type: "3" → skip
         process_turn(state, "3")
         assert state.questions_answered[-1]["key"] == "explanation_type"
         assert state.questions_answered[-1]["id"] == "skip"
 
-        # Q4 format_id: "1" → auto. 마지막 → CONFIRM_IMAGE 전이
+        # Q5 format_id: "1" → auto. 마지막 → CONFIRM_IMAGE 전이
         process_turn(state, "1")
         assert state.questions_answered[-1]["key"] == "format_id"
         assert state.stage == Stage.CONFIRM_IMAGE
@@ -450,12 +471,14 @@ class TestToBlogArgsMapping:
         from blog_chat_options import to_blog_args
 
         args = to_blog_args({
+            "tone": "공감형",
             "mode": "내원",
             "reader_level": "한의학 관심층",
             "explanation_type": "변증시치",
             "format_id": "qna",
         })
         assert args == {
+            "tone": "공감형",
             "mode": "내원",
             "reader_level": "한의학 관심층",
             "explanation_types": ["변증시치"],
@@ -479,6 +502,7 @@ class TestToBlogArgsMapping:
         from blog_chat_options import to_blog_args
 
         args = to_blog_args({})
+        assert args["tone"] is None
         assert args["mode"] == "정보"
         assert args["reader_level"] == "일반인"
         assert args["explanation_types"] is None
