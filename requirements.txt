@@ -16,3 +16,5 @@ beautifulsoup4==4.12.3
 python-multipart==0.0.9
 jsonschema==4.23.0
 playwright==1.48.0
+Pillow==10.4.0
+rembg==2.0.59

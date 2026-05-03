@@ -50,7 +50,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, UploadFile, File
 from fastapi.responses import (
     FileResponse,
     HTMLResponse,
@@ -276,13 +276,64 @@ async def activate_staff(staff_id: str, user: dict = Depends(get_current_user)):
 # 한의원 프로필
 # ─────────────────────────────────────────────────────────────────
 
+# ── 콘텐츠 개인화 5문항 옵션 화이트리스트 (2026-05-04) ──
+# UI·서버 모두 이 상수만 참조. 추가/수정 시 settings.html 옵션 라벨도 동기화.
+VALID_BLOG_TONES = {"공감형", "전문가형", "친근형", "절제형", "위트형"}
+VALID_TARGET_PATIENTS = {
+    "30~40대", "50~60대", "임산부", "학생·수험생", "운동·재활",
+    "노년", "소아", "만성질환자", "여성 질환", "기성 한약",
+}
+VALID_CLINICAL_STRENGTHS = {
+    "침·뜸", "한약", "추나치료", "약침", "다이어트",
+    "사상체질", "기능의학", "양·한방 협진", "미용·피부", "통증 질환",
+}
+VALID_COMMON_SYMPTOMS = {
+    "두통", "어깨 통증", "목 통증", "등 통증", "허리·골반 통증",
+    "무릎 통증", "팔꿈치 통증", "기타 관절 통증", "소화", "갱년기",
+    "비만", "비염·알레르기", "생리통", "피로·기력 저하", "피부·아토피",
+    "불면·불안·공황", "집중력",
+}
+VALID_LOGO_POSITIONS = {"tl", "tr", "bl", "br"}
+
+
+def _normalize_string_array(raw, *, allowed: set, max_items: int, allow_other: bool = False) -> list[str]:
+    """체크박스 배열 정규화 — 화이트리스트 검증 + 길이 제한 + 중복 제거.
+
+    allow_other=True면 'other:자유텍스트' 한 항목 허용 (호소 증상 '기타').
+    """
+    if not isinstance(raw, list):
+        return []
+    cleaned: list[str] = []
+    for item in raw:
+        if not isinstance(item, str):
+            continue
+        s = item.strip()
+        if not s:
+            continue
+        if allow_other and s.startswith("기타:"):
+            text = s[3:].strip()
+            if text:
+                cleaned.append(f"기타: {text[:40]}")  # 자유 텍스트 길이 제한
+            continue
+        if s in allowed and s not in cleaned:
+            cleaned.append(s)
+        if len(cleaned) >= max_items:
+            break
+    return cleaned
+
+
 @router.get("/api/settings/clinic/profile")
 async def get_clinic_profile(user: dict = Depends(get_current_user)):
-    """한의원 프로필 조회 — 인증된 사용자라면 누구나 조회 가능."""
+    """한의원 프로필 조회 — 인증된 사용자라면 누구나 조회 가능.
+
+    콘텐츠 개인화 5문항 + 로고 9컬럼 포함.
+    """
     from db_manager import get_db
     with get_db() as conn:
         row = conn.execute(
-            "SELECT name, phone, address, specialty, hours, intro, blog_features, naver_blog_id "
+            "SELECT name, phone, address, hours, naver_blog_id, "
+            "blog_tone, target_patients, clinical_strengths, common_symptoms, intro_freeform, "
+            "logo_url, logo_position, logo_size_pct, logo_opacity_pct "
             "FROM clinics WHERE id = ?",
             (user["clinic_id"],),
         ).fetchone()
@@ -293,21 +344,36 @@ async def get_clinic_profile(user: dict = Depends(get_current_user)):
         hours = _json.loads(row["hours"]) if row["hours"] else None
     except Exception:
         hours = None
+
+    def _arr(v):
+        try:
+            return _json.loads(v) if v else []
+        except Exception:
+            return []
+
     return JSONResponse({
         "name": row["name"] or "",
         "phone": row["phone"] or "",
         "address": row["address"] or "",
-        "specialty": row["specialty"] or "",
         "hours": hours,
-        "intro": row["intro"] or "",
-        "blog_features": row["blog_features"] or "",
         "naver_blog_id": row["naver_blog_id"] or "",
+        # 콘텐츠 개인화
+        "blog_tone": row["blog_tone"] or "",
+        "target_patients": _arr(row["target_patients"]),
+        "clinical_strengths": _arr(row["clinical_strengths"]),
+        "common_symptoms": _arr(row["common_symptoms"]),
+        "intro_freeform": row["intro_freeform"] or "",
+        # 로고
+        "logo_url": row["logo_url"] or "",
+        "logo_position": row["logo_position"] or "br",
+        "logo_size_pct": row["logo_size_pct"] if row["logo_size_pct"] is not None else 10,
+        "logo_opacity_pct": row["logo_opacity_pct"] if row["logo_opacity_pct"] is not None else 80,
     })
 
 
 @router.post("/api/settings/clinic/profile")
 async def save_clinic_profile(request: Request, user: dict = Depends(get_current_user)):
-    """한의원 프로필 저장 — chief_director 전용."""
+    """한의원 프로필 저장 — chief_director 전용. 콘텐츠 개인화 5문항 포함."""
     if not role_has_access(user["role"], ["chief_director"]):
         return JSONResponse({"detail": "대표원장만 수정할 수 있습니다."}, status_code=403)
     body = await request.json()
@@ -315,24 +381,45 @@ async def save_clinic_profile(request: Request, user: dict = Depends(get_current
     name = body.get("name", "").strip()
     phone = body.get("phone", "").strip()
     address = body.get("address", "").strip()
-    specialty = body.get("specialty", "").strip()
     hours = body.get("hours")  # dict or None
-    intro = body.get("intro", "").strip()
-    blog_features = body.get("blog_features", "").strip()
     naver_blog_id = body.get("naver_blog_id", "").strip()
 
     if not name:
         return JSONResponse({"detail": "한의원 이름은 필수입니다."}, status_code=400)
+
+    # 콘텐츠 개인화 5문항
+    blog_tone = body.get("blog_tone", "").strip() or None
+    if blog_tone and blog_tone not in VALID_BLOG_TONES:
+        return JSONResponse({"detail": f"유효하지 않은 글 말투: {blog_tone}"}, status_code=400)
+
+    target_patients = _normalize_string_array(
+        body.get("target_patients"), allowed=VALID_TARGET_PATIENTS, max_items=3,
+    )
+    clinical_strengths = _normalize_string_array(
+        body.get("clinical_strengths"), allowed=VALID_CLINICAL_STRENGTHS, max_items=5,
+    )
+    common_symptoms = _normalize_string_array(
+        body.get("common_symptoms"), allowed=VALID_COMMON_SYMPTOMS, max_items=6, allow_other=True,
+    )
+    intro_freeform = (body.get("intro_freeform") or "").strip()[:1000] or None
 
     hours_json = _json.dumps(hours, ensure_ascii=False) if hours else None
 
     from db_manager import get_db
     with get_db() as conn:
         conn.execute(
-            "UPDATE clinics SET name=?, phone=?, address=?, specialty=?, hours=?, "
-            "intro=?, blog_features=?, naver_blog_id=? WHERE id=?",
-            (name, phone or None, address or None, specialty or None, hours_json,
-             intro or None, blog_features or None, naver_blog_id or None, user["clinic_id"]),
+            "UPDATE clinics SET name=?, phone=?, address=?, hours=?, naver_blog_id=?, "
+            "blog_tone=?, target_patients=?, clinical_strengths=?, common_symptoms=?, intro_freeform=? "
+            "WHERE id=?",
+            (
+                name, phone or None, address or None, hours_json, naver_blog_id or None,
+                blog_tone,
+                _json.dumps(target_patients, ensure_ascii=False) if target_patients else None,
+                _json.dumps(clinical_strengths, ensure_ascii=False) if clinical_strengths else None,
+                _json.dumps(common_symptoms, ensure_ascii=False) if common_symptoms else None,
+                intro_freeform,
+                user["clinic_id"],
+            ),
         )
     return JSONResponse({"ok": True})
 
@@ -350,6 +437,113 @@ async def save_naver_blog_id(request: Request, user: dict = Depends(get_current_
             "UPDATE clinics SET naver_blog_id=? WHERE id=?",
             (naver_blog_id or None, user["clinic_id"]),
         )
+    return JSONResponse({"ok": True})
+
+
+# ─────────────────────────────────────────────────────────────────
+# 한의원 로고 (콘텐츠 개인화 — 이미지 합성용)
+# ─────────────────────────────────────────────────────────────────
+
+LOGO_DIR = ROOT / "static" / "uploads" / "logos"
+LOGO_MAX_BYTES = 5 * 1024 * 1024  # 5 MB
+LOGO_ALLOWED_TYPES = {"image/png", "image/jpeg", "image/webp"}
+
+
+@router.post("/api/settings/clinic/logo")
+async def upload_clinic_logo(
+    file: UploadFile = File(...),
+    user: dict = Depends(get_current_user),
+):
+    """한의원 로고 업로드 — chief_director 전용.
+
+    PNG/JPG/WEBP, 최대 5MB. rembg로 흰배경 자동 제거 후 PNG 저장.
+    """
+    if not role_has_access(user["role"], ["chief_director"]):
+        return JSONResponse({"detail": "대표원장만 업로드할 수 있습니다."}, status_code=403)
+
+    if file.content_type not in LOGO_ALLOWED_TYPES:
+        return JSONResponse(
+            {"detail": "PNG, JPG, WEBP만 업로드 가능합니다."},
+            status_code=400,
+        )
+
+    # 사이즈 검증 (UploadFile은 stream이므로 read() 후 길이 검사)
+    raw = await file.read()
+    if len(raw) > LOGO_MAX_BYTES:
+        return JSONResponse({"detail": "파일이 5MB를 초과했습니다."}, status_code=400)
+
+    # 로고 디렉터리 보장
+    LOGO_DIR.mkdir(parents=True, exist_ok=True)
+
+    # logo_compositor.process_logo: 흰배경 제거 + 표준 PNG 변환
+    from logo_compositor import process_logo, LogoProcessError
+    out_path = LOGO_DIR / f"{user['clinic_id']}.png"
+    try:
+        process_logo(raw, out_path)
+    except LogoProcessError as e:
+        return JSONResponse({"detail": str(e)}, status_code=400)
+
+    # cache-busting 쿼리스트링 추가용 timestamp
+    ts = int(datetime.now(timezone.utc).timestamp())
+    logo_url = f"/static/uploads/logos/{user['clinic_id']}.png?v={ts}"
+
+    from db_manager import get_db
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE clinics SET logo_url=? WHERE id=?",
+            (logo_url, user["clinic_id"]),
+        )
+    return JSONResponse({"ok": True, "logo_url": logo_url})
+
+
+@router.post("/api/settings/clinic/logo-settings")
+async def save_clinic_logo_settings(request: Request, user: dict = Depends(get_current_user)):
+    """로고 위치·크기·투명도 저장 — chief_director 전용."""
+    if not role_has_access(user["role"], ["chief_director"]):
+        return JSONResponse({"detail": "대표원장만 수정할 수 있습니다."}, status_code=403)
+    body = await request.json()
+
+    position = (body.get("position") or "br").strip()
+    if position not in VALID_LOGO_POSITIONS:
+        return JSONResponse({"detail": "위치는 tl/tr/bl/br 중 하나여야 합니다."}, status_code=400)
+
+    try:
+        size_pct = int(body.get("size_pct", 10))
+        opacity_pct = int(body.get("opacity_pct", 80))
+    except (TypeError, ValueError):
+        return JSONResponse({"detail": "크기·투명도는 정수여야 합니다."}, status_code=400)
+
+    if not (8 <= size_pct <= 12):
+        return JSONResponse({"detail": "크기는 8~12% 사이여야 합니다."}, status_code=400)
+    if not (70 <= opacity_pct <= 90):
+        return JSONResponse({"detail": "투명도는 70~90% 사이여야 합니다."}, status_code=400)
+
+    from db_manager import get_db
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE clinics SET logo_position=?, logo_size_pct=?, logo_opacity_pct=? WHERE id=?",
+            (position, size_pct, opacity_pct, user["clinic_id"]),
+        )
+    return JSONResponse({"ok": True})
+
+
+@router.delete("/api/settings/clinic/logo")
+async def delete_clinic_logo(user: dict = Depends(get_current_user)):
+    """한의원 로고 삭제 — chief_director 전용. 파일 + DB 컬럼 둘 다 정리."""
+    if not role_has_access(user["role"], ["chief_director"]):
+        return JSONResponse({"detail": "대표원장만 삭제할 수 있습니다."}, status_code=403)
+
+    from db_manager import get_db
+    with get_db() as conn:
+        conn.execute("UPDATE clinics SET logo_url=NULL WHERE id=?", (user["clinic_id"],))
+
+    out_path = LOGO_DIR / f"{user['clinic_id']}.png"
+    try:
+        if out_path.exists():
+            out_path.unlink()
+    except OSError:
+        pass  # 파일 정리 실패는 무시 (DB는 이미 정리됨)
+
     return JSONResponse({"ok": True})
 
 

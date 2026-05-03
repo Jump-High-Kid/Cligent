@@ -497,7 +497,11 @@ def _build_diversity_section(
 
 
 def _build_clinic_info_section(clinic_info: str) -> str:
-    """한의원 차별화 정보 프롬프트 블록 생성"""
+    """한의원 차별화 정보 프롬프트 블록 생성 (deprecated)
+
+    콘텐츠 개인화(_build_personalization_section)로 대체됨.
+    호환성을 위해 유지 — clinic_info가 비어있으면 빈 문자열 반환.
+    """
     if not clinic_info or not clinic_info.strip():
         return ""
     return (
@@ -505,6 +509,108 @@ def _build_clinic_info_section(clinic_info: str) -> str:
         f"{clinic_info.strip()}\n"
         f"- 위 정보를 광고 티 나지 않게 본문 치료 접근 또는 마무리 섹션에 자연스럽게 포함하세요.\n"
         f"- 다른 한의원과의 차별점이 독자에게 전달되도록 작성하세요."
+    )
+
+
+# 5문항 글 말투 옵션 → 프롬프트 지시문 매핑.
+# settings.html의 옵션 라벨(VALID_BLOG_TONES)과 1:1 동기화.
+_BLOG_TONE_INSTRUCTIONS: dict[str, str] = {
+    "공감형": "환자분의 마음과 일상의 불편함을 먼저 헤아리는 따뜻한 어조. '환자분', '많이 힘드셨죠' 같은 공감 표현 자연스럽게 사용.",
+    "전문가형": "임상 경험과 한의학 이론을 근거로 한 전문가 어조. '연구에 따르면', '임상에서' 같은 표현 활용. 단정적·논리적 문장.",
+    "친근형": "일상 대화하듯 가벼운 어조. '뭉친 어깨, 누구나 한 번쯤 겪죠' 같은 대화체. 과한 격식 없이.",
+    "절제형": "정제되고 객관적인 어조. 군더더기 없는 짧은 문장. 감정 표현은 최소화하고 사실 위주.",
+    "위트형": "재치 있고 가벼운 유머가 섞인 어조. 공감과 미소를 동시에. 의료 콘텐츠 신뢰는 유지하면서 부드러운 표현.",
+}
+
+
+def _load_clinic_personalization(clinic_id: int) -> Optional[dict]:
+    """한의원 콘텐츠 개인화 5문항을 DB에서 로드. 실패 시 None."""
+    if not clinic_id:
+        return None
+    try:
+        from db_manager import get_db
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT blog_tone, target_patients, clinical_strengths, "
+                "common_symptoms, intro_freeform FROM clinics WHERE id = ?",
+                (clinic_id,),
+            ).fetchone()
+    except Exception:
+        return None
+    if not row:
+        return None
+
+    def _arr(v):
+        try:
+            import json
+            return json.loads(v) if v else []
+        except Exception:
+            return []
+
+    return {
+        "blog_tone": row["blog_tone"] or "",
+        "target_patients": _arr(row["target_patients"]),
+        "clinical_strengths": _arr(row["clinical_strengths"]),
+        "common_symptoms": _arr(row["common_symptoms"]),
+        "intro_freeform": (row["intro_freeform"] or "").strip(),
+    }
+
+
+def _build_personalization_section(clinic_id: int) -> str:
+    """한의원 콘텐츠 개인화 프롬프트 블록 생성 (5문항).
+
+    5문항 모두 미입력이면 빈 문자열 반환 (디폴트 톤으로 작동).
+    한 항목이라도 입력돼 있으면 해당 항목만 블록에 포함.
+    """
+    p = _load_clinic_personalization(clinic_id)
+    if not p:
+        return ""
+
+    lines: list[str] = []
+
+    # ① 글 말투 — 가장 큰 lever, 첫 문장부터 갈라지게
+    if p["blog_tone"] and p["blog_tone"] in _BLOG_TONE_INSTRUCTIONS:
+        lines.append(f"- 글 말투: **{p['blog_tone']}** — {_BLOG_TONE_INSTRUCTIONS[p['blog_tone']]}")
+
+    # ② 타겟 환자층 — 글의 청자
+    if p["target_patients"]:
+        targets = ", ".join(p["target_patients"])
+        lines.append(
+            f"- 주 타겟 환자층: {targets}\n"
+            f"  → 이 환자층의 일상·고민·표현 방식에 맞춰 예시와 어휘 선택."
+        )
+
+    # ③ 진료 강점 — 치료 관점
+    if p["clinical_strengths"]:
+        strengths = ", ".join(p["clinical_strengths"])
+        lines.append(
+            f"- 우리 한의원 진료 강점: {strengths}\n"
+            f"  → 치료법 설명 시 위 강점을 자연스럽게 부각 (광고 티 없이)."
+        )
+
+    # ④ 호소 증상 — 매일 보는 환자
+    if p["common_symptoms"]:
+        symptoms = ", ".join(p["common_symptoms"])
+        lines.append(
+            f"- 우리 한의원에서 자주 보는 호소 증상: {symptoms}\n"
+            f"  → 본문 사례·예시에 위 증상을 반영하면 환자 공감도 ↑."
+        )
+
+    # ⑤ 자유 소개 — 객관식이 못 잡는 한의원 정체성
+    if p["intro_freeform"]:
+        lines.append(
+            f"- 한의원·원장 소개 (반드시 본문 톤에 반영, 광고는 금지):\n"
+            f"  {p['intro_freeform']}"
+        )
+
+    if not lines:
+        return ""
+
+    return (
+        "\n## 우리 한의원 콘텐츠 개인화 (반드시 글 전체에 자연스럽게 반영)\n"
+        "아래 정보는 이 한의원만의 특성입니다. 100명의 다른 한의원과 같은 주제를 써도, "
+        "이 한의원 글이라는 것이 독자에게 자연스럽게 전달되도록 톤·예시·관점을 맞추세요.\n"
+        + "\n".join(lines)
     )
 
 
@@ -554,15 +660,23 @@ def build_prompt_text(
     clinic_info: str = "",
     format_id: Optional[str] = None,
     explanation_types: Optional[List[str]] = None,
+    clinic_id: Optional[int] = None,
 ) -> dict:
     """
     Claude에 전송할 system_prompt + user_message를 반환한다.
     API 호출 없이 프롬프트만 조립 — T1(프롬프트 복사) 기능용.
 
+    clinic_id: 콘텐츠 개인화(5문항) DB 조회용. None이면 개인화 섹션 생략.
+
     반환: {"system_prompt": str, "user_message": str, "format_id": str|None, "hook_id": str|None}
     """
     config = load_config()
-    tone = answers.get("tone", config["blog"]["tone"]) if answers else config["blog"]["tone"]
+    # 5문항 글 말투(blog_tone)가 있으면 우선 적용. answers.tone은 호환용 보조.
+    personalization = _load_clinic_personalization(clinic_id) if clinic_id else None
+    if personalization and personalization["blog_tone"]:
+        tone = personalization["blog_tone"]
+    else:
+        tone = answers.get("tone", config["blog"]["tone"]) if answers else config["blog"]["tone"]
     history_path = Path(__file__).parent.parent / "data" / "blog_history.json"
 
     diversity_cfg = config.get("diversity", {})
@@ -584,6 +698,13 @@ def build_prompt_text(
     )
     recent_posts = get_recent_posts(limit=5)
 
+    # 콘텐츠 개인화 섹션 + 기존 clinic_info(deprecated) 합성
+    _personalization = _build_personalization_section(clinic_id) if clinic_id else ""
+    _legacy_info = _build_clinic_info_section(clinic_info)
+    _combined_clinic_section = "\n\n".join(
+        s for s in [_personalization, _legacy_info] if s
+    )
+
     prompt_template = load_prompt("blog")
     system_prompt = prompt_template.format(
         min_chars=config["blog"]["min_chars"],
@@ -596,7 +717,7 @@ def build_prompt_text(
         ),
         seo_keywords_section=_build_seo_keywords_section(seo_keywords or []),
         explanation_section=_build_explanation_section(explanation_types, reader_level),
-        clinic_info_section=_build_clinic_info_section(clinic_info),
+        clinic_info_section=_combined_clinic_section,
         related_posts_section=_build_related_posts_section(recent_posts, keyword),
     )
     if diversity["prompt_block"]:
@@ -665,6 +786,7 @@ def generate_blog_stream(
     explanation_types: Optional[List[str]] = None,
     char_count: Optional[dict] = None,
     format_id: Optional[str] = None,
+    clinic_id: Optional[int] = None,
 ) -> Generator[str, None, None]:
     """
     블로그 생성 스트리밍 제너레이터
@@ -673,9 +795,16 @@ def generate_blog_stream(
     - 생성 중: {"text": "..."}
     - 완료 시: {"done": true, "usage": {...}, "series": [...], "format_id": "...", "hook_id": "..."}
     - 오류 시: {"error": "..."}
+
+    clinic_id: 콘텐츠 개인화(5문항) DB 조회용. None이면 개인화 섹션 생략.
     """
     config = load_config()
-    tone = answers.get("tone", config["blog"]["tone"]) if answers else config["blog"]["tone"]
+    # 5문항 글 말투(blog_tone)가 있으면 우선 적용. answers.tone은 호환용 보조.
+    personalization = _load_clinic_personalization(clinic_id) if clinic_id else None
+    if personalization and personalization["blog_tone"]:
+        tone = personalization["blog_tone"]
+    else:
+        tone = answers.get("tone", config["blog"]["tone"]) if answers else config["blog"]["tone"]
 
     history_path = Path(__file__).parent.parent / "data" / "blog_history.json"
 
@@ -707,6 +836,13 @@ def generate_blog_stream(
     min_chars = char_count["min"] if char_count and "min" in char_count else config["blog"]["min_chars"]
     max_chars = char_count["max"] if char_count and "max" in char_count else config["blog"]["max_chars"]
 
+    # 콘텐츠 개인화 섹션 + 기존 clinic_info(deprecated) 합성
+    _personalization = _build_personalization_section(clinic_id) if clinic_id else ""
+    _legacy_info = _build_clinic_info_section(clinic_info)
+    _combined_clinic_section = "\n\n".join(
+        s for s in [_personalization, _legacy_info] if s
+    )
+
     prompt_template = load_prompt("blog")
     system_prompt = prompt_template.format(
         min_chars=min_chars,
@@ -719,7 +855,7 @@ def generate_blog_stream(
         ),
         seo_keywords_section=_build_seo_keywords_section(seo_keywords or []),
         explanation_section=_build_explanation_section(explanation_types, reader_level),
-        clinic_info_section=_build_clinic_info_section(clinic_info),
+        clinic_info_section=_combined_clinic_section,
         related_posts_section=_build_related_posts_section(recent_posts, keyword),
     )
     # v0.3: diversity 지시 블록 추가 (기존 프롬프트 뒤에 append)

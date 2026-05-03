@@ -1,16 +1,11 @@
 beta:
-  # 1차 베타: 5인, 15일, 25편 누적 한도 (제한적 무료).
-  # trial 기간이라도 베타 한도는 강제 적용됨 (plan_guard.check_blog_limit 분기).
-  # 2차 베타 진입 시 blog_limit_total 상향 또는 free 플랜으로 분리.
-  # 한도 변경 = 이 파일 수정 + 서버 재시작 (코드 수정 0).
-  blog_limit_total: 25       # 베타 누적 블로그 생성 한도 (사용자당, trial 포함)
-  prompt_copy_limit: 999     # BYOAI 봉인 동안 사실상 비활성 (호출 자체가 없음)
-  trial_days: 15             # signup 시 부여되는 trial 기간 (일). 베타 1차 기간과 일치
-  # trial 플랜의 이미지 한도 — 1편 블로그 세트당 적용 (image_generator.PLAN_LIMITS["trial"] override)
-  image_regen_per_blog: 1    # 1편당 5장 새로 생성 가능한 횟수
-  image_edit_per_blog: 2     # 1편당 1장 부분 수정 가능한 횟수
+  blog_limit_total: 25
+  prompt_copy_limit: 999
+  trial_days: 15
+  image_regen_per_blog: 1
+  image_edit_per_blog: 2
 flow:
-  questions_enabled: true
+  questions_enabled: false
   questions_count: 3
 blog:
   min_chars: 1500

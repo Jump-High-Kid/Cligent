@@ -341,6 +341,73 @@
   .tone-btn:hover { background: var(--sage-soft); border-color: var(--sage); }
   .tone-btn.active { background: var(--emerald-900); color: #fff; border-color: var(--emerald-900); }
 
+  /* ── 콘텐츠 개인화 (2026-05-04, 베타 게이트 ④) ── */
+  .pers-radio-group {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 8px;
+  }
+  .pers-radio-btn {
+    text-align: left;
+    padding: 10px 14px;
+    border: 1px solid var(--stone-300);
+    background: var(--surface, #fff);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    color: var(--stone-700);
+  }
+  .pers-radio-btn:hover { border-color: var(--sage, #9caf9c); background: var(--sage-soft, #f0f7f4); }
+  .pers-radio-btn.active {
+    border-color: var(--emerald-900);
+    background: var(--sage-soft, #f0f7f4);
+    color: var(--stone-900);
+  }
+  .pers-radio-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .pers-radio-title { font-size: 13px; font-weight: 600; }
+  .pers-radio-ex { font-size: 11px; color: var(--stone-500); margin-top: 3px; line-height: 1.4; }
+
+  .pers-chip-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .pers-chip {
+    padding: 6px 12px;
+    border: 1px solid var(--stone-300);
+    background: var(--surface, #fff);
+    border-radius: 999px;
+    font-size: 13px;
+    color: var(--stone-700);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .pers-chip:hover { border-color: var(--sage, #9caf9c); background: var(--sage-soft, #f0f7f4); }
+  .pers-chip.active {
+    border-color: var(--emerald-900);
+    background: var(--emerald-900);
+    color: #fff;
+  }
+  .pers-chip:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* 로고 위치 버튼 */
+  .logo-pos-btn {
+    padding: 6px 12px;
+    border: 1px solid var(--stone-300);
+    background: var(--surface, #fff);
+    border-radius: 8px;
+    font-size: 13px;
+    color: var(--stone-700);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .logo-pos-btn:hover { border-color: var(--sage, #9caf9c); background: var(--sage-soft, #f0f7f4); }
+  .logo-pos-btn.active {
+    border-color: var(--emerald-900);
+    background: var(--emerald-900);
+    color: #fff;
+  }
+
   /* ── 라디오 카드 (AI 모델) ──────────────────────────── */
   .radio-card-group { display: flex; flex-direction: column; gap: 8px; }
   .radio-card {
@@ -698,11 +765,33 @@
       <!-- ─────────── 1. 한의원 정보 ─────────── -->
       <section data-section="clinic" hidden>
         <h2>한의원 정보</h2>
-        <p class="section-desc">한의원 기본 정보와 현재 플랜·사용량을 관리합니다.</p>
+        <p class="section-desc">한의원 기본 정보 · 로고 · 콘텐츠 개인화 · 플랜 사용량을 관리합니다.</p>
 
         <div id="clinic-lock-banner" class="lock-banner" hidden>
           <span class="material-symbols-outlined">lock</span>
           <span>한의원 정보 편집은 대표원장만 가능합니다.</span>
+        </div>
+
+        <!-- 첫 진입 가이드 (콘텐츠 개인화 5문항 미완료 시 노출) -->
+        <div id="onboarding-card" class="card" hidden style="border: 1px solid var(--emerald-900); background: var(--sage-soft, #f0f7f4);">
+          <h3 style="color: var(--emerald-900); display: flex; align-items: center; gap: 8px;">
+            <span class="material-symbols-outlined">auto_awesome</span>
+            5분이면 끝, 우리 한의원만의 콘텐츠
+          </h3>
+          <p class="card-desc" style="line-height: 1.7;">
+            같은 주제로 100개 한의원이 글을 써도, <b>우리 한의원만의 톤·환자층·강점</b>이 자연스럽게 녹아드는 글이 나옵니다.
+            아래 5문항에 답하면 블로그·이미지가 우리 한의원에 맞게 개인화됩니다.
+            <span style="display: block; font-size: 12px; color: var(--stone-500); margin-top: 6px;">
+              (베타 후 비교 샷 추가 예정)
+            </span>
+          </p>
+          <div style="display: flex; align-items: center; gap: 12px; margin-top: 12px;">
+            <div style="flex: 1; height: 6px; background: var(--stone-200); border-radius: 999px; overflow: hidden;">
+              <div id="onboarding-bar" style="height: 100%; background: var(--emerald-900); width: 0%; transition: width 0.3s;"></div>
+            </div>
+            <span id="onboarding-progress-text" style="font-size: 13px; color: var(--stone-700); font-weight: 600; white-space: nowrap;">0/5 완료</span>
+            <button id="onboarding-dismiss" type="button" class="btn-ghost" style="padding: 4px 10px; font-size: 12px;">오늘은 닫기</button>
+          </div>
         </div>
 
         <div class="card">
@@ -722,28 +811,115 @@
             <label>주소</label>
             <input id="pf-address" class="input" type="text" placeholder="예: 서울특별시 강남구 ..."/>
           </div>
-          <div class="grid-2">
-            <div class="field">
-              <label>진료 과목</label>
-              <input id="pf-specialty" class="input" type="text" placeholder="예: 침구과, 한방내과"/>
+          <div class="field">
+            <label>진료 시간</label>
+            <input id="pf-hours" class="input" type="text" placeholder="예: 평일 9-18시, 토 9-13시"/>
+          </div>
+        </div>
+
+        <!-- 로고 카드 -->
+        <div class="card">
+          <h3>한의원 로고</h3>
+          <p class="card-desc">생성된 블로그 이미지에 자동 합성됩니다. PNG·JPG·WEBP, 최대 5MB. 흰배경은 자동 제거됩니다.</p>
+
+          <div style="display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap;">
+            <div style="flex: 0 0 auto;">
+              <div id="logo-preview-wrap" style="width: 140px; height: 140px; border: 1px dashed var(--stone-300); border-radius: 10px; display: flex; align-items: center; justify-content: center; background: var(--stone-100); overflow: hidden;">
+                <img id="logo-preview" alt="" style="max-width: 100%; max-height: 100%; display: none;"/>
+                <span id="logo-preview-empty" style="font-size: 12px; color: var(--stone-500);">로고 미설정</span>
+              </div>
+              <div style="display: flex; gap: 6px; margin-top: 8px;">
+                <label class="btn-ghost" style="cursor: pointer; padding: 6px 10px; font-size: 12px; border: 1px solid var(--stone-300); border-radius: 6px;">
+                  업로드
+                  <input id="logo-file" type="file" accept="image/png,image/jpeg,image/webp" style="display: none;"/>
+                </label>
+                <button id="logo-delete-btn" type="button" class="btn-ghost" style="padding: 6px 10px; font-size: 12px; color: var(--error, #c0392b);" hidden>삭제</button>
+              </div>
             </div>
-            <div class="field">
-              <label>진료 시간</label>
-              <input id="pf-hours" class="input" type="text" placeholder="예: 평일 9-18시, 토 9-13시"/>
+
+            <div style="flex: 1 1 240px; min-width: 240px;">
+              <div class="field">
+                <label>위치</label>
+                <div id="logo-position-group" style="display: flex; gap: 6px; flex-wrap: wrap;">
+                  <button type="button" class="logo-pos-btn" data-pos="tl">좌상</button>
+                  <button type="button" class="logo-pos-btn" data-pos="tr">우상</button>
+                  <button type="button" class="logo-pos-btn" data-pos="bl">좌하</button>
+                  <button type="button" class="logo-pos-btn active" data-pos="br">우하</button>
+                </div>
+              </div>
+              <div class="field">
+                <label>크기 <span id="logo-size-val" style="color: var(--stone-500); font-weight: 400;">10%</span></label>
+                <input id="logo-size-pct" type="range" min="8" max="12" value="10" style="width: 100%;"/>
+              </div>
+              <div class="field">
+                <label>투명도 <span id="logo-opacity-val" style="color: var(--stone-500); font-weight: 400;">80%</span></label>
+                <input id="logo-opacity-pct" type="range" min="70" max="90" value="80" style="width: 100%;"/>
+              </div>
             </div>
           </div>
         </div>
 
-        <div class="card">
-          <h3>블로그 자동 반영</h3>
-          <p class="card-desc">블로그 생성 시 본문에 자동 인용됩니다.</p>
-          <div class="field">
-            <label>원장 소개글</label>
-            <textarea id="pf-intro" class="textarea" rows="3" placeholder="간단한 자기소개와 진료 철학"></textarea>
+        <!-- 콘텐츠 개인화 (5문항) — 카드 분리 가능한 구조: 휴머나이저 추후 6번째 카드 추가 -->
+        <div class="card" id="personalization-card">
+          <div style="display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+            <h3 style="margin: 0;">콘텐츠 개인화</h3>
+            <span id="personalization-progress" style="font-size: 12px; color: var(--stone-500); font-weight: 500;">0/5</span>
           </div>
+          <p class="card-desc">아래 5문항이 우리 한의원만의 글 톤·관점을 결정합니다. 자동저장.</p>
+
+          <!-- ① 글 말투 -->
           <div class="field">
-            <label>한의원 특징·강점</label>
-            <textarea id="pf-blog-features" class="textarea" rows="4" placeholder="예: 디스크 특화, 산후조리 전문, 야간 진료"></textarea>
+            <label>① 글 말투 <span style="color: var(--stone-400); font-weight: 400;">(택1)</span></label>
+            <div id="pers-tone-group" class="pers-radio-group">
+              <button type="button" class="pers-radio-btn" data-value="공감형">
+                <div class="pers-radio-title">공감형</div>
+                <div class="pers-radio-ex">"환자분의 마음을 먼저 헤아립니다"</div>
+              </button>
+              <button type="button" class="pers-radio-btn" data-value="전문가형">
+                <div class="pers-radio-title">전문가형</div>
+                <div class="pers-radio-ex">"연구에 따르면…"</div>
+              </button>
+              <button type="button" class="pers-radio-btn" data-value="친근형">
+                <div class="pers-radio-title">친근형</div>
+                <div class="pers-radio-ex">"어깨 뭉친 거, 누구나 한 번쯤"</div>
+              </button>
+              <button type="button" class="pers-radio-btn" data-value="절제형">
+                <div class="pers-radio-title">절제형</div>
+                <div class="pers-radio-ex">"증상의 근본을 살핍니다"</div>
+              </button>
+              <button type="button" class="pers-radio-btn" data-value="위트형">
+                <div class="pers-radio-title">위트형</div>
+                <div class="pers-radio-ex">"월요일 아침의 어깨, 이렇게 풀어요"</div>
+              </button>
+            </div>
+          </div>
+
+          <!-- ② 타겟 환자층 -->
+          <div class="field">
+            <label>② 주 타겟 환자층 <span style="color: var(--stone-400); font-weight: 400;">(1~3개)</span></label>
+            <div id="pers-targets-group" class="pers-chip-group" data-max="3"></div>
+          </div>
+
+          <!-- ③ 진료 강점 -->
+          <div class="field">
+            <label>③ 우리 한의원 진료 강점 <span style="color: var(--stone-400); font-weight: 400;">(1~5개)</span></label>
+            <div id="pers-strengths-group" class="pers-chip-group" data-max="5"></div>
+          </div>
+
+          <!-- ④ 호소 증상 -->
+          <div class="field">
+            <label>④ 자주 보는 호소 증상 <span style="color: var(--stone-400); font-weight: 400;">(1~6개)</span></label>
+            <div id="pers-symptoms-group" class="pers-chip-group" data-max="6"></div>
+            <div class="field" style="margin-top: 8px;">
+              <input id="pers-symptoms-other" class="input" type="text" placeholder="기타 (직접 입력 — 예: 안면 통증)" maxlength="40" style="font-size: 13px;"/>
+            </div>
+          </div>
+
+          <!-- ⑤ 자유 소개 -->
+          <div class="field">
+            <label>⑤ 자유로운 한의원과 원장님 소개 <span style="color: var(--stone-400); font-weight: 400;">(길수록 글이 더 상세해집니다)</span></label>
+            <textarea id="pers-intro" class="textarea" rows="4" maxlength="1000" placeholder="강남에서 직장인 어깨·목 통증을 가장 빠르게 잡는 한의원입니다.
+원장은 추나 10년 경력으로 환자의 자세·생활습관까지 함께 살핍니다."></textarea>
           </div>
         </div>
 
@@ -806,15 +982,7 @@
           </div>
         </div>
 
-        <div class="card">
-          <h3>기본 톤</h3>
-          <p class="card-desc">블로그의 어조를 결정합니다. 글마다 변경 가능합니다.</p>
-          <div id="tone-group" class="tone-group">
-            <button type="button" class="tone-btn" data-tone="전문적">전문적</button>
-            <button type="button" class="tone-btn" data-tone="친근한">친근한</button>
-            <button type="button" class="tone-btn" data-tone="설명적">설명적</button>
-          </div>
-        </div>
+        <!-- 블로그 톤은 한의원 정보 > 콘텐츠 개인화 ① 글 말투로 흡수 (2026-05-04) -->
 
         <div id="naver-card" class="card" hidden>
           <h3>네이버 블로그 연동</h3>
@@ -1147,10 +1315,15 @@ function applyPermissionBanners() {
   const isChief = CURRENT_USER?.role === 'chief_director';
   const isDirector = DIRECTOR_ROLES.includes(CURRENT_USER?.role);
 
-  // 한의원 정보: chief 전용 편집
+  // 한의원 정보: chief 전용 편집 (기본 정보 + 로고 + 콘텐츠 개인화)
   document.getElementById('clinic-lock-banner').hidden = isChief;
-  ['pf-name','pf-phone','pf-address','pf-specialty','pf-hours','pf-intro','pf-blog-features']
+  ['pf-name','pf-phone','pf-address','pf-hours',
+   'pers-symptoms-other','pers-intro',
+   'logo-file','logo-size-pct','logo-opacity-pct']
     .forEach(id => { const el = document.getElementById(id); if (el) el.disabled = !isChief; });
+  // 라디오·칩·로고 위치 버튼은 클래스 기반이라 일괄 disabled 처리
+  document.querySelectorAll('.pers-radio-btn, .pers-chip, .logo-pos-btn')
+    .forEach(b => b.disabled = !isChief);
 
   // 팀 & 권한: director 이상
   document.getElementById('team-lock-banner').hidden = isDirector;
@@ -1232,12 +1405,99 @@ function debounceSave(key, fn, delay=600) {
 }
 
 /* ──────────────────────────────────────────────────────────
-   1. 한의원 프로필
+   1. 한의원 프로필 (기본 정보 + 로고 + 콘텐츠 개인화 5문항)
    ────────────────────────────────────────────────────────── */
-async function loadClinicProfile() {
-  if (!DIRECTOR_ROLES.includes(CURRENT_USER?.role) && CURRENT_USER?.role !== 'chief_director') {
-    // 일반 직원도 읽기 전용으로는 GET 시도 — 권한 없으면 그냥 빈 값
+
+/* 콘텐츠 개인화 옵션 — 서버 화이트리스트와 1:1 동기화 (clinic.py VALID_*) */
+const PERS_TARGETS = [
+  '30~40대','50~60대','임산부','학생·수험생','운동·재활',
+  '노년','소아','만성질환자','여성 질환','기성 한약',
+];
+const PERS_STRENGTHS = [
+  '침·뜸','한약','추나치료','약침','다이어트',
+  '사상체질','기능의학','양·한방 협진','미용·피부','통증 질환',
+];
+const PERS_SYMPTOMS = [
+  '두통','어깨 통증','목 통증','등 통증','허리·골반 통증',
+  '무릎 통증','팔꿈치 통증','기타 관절 통증','소화','갱년기',
+  '비만','비염·알레르기','생리통','피로·기력 저하','피부·아토피',
+  '불면·불안·공황','집중력',
+];
+
+const PERS_FIELDS = ['blog_tone','target_patients','clinical_strengths','common_symptoms','intro_freeform'];
+
+let _persState = {
+  blog_tone: '',
+  target_patients: [],
+  clinical_strengths: [],
+  common_symptoms: [],
+  intro_freeform: '',
+};
+
+function _renderChips(groupId, options, selected, max) {
+  const group = document.getElementById(groupId);
+  if (!group) return;
+  group.innerHTML = options.map(opt =>
+    `<button type="button" class="pers-chip${selected.includes(opt)?' active':''}" data-value="${esc(opt)}">${esc(opt)}</button>`
+  ).join('');
+  group.querySelectorAll('.pers-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.disabled) return;
+      const v = btn.dataset.value;
+      const idx = selected.indexOf(v);
+      if (idx >= 0) {
+        selected.splice(idx, 1);
+        btn.classList.remove('active');
+      } else {
+        if (selected.length >= max) {
+          showToast(`최대 ${max}개까지 선택할 수 있습니다`, 'error');
+          return;
+        }
+        selected.push(v);
+        btn.classList.add('active');
+      }
+      _refreshProgress();
+      debounceSave('clinic', saveClinicProfile);
+    });
+  });
+}
+
+function _renderRadios(selected) {
+  document.querySelectorAll('#pers-tone-group .pers-radio-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.value === selected);
+  });
+}
+
+function _activePersFieldCount() {
+  let n = 0;
+  if (_persState.blog_tone) n++;
+  if (_persState.target_patients.length) n++;
+  if (_persState.clinical_strengths.length) n++;
+  // 호소 증상: 칩 선택 또는 '기타' 입력 둘 다 카운트
+  const otherText = (document.getElementById('pers-symptoms-other')?.value || '').trim();
+  if (_persState.common_symptoms.length || otherText) n++;
+  if (_persState.intro_freeform.trim()) n++;
+  return n;
+}
+
+function _refreshProgress() {
+  const total = PERS_FIELDS.length;
+  const done = _activePersFieldCount();
+  const inlineEl = document.getElementById('personalization-progress');
+  if (inlineEl) inlineEl.textContent = `${done}/${total}`;
+  const barEl = document.getElementById('onboarding-bar');
+  const onboardText = document.getElementById('onboarding-progress-text');
+  const card = document.getElementById('onboarding-card');
+  if (barEl) barEl.style.width = `${Math.round(done * 100 / total)}%`;
+  if (onboardText) onboardText.textContent = `${done}/${total} 완료`;
+  if (card && done >= total) {
+    // 완료 시 자동 숨김 (수동 dismiss와 별도)
+    card.style.opacity = '0';
+    setTimeout(() => { card.hidden = true; card.style.opacity = '1'; }, 400);
   }
+}
+
+async function loadClinicProfile() {
   try {
     const r = await fetch('/api/settings/clinic/profile');
     if (!r.ok) return;
@@ -1246,25 +1506,78 @@ async function loadClinicProfile() {
     setVal('pf-name', d.name);
     setVal('pf-phone', d.phone);
     setVal('pf-address', d.address);
-    setVal('pf-specialty', d.specialty);
     setVal('pf-hours', typeof d.hours === 'string' ? d.hours : (d.hours ? JSON.stringify(d.hours) : ''));
-    setVal('pf-intro', d.intro);
-    setVal('pf-blog-features', d.blog_features);
     if (CURRENT_USER?.role === 'chief_director') {
       setVal('blog-naver-blog-id', d.naver_blog_id);
     }
+
+    // 콘텐츠 개인화 5문항
+    _persState.blog_tone = d.blog_tone || '';
+    _persState.target_patients = Array.isArray(d.target_patients) ? d.target_patients.slice() : [];
+    _persState.clinical_strengths = Array.isArray(d.clinical_strengths) ? d.clinical_strengths.slice() : [];
+    // 호소 증상: 서버에서 '기타: ~' 형태로 저장되는 경우 분리
+    const allSymptoms = Array.isArray(d.common_symptoms) ? d.common_symptoms.slice() : [];
+    const otherItem = allSymptoms.find(s => s.startsWith('기타: '));
+    _persState.common_symptoms = allSymptoms.filter(s => !s.startsWith('기타: '));
+    setVal('pers-symptoms-other', otherItem ? otherItem.replace(/^기타:\s*/, '') : '');
+    _persState.intro_freeform = d.intro_freeform || '';
+    setVal('pers-intro', _persState.intro_freeform);
+
+    _renderRadios(_persState.blog_tone);
+    _renderChips('pers-targets-group', PERS_TARGETS, _persState.target_patients, 3);
+    _renderChips('pers-strengths-group', PERS_STRENGTHS, _persState.clinical_strengths, 5);
+    _renderChips('pers-symptoms-group', PERS_SYMPTOMS, _persState.common_symptoms, 6);
+
+    // 로고
+    const logoImg = document.getElementById('logo-preview');
+    const logoEmpty = document.getElementById('logo-preview-empty');
+    const logoDel = document.getElementById('logo-delete-btn');
+    if (d.logo_url) {
+      logoImg.src = d.logo_url;
+      logoImg.style.display = 'block';
+      logoEmpty.style.display = 'none';
+      logoDel.hidden = !(CURRENT_USER?.role === 'chief_director');
+    } else {
+      logoImg.style.display = 'none';
+      logoEmpty.style.display = '';
+      logoDel.hidden = true;
+    }
+    // 로고 위치/크기/투명도
+    document.querySelectorAll('.logo-pos-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.pos === (d.logo_position || 'br'))
+    );
+    document.getElementById('logo-size-pct').value = d.logo_size_pct ?? 10;
+    document.getElementById('logo-size-val').textContent = `${d.logo_size_pct ?? 10}%`;
+    document.getElementById('logo-opacity-pct').value = d.logo_opacity_pct ?? 80;
+    document.getElementById('logo-opacity-val').textContent = `${d.logo_opacity_pct ?? 80}%`;
+
+    _refreshProgress();
+    _maybeShowOnboardingCard();
+
+    // 권한 다시 적용 (동적 생성된 칩에 disabled 반영)
+    applyPermissionBanners();
   } catch (e) { /* silent */ }
 }
 
+function _collectSymptomsForSave() {
+  const out = _persState.common_symptoms.slice();
+  const other = (document.getElementById('pers-symptoms-other')?.value || '').trim();
+  if (other) out.push(`기타: ${other.slice(0, 40)}`);
+  return out;
+}
+
 async function saveClinicProfile() {
+  _persState.intro_freeform = (document.getElementById('pers-intro')?.value || '').trim();
   const payload = {
     name: document.getElementById('pf-name').value.trim(),
     phone: document.getElementById('pf-phone').value.trim(),
     address: document.getElementById('pf-address').value.trim(),
-    specialty: document.getElementById('pf-specialty').value.trim(),
     hours: document.getElementById('pf-hours').value.trim(),
-    intro: document.getElementById('pf-intro').value.trim(),
-    blog_features: document.getElementById('pf-blog-features').value.trim(),
+    blog_tone: _persState.blog_tone || '',
+    target_patients: _persState.target_patients,
+    clinical_strengths: _persState.clinical_strengths,
+    common_symptoms: _collectSymptomsForSave(),
+    intro_freeform: _persState.intro_freeform,
   };
   if (!payload.name) { showToast('한의원 이름을 입력하세요', 'error'); return; }
   try {
@@ -1275,12 +1588,127 @@ async function saveClinicProfile() {
     });
     if (!r.ok) throw 0;
     showToast('저장됨');
+    _refreshProgress();
   } catch { showToast('저장 실패', 'error'); }
 }
 
-['pf-name','pf-phone','pf-address','pf-specialty','pf-hours','pf-intro','pf-blog-features'].forEach(id => {
+['pf-name','pf-phone','pf-address','pf-hours'].forEach(id => {
   const el = document.getElementById(id);
   if (el) el.addEventListener('input', () => debounceSave('clinic', saveClinicProfile));
+});
+
+/* 콘텐츠 개인화 — 라디오·칩·자유 입력 핸들러 */
+document.querySelectorAll('#pers-tone-group .pers-radio-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (btn.disabled) return;
+    _persState.blog_tone = btn.dataset.value;
+    _renderRadios(_persState.blog_tone);
+    _refreshProgress();
+    debounceSave('clinic', saveClinicProfile, 200);
+  });
+});
+['pers-symptoms-other','pers-intro'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', () => {
+    _refreshProgress();
+    debounceSave('clinic', saveClinicProfile);
+  });
+});
+
+/* ──────────────────────────────────────────────────────────
+   로고 업로드·설정·삭제
+   ────────────────────────────────────────────────────────── */
+async function uploadLogo(file) {
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) {
+    showToast('파일이 5MB를 초과했습니다', 'error');
+    return;
+  }
+  const fd = new FormData();
+  fd.append('file', file);
+  showToast('로고 업로드 중…');
+  try {
+    const r = await fetch('/api/settings/clinic/logo', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || '업로드 실패');
+    document.getElementById('logo-preview').src = d.logo_url;
+    document.getElementById('logo-preview').style.display = 'block';
+    document.getElementById('logo-preview-empty').style.display = 'none';
+    document.getElementById('logo-delete-btn').hidden = false;
+    showToast('로고 저장됨');
+  } catch (e) { showToast(e.message || '업로드 실패', 'error'); }
+}
+
+async function saveLogoSettings() {
+  const position = document.querySelector('.logo-pos-btn.active')?.dataset.pos || 'br';
+  const size_pct = parseInt(document.getElementById('logo-size-pct').value, 10) || 10;
+  const opacity_pct = parseInt(document.getElementById('logo-opacity-pct').value, 10) || 80;
+  try {
+    const r = await fetch('/api/settings/clinic/logo-settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ position, size_pct, opacity_pct }),
+    });
+    if (!r.ok) throw 0;
+    showToast('로고 설정 저장됨');
+  } catch { showToast('저장 실패', 'error'); }
+}
+
+async function deleteLogo() {
+  if (!confirm('로고를 삭제할까요?')) return;
+  try {
+    const r = await fetch('/api/settings/clinic/logo', { method: 'DELETE' });
+    if (!r.ok) throw 0;
+    document.getElementById('logo-preview').style.display = 'none';
+    document.getElementById('logo-preview').src = '';
+    document.getElementById('logo-preview-empty').style.display = '';
+    document.getElementById('logo-delete-btn').hidden = true;
+    showToast('로고 삭제됨');
+  } catch { showToast('삭제 실패', 'error'); }
+}
+
+document.getElementById('logo-file')?.addEventListener('change', (e) => {
+  const f = e.target.files?.[0];
+  if (f) uploadLogo(f);
+  e.target.value = '';
+});
+document.getElementById('logo-delete-btn')?.addEventListener('click', deleteLogo);
+document.querySelectorAll('.logo-pos-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (btn.disabled) return;
+    document.querySelectorAll('.logo-pos-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    debounceSave('logo-settings', saveLogoSettings, 200);
+  });
+});
+document.getElementById('logo-size-pct')?.addEventListener('input', (e) => {
+  document.getElementById('logo-size-val').textContent = `${e.target.value}%`;
+  debounceSave('logo-settings', saveLogoSettings);
+});
+document.getElementById('logo-opacity-pct')?.addEventListener('input', (e) => {
+  document.getElementById('logo-opacity-val').textContent = `${e.target.value}%`;
+  debounceSave('logo-settings', saveLogoSettings);
+});
+
+/* ──────────────────────────────────────────────────────────
+   첫 진입 가이드 (?onboarding=1 또는 5문항 미완성)
+   ────────────────────────────────────────────────────────── */
+function _maybeShowOnboardingCard() {
+  const card = document.getElementById('onboarding-card');
+  if (!card) return;
+  // 세션 dismiss 우선
+  if (sessionStorage.getItem('cligent_onboard_dismissed') === '1') {
+    card.hidden = true;
+    return;
+  }
+  const explicit = new URLSearchParams(location.search).get('onboarding') === '1';
+  const incomplete = _activePersFieldCount() < PERS_FIELDS.length;
+  card.hidden = !(explicit || incomplete);
+}
+
+document.getElementById('onboarding-dismiss')?.addEventListener('click', () => {
+  sessionStorage.setItem('cligent_onboard_dismissed', '1');
+  document.getElementById('onboarding-card').hidden = true;
 });
 
 /* 네이버 블로그 ID — chief 전용, 별도 엔드포인트 */
@@ -1576,20 +2004,17 @@ async function loadBlogSettings() {
       const d = await r.json();
       document.getElementById('blog-questions-enabled').checked = !!d.flow?.questions_enabled;
       document.getElementById('blog-questions-count').value = d.flow?.questions_count ?? 3;
-      const tone = d.blog?.tone || '전문적';
-      document.querySelectorAll('.tone-btn').forEach(b => b.classList.toggle('active', b.dataset.tone === tone));
     }
   } catch (e) {}
 }
 
 async function saveBlogSettings() {
-  const tone = document.querySelector('.tone-btn.active')?.dataset.tone || '전문적';
+  // 톤은 한의원 정보 > 콘텐츠 개인화 ① 글 말투로 흡수됨. 여기선 flow만 저장.
   const payload = {
     flow: {
       questions_enabled: document.getElementById('blog-questions-enabled').checked,
       questions_count: parseInt(document.getElementById('blog-questions-count').value, 10) || 3,
     },
-    blog: { tone },
   };
   try {
     const r = await fetch('/api/settings/blog', {
@@ -1602,13 +2027,6 @@ async function saveBlogSettings() {
   } catch { showToast('저장 실패', 'error'); }
 }
 
-document.querySelectorAll('.tone-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.tone-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    debounceSave('blog', saveBlogSettings, 200);
-  });
-});
 document.getElementById('blog-questions-enabled').addEventListener('change', () => debounceSave('blog', saveBlogSettings, 200));
 document.getElementById('blog-questions-count').addEventListener('input', () => debounceSave('blog', saveBlogSettings));
 

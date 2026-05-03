@@ -321,6 +321,18 @@ def init_db() -> None:
             # Step 1 Phase 1F — 블로그 챗 Cohort 1 게이트
             # 0 = 미노출(/blog 폼만) / 1 = /blog/chat 진입 허용
             ("chat_beta_enabled",    "INTEGER DEFAULT 0"),
+            # ── 콘텐츠 개인화 (2026-05-04, 베타 게이트 ④) ──
+            # 5문항 + 로고. 기존 specialty/intro/blog_features 컬럼은 더 이상 쓰지 않음(deprecated).
+            # 휴머나이저(베타 후) 추가 시 writer_* prefix 컬럼 별도 추가.
+            ("blog_tone",            "TEXT"),               # 글 말투 (5지: 공감형/전문가형/친근형/절제형/위트형)
+            ("target_patients",      "TEXT"),               # JSON array (1~3): 30~40대/50~60대/임산부/...
+            ("clinical_strengths",   "TEXT"),               # JSON array (1~5): 침·뜸/한약/추나치료/...
+            ("common_symptoms",      "TEXT"),               # JSON array (1~6): 두통/어깨 통증/... + "기타: 자유"
+            ("intro_freeform",       "TEXT"),               # 자유 한의원·원장 소개 (multi-line)
+            ("logo_url",             "TEXT"),               # 한의원 로고 정적 경로 (예: /static/uploads/logos/{clinic_id}.png)
+            ("logo_position",        "TEXT DEFAULT 'br'"),  # tl/tr/bl/br
+            ("logo_size_pct",        "INTEGER DEFAULT 10"), # 8~12 (이미지 가로 대비 %)
+            ("logo_opacity_pct",     "INTEGER DEFAULT 80"), # 70~90
         ]:
             if col not in existing:
                 conn.execute(f"ALTER TABLE clinics ADD COLUMN {col} {definition}")

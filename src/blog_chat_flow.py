@@ -763,6 +763,7 @@ def _stream_generator_for_seo(state: BlogChatState, user_input: str):
             reader_level=blog_args["reader_level"],
             explanation_types=blog_args["explanation_types"],
             format_id=blog_args["format_id"],
+            clinic_id=state.clinic_id,
         )
         for chunk in gen:
             raw = chunk.removeprefix("data: ").strip()
@@ -1181,13 +1182,17 @@ def _stream_generator_for_image(state: BlogChatState, user_input: str):
     # ── 4. 갤러리 메시지 (b64 5장 + meta) ───────────────────
     yield _sse_frame({"type": "stage_text", "text": "5장 완성됐어요."})
 
+    # 한의원 로고 합성 (콘텐츠 개인화 — 베타 게이트 ④)
+    from logo_compositor import apply_logo_to_b64_images
+    composed_images = apply_logo_to_b64_images(result.images, state.clinic_id)
+
     gallery_meta = {
         "kind": "image_gallery",
         "image_session_id": image_session_id,
         "plan_id": result.plan_id,
         "size": result.size,
         "quality": result.quality,
-        "images": result.images,           # b64 5장
+        "images": composed_images,         # b64 5장 (로고 합성 후)
         "prompts": prompt_list,            # 카드별 [↺] 재생성용 (각 카드의 모듈 prompt)
         "primary_prompt": primary_prompt,  # 호환성 — 구버전 클라이언트 fallback
         "quota": quota,

@@ -373,6 +373,7 @@ async def build_prompt_endpoint(request: Request, user: dict = Depends(get_curre
             clinic_info=clinic_info,
             format_id=format_id,
             explanation_types=explanation_types,
+            clinic_id=user["clinic_id"],
         )
         return {
             "system_prompt": result["system_prompt"],
@@ -576,9 +577,13 @@ async def api_image_generate_initial(
         plan_id_at_start=plan_id,
     )
 
+    # 한의원 로고 합성 (콘텐츠 개인화 — 베타 게이트 ④)
+    from logo_compositor import apply_logo_to_b64_images
+    composed_images = apply_logo_to_b64_images(result.images, user["clinic_id"])
+
     return JSONResponse({
         "session_id": session_id,
-        "images": result.images,
+        "images": composed_images,
         "size": result.size,
         "quality": result.quality,
         "plan_id": result.plan_id,
@@ -647,9 +652,13 @@ async def api_image_regenerate(
 
     new_regen_count = increment_regen(session_id, user["clinic_id"])
 
+    # 한의원 로고 합성 (콘텐츠 개인화 — 베타 게이트 ④)
+    from logo_compositor import apply_logo_to_b64_images
+    composed_images = apply_logo_to_b64_images(result.images, user["clinic_id"])
+
     return JSONResponse({
         "session_id": session_id,
-        "images": result.images,
+        "images": composed_images,
         "size": result.size,
         "quality": result.quality,
         "plan_id": result.plan_id,
@@ -728,9 +737,13 @@ async def api_image_edit(
 
     new_edit_count = increment_edit(session_id, user["clinic_id"])
 
+    # 한의원 로고 합성 (콘텐츠 개인화 — 베타 게이트 ④)
+    from logo_compositor import apply_logo_to_b64_images
+    composed_images = apply_logo_to_b64_images(result.images, user["clinic_id"])
+
     return JSONResponse({
         "session_id": session_id,
-        "images": result.images,
+        "images": composed_images,
         "size": result.size,
         "quality": result.quality,
         "plan_id": result.plan_id,
@@ -1064,6 +1077,7 @@ async def generate(request: Request, user: dict = Depends(get_current_user)):
                 explanation_types=explanation_types,
                 char_count=char_count,
                 format_id=format_id,
+                clinic_id=user["clinic_id"],
             ),
             keyword, tone, seo_keywords,
             clinic_id=user["clinic_id"],
