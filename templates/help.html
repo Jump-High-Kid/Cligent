@@ -142,7 +142,7 @@
       </div>
       <div>
         <h1 class="text-2xl font-bold text-stone-900">도움말</h1>
-        <p class="text-stone-500 text-sm">자주 묻는 질문을 검색하거나 AI 도우미에게 직접 질문하세요</p>
+        <p class="text-stone-500 text-sm">자주 묻는 질문을 검색하거나 오른쪽 패널에 오류·불편을 접수해 주세요</p>
       </div>
     </div>
 
@@ -157,8 +157,9 @@
 
     <!-- 카테고리 탭 -->
     <div id="category-tabs" class="flex gap-2 flex-wrap">
-      <button class="cat-btn px-4 py-1.5 rounded-full text-sm font-semibold transition-all bg-emerald-900 text-white" data-cat="all">전체 <span class="ml-1 opacity-70">15</span></button>
+      <button class="cat-btn px-4 py-1.5 rounded-full text-sm font-semibold transition-all bg-emerald-900 text-white" data-cat="all">전체 <span class="ml-1 opacity-70">18</span></button>
       <button class="cat-btn px-4 py-1.5 rounded-full text-sm font-semibold transition-all bg-stone-100 text-stone-600 hover:bg-stone-200" data-cat="start">시작하기 <span class="ml-1 opacity-70">3</span></button>
+      <button class="cat-btn px-4 py-1.5 rounded-full text-sm font-semibold transition-all bg-stone-100 text-stone-600 hover:bg-stone-200" data-cat="usage">사용량/플랜 <span class="ml-1 opacity-70">3</span></button>
       <button class="cat-btn px-4 py-1.5 rounded-full text-sm font-semibold transition-all bg-stone-100 text-stone-600 hover:bg-stone-200" data-cat="blog">블로그 <span class="ml-1 opacity-70">4</span></button>
       <button class="cat-btn px-4 py-1.5 rounded-full text-sm font-semibold transition-all bg-stone-100 text-stone-600 hover:bg-stone-200" data-cat="ai">AI 설정 <span class="ml-1 opacity-70">3</span></button>
       <button class="cat-btn px-4 py-1.5 rounded-full text-sm font-semibold transition-all bg-stone-100 text-stone-600 hover:bg-stone-200" data-cat="team">권한/팀 <span class="ml-1 opacity-70">3</span></button>
@@ -175,10 +176,10 @@
       <div id="no-results" class="hidden text-center py-16">
         <span class="material-symbols-outlined text-stone-300 text-5xl mb-3 block" style="font-variation-settings:'FILL' 0,'wght' 200,'GRAD' 0,'opsz' 48;">search_off</span>
         <p class="text-stone-600 font-semibold mb-1">검색 결과가 없어요</p>
-        <p class="text-stone-400 text-sm mb-4">오른쪽 AI 도우미에게 직접 질문해보세요</p>
+        <p class="text-stone-400 text-sm mb-4">오른쪽 <b>오류/불편 접수</b> 패널에 남기거나 <code>cligent.ai@gmail.com</code>으로 이메일 주세요</p>
         <button onclick="focusChat()"
           class="px-5 py-2.5 bg-emerald-900 text-white rounded-xl text-sm font-semibold hover:opacity-90 transition-all">
-          AI 도우미에게 물어보기
+          오류/불편 접수 패널로 이동
         </button>
       </div>
     </div>
@@ -242,7 +243,22 @@ const QA_DATA = [
   {
     cat: 'start',
     q: '처음 로그인 후 무엇을 설정해야 하나요?',
-    a: '대표원장으로 최초 로그인 후 두 가지를 먼저 설정하세요.\n\n① <b>설정 › 시스템 & 보안 › 한의원 프로필</b> — 한의원 이름, 전화번호, 주소, 진료과목 등을 입력합니다.\n\n② <b>설정 › 시스템 & 보안 › AI 설정</b> — Anthropic API 키를 등록합니다. API 키가 없으면 블로그 생성과 AI 기능을 사용할 수 없습니다. <code>console.anthropic.com</code>에서 발급받을 수 있습니다.'
+    a: '대표원장으로 최초 로그인 후 다음을 설정하세요.\n\n① <b>설정 › 한의원 정보</b> — 한의원 이름, 전화번호, 주소, 진료과목 등을 입력합니다.\n\n② <b>설정 › 블로그 설정</b> — 글의 톤·길이·발행 채널 등 기본 옵션을 조정합니다.\n\n<b>베타 안내</b>: 1차 베타 동안은 회사가 제공하는 AI를 통해 블로그가 생성됩니다. 별도 API 키 등록은 필요 없습니다.'
+  },
+  {
+    cat: 'usage',
+    q: '베타 기간 사용량 한도가 어떻게 되나요?',
+    a: '<b>1차 베타 (5인 무료)</b>:\n• 블로그 누적 생성: <b>25편/사용자</b>\n• 이미지 재생성: 편당 1회 (Standard 적용)\n• 이미지 부분 수정: 편당 2회\n• 체험 기간: 90일\n\n한도는 사용자 경험 + 데이터 수집 + 운영비의 균형에서 정해진 값입니다. 2차 베타 진입 시 한도가 상향됩니다.\n\n현재 사용량은 <b>설정 › 한의원 정보 › 현재 플랜</b>에서 확인할 수 있습니다.'
+  },
+  {
+    cat: 'usage',
+    q: '한도에 도달하면 어떻게 되나요?',
+    a: '한도 도달 시 블로그 생성이 일시 차단되며, 다음 단계 안내 메시지가 표시됩니다.\n\n① <b>1차 베타 기간 중</b> — <b>Cligent 운영팀</b>(<code>cligent.ai@gmail.com</code>)으로 문의해 주세요. 한도는 코호트 운영 상황에 따라 조정 가능합니다.\n\n② <b>2차 베타 진입 시점</b> — 정액제 플랜(Standard / Pro)으로 자동 전환되며 무제한 생성됩니다.\n\n악의적 어뷰징·자동화 호출은 약관 제7.2조에 따라 사전 통지 없이 차단될 수 있습니다.'
+  },
+  {
+    cat: 'usage',
+    q: '베타 비용은 얼마인가요?',
+    a: '<b>1차 베타: 완전 무료</b>입니다.\n\n• 블로그 본문, 이미지 생성, 모든 AI 기능 무료\n• 운영비는 회사가 부담 (베타 사용자는 버그 발견·피드백 제공 역할)\n• 베타라서 다운되거나 사용에 불편이 있을 수 있습니다\n\n<b>2차 베타 진입 시점부터 유료화</b>가 시작됩니다. 정확한 시행일은 최소 30일 전 공지되며, 회원은 공지 후 유료 전환을 원하지 않을 경우 시행일 전까지 탈퇴할 수 있습니다.'
   },
   {
     cat: 'start',
@@ -257,7 +273,7 @@ const QA_DATA = [
   {
     cat: 'blog',
     q: '블로그 생성 중 화면이 멈추거나 끊겨요',
-    a: 'AI가 응답을 스트리밍으로 전송하는 중 네트워크가 불안정하면 발생합니다.\n\n해결 순서:\n① 페이지를 새로고침 후 다시 시도하세요.\n② <b>설정 › AI 설정</b>에서 API 키가 유효한지 확인하세요.\n③ 월 예산이 초과되지 않았는지 확인하세요.\n④ 인터넷 연결 상태를 점검하세요.\n\n같은 증상이 반복되면 오른쪽 AI 도우미에게 구체적인 오류 메시지를 알려주세요.'
+    a: 'AI가 응답을 스트리밍으로 전송하는 중 네트워크가 불안정하면 발생합니다.\n\n해결 순서:\n① 페이지를 새로고침 후 다시 시도하세요.\n② 모바일에서는 화면이 절전되지 않도록 잠시 켜두세요. (자동 절전 차단 기능 내장)\n③ 인터넷 연결 상태를 점검하세요.\n④ 사용량 한도에 도달했는지 <b>설정 › 한의원 정보 › 현재 플랜</b>에서 확인하세요.\n\n같은 증상이 반복되면 오른쪽 <b>오류/불편 접수</b> 패널에 구체적인 오류 메시지를 남겨주세요. 또는 <code>cligent.ai@gmail.com</code>으로 이메일 주세요.'
   },
   {
     cat: 'blog',
@@ -276,18 +292,18 @@ const QA_DATA = [
   },
   {
     cat: 'ai',
-    q: 'AI API 키를 어디에 입력하나요?',
-    a: '<b>설정 › 시스템 & 보안 › AI 설정</b>에서 입력합니다.\n\nAPI 키 발급 방법:\n① <code>console.anthropic.com</code>에 접속합니다.\n② API Keys 메뉴에서 새 키를 생성합니다.\n③ Cligent 설정 페이지의 API 키 입력란에 붙여넣고 저장합니다.\n\n키는 <b>Fernet 암호화</b>되어 안전하게 저장됩니다. 대표원장 권한이 필요합니다.'
+    q: 'AI API 키를 직접 등록할 수 있나요?',
+    a: '<b>1차 베타 동안은 회사가 제공하는 AI</b>로 콘텐츠를 생성합니다. 별도 키 등록이 필요하지 않으며, 모든 AI 기능을 무료로 이용할 수 있습니다.\n\n<b>BYOAI(Bring Your Own AI)</b> — 회원이 본인 명의 API 키를 등록해 사용하는 방식 — 은 정식 서비스 출시 이후 단계적으로 도입될 예정입니다.'
   },
   {
     cat: 'ai',
     q: 'AI 사용이 갑자기 막혔어요',
-    a: '두 가지 원인을 확인하세요.\n\n① <b>월 예산 초과</b> — 설정 › AI 설정에서 월 예산(KRW)을 확인하고, 필요 시 상향 조정합니다.\n\n② <b>API 키 오류</b> — Anthropic 콘솔(console.anthropic.com)에서 키 상태를 확인합니다. 잔액이 부족하거나 키가 비활성화된 경우 새 키를 발급받아 다시 등록하세요.'
+    a: '베타 단계에서 가장 흔한 원인은 <b>사용량 한도 도달</b>입니다.\n\n① <b>설정 › 한의원 정보 › 현재 플랜</b>에서 누적 사용량을 확인하세요.\n② 25편 한도에 도달했다면 <b>Cligent 운영팀</b>(<code>cligent.ai@gmail.com</code>)으로 문의하세요.\n\n네트워크·서버 오류라면:\n• 페이지 새로고침 후 재시도\n• 같은 증상이 반복되면 오른쪽 <b>오류/불편 접수</b> 패널에 오류 메시지를 남겨주세요.'
   },
   {
     cat: 'ai',
-    q: 'AI 모델을 변경하고 싶어요',
-    a: '<b>설정 › 시스템 & 보안 › AI 설정</b>에서 기본 모델을 선택할 수 있습니다.\n\n모델 비교:\n• <b>Haiku</b> — 빠른 응답, 낮은 비용 (간단한 작업 추천)\n• <b>Sonnet</b> — 속도와 품질의 균형 (기본 권장)\n• <b>Opus</b> — 최고 품질, 높은 비용 (복잡한 글 작성)\n\n대표원장 권한이 필요합니다.'
+    q: 'AI 모델을 변경할 수 있나요?',
+    a: '베타 단계에서는 회사가 선정한 최적 모델 조합으로 운영됩니다.\n\n• <b>본문 생성</b> — Anthropic Claude Sonnet 4.6 (한의학 도메인 글에 최적)\n• <b>이미지</b> — OpenAI gpt-image-2 (Standard 1024×1024 medium)\n• <b>메타데이터</b> — Anthropic Claude Haiku 4.5 (제목·요약 빠른 생성)\n\n정식 출시 후 BYOAI 도입 시점에 회원이 모델·키를 선택할 수 있게 됩니다.'
   },
   {
     cat: 'team',

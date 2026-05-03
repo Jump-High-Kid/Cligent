@@ -25,7 +25,10 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Optional
+
+import yaml
 
 from ai_client import (
     AIClientError,
@@ -39,12 +42,31 @@ logger = logging.getLogger(__name__)
 
 # ── 플랜 정책 ─────────────────────────────────────────────
 
+_CONFIG_PATH = Path(__file__).resolve().parent.parent / "config.yaml"
 
-# 플랜별 무료 한도 — 1편 블로그 세트 단위로 적용
+
+def _load_beta_image_limits() -> dict[str, int]:
+    """config.yaml beta: 섹션에서 trial 한도 override 로드. 실패 시 기본값."""
+    try:
+        with open(_CONFIG_PATH, "r", encoding="utf-8") as f:
+            cfg = yaml.safe_load(f) or {}
+        beta = cfg.get("beta", {}) or {}
+        return {
+            "regen_free": int(beta.get("image_regen_per_blog", 1)),
+            "edit_free": int(beta.get("image_edit_per_blog", 2)),
+        }
+    except Exception as exc:
+        logger.warning("image_generator: config.yaml 로드 실패, 기본값 사용 (%s)", exc)
+        return {"regen_free": 1, "edit_free": 2}
+
+
+# 플랜별 무료 한도 — 1편 블로그 세트 단위로 적용.
+# trial은 config.yaml beta.image_regen_per_blog / image_edit_per_blog로 override 가능 (베타 한도 조정용).
+# standard / pro / free는 코드 고정 (정식 출시 시점에 별도 분리).
 PLAN_LIMITS: dict[str, dict[str, int]] = {
     "standard": {"regen_free": 1, "edit_free": 2},
     "pro": {"regen_free": 2, "edit_free": 4},
-    "trial": {"regen_free": 1, "edit_free": 2},
+    "trial": _load_beta_image_limits(),
     "free": {"regen_free": 0, "edit_free": 0},
 }
 

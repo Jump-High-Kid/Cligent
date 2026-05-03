@@ -56,12 +56,16 @@ class TestCreateClinic:
         assert "trial_expires_at" in sql
         assert len(params) == 3  # name, max_slots, trial_expires_at
 
-        # trial_expires_at 값이 14일 뒤인지 확인
+        # trial_expires_at 값이 config.yaml beta.trial_days 뒤인지 확인
+        from plan_guard import _TRIAL_DAYS
         trial_val = params[2]
         trial_dt = datetime.fromisoformat(trial_val.replace("Z", "+00:00"))
         now = datetime.now(timezone.utc)
         diff = trial_dt - now
-        assert 13 <= diff.days <= 14, f"trial_expires_at이 14일 범위 밖: {diff.days}일"
+        # 시계 기준 1일 마진 허용 (테스트 실행 시점 ↔ create_clinic 호출 시점 차)
+        assert _TRIAL_DAYS - 1 <= diff.days <= _TRIAL_DAYS, (
+            f"trial_expires_at이 {_TRIAL_DAYS}일 범위 밖: {diff.days}일"
+        )
 
     def test_create_clinic_returns_lastrowid(self):
         """create_clinic()이 clinic_id(lastrowid)를 반환해야 한다."""

@@ -58,8 +58,8 @@ _error_logger = logging.getLogger("cligent.errors")
 # 공유 상태·상수 (라우터 내부 전용)
 # ─────────────────────────────────────────────────────────────────
 
-# 신청 폼 약관 버전 (개인정보처리방침 변경 시 갱신)
-TERMS_VERSION = "v1.0-2026-04-29"
+# 신청 폼 약관 버전 (이용약관 또는 개인정보처리방침 변경 시 갱신)
+TERMS_VERSION = "v1.0-2026-05-04"
 APPLICANT_EXPIRY_DAYS = 30
 
 # IP 베타 신청 레이트 리밋 (5분 창 3회)
@@ -482,7 +482,12 @@ async def beta_apply(request: Request):
     email = (body.get("email") or "").strip().lower()
     phone = (body.get("phone") or "").strip()
     note = (body.get("note") or "").strip()
-    terms_consent = bool(body.get("terms_consent"))
+    tos_consent = bool(body.get("tos_consent"))            # 이용약관 동의 (필수)
+    privacy_consent = bool(body.get("privacy_consent"))    # 개인정보 수집·이용 동의 (필수)
+    # 하위 호환: 구버전 클라이언트가 terms_consent 단일 필드만 보낼 경우 둘 다로 간주
+    if not tos_consent and not privacy_consent and bool(body.get("terms_consent")):
+        tos_consent = True
+        privacy_consent = True
     marketing_consent = 1 if bool(body.get("marketing_consent")) else 0
     application_type = (body.get("application_type") or "beta").strip().lower()
     if application_type not in ("beta", "general"):
@@ -492,7 +497,11 @@ async def beta_apply(request: Request):
         return JSONResponse({"detail": "이름과 한의원명을 입력해 주세요."}, status_code=400)
     if not _EMAIL_RE.match(email):
         return JSONResponse({"detail": "유효한 이메일 주소를 입력해 주세요."}, status_code=400)
-    if not terms_consent:
+    if not tos_consent:
+        return JSONResponse(
+            {"detail": "이용약관에 동의해 주세요."}, status_code=400,
+        )
+    if not privacy_consent:
         return JSONResponse(
             {"detail": "개인정보 수집·이용에 동의해 주세요."}, status_code=400,
         )

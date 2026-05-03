@@ -66,11 +66,24 @@ class TestPaidPlan:
 
 
 class TestTrialPlan:
-    def test_active_trial_allows_access(self):
-        """체험 플랜 만료 전 → 통과."""
+    def test_active_trial_under_beta_limit_allows_access(self):
+        """체험 플랜 활성 + 베타 한도 미만 → 통과 (1차 베타 정책: trial도 한도 적용)."""
+        from plan_guard import _FREE_BLOG_LIMIT
         data = _mock_plan(trial_expires_at=_iso(+72))
-        with patch("plan_guard._fetch_plan_data", return_value=data):
+        with patch("plan_guard._fetch_plan_data", return_value=data), \
+             patch("plan_guard._count_total_blogs", return_value=_FREE_BLOG_LIMIT - 1):
             check_blog_limit(clinic_id=2)  # 예외 없음
+
+    def test_active_trial_at_beta_limit_raises_429(self):
+        """체험 플랜 활성이라도 베타 누적 한도 도달 → 429 (1차 베타 정책)."""
+        from plan_guard import _FREE_BLOG_LIMIT
+        data = _mock_plan(trial_expires_at=_iso(+72))
+        with patch("plan_guard._fetch_plan_data", return_value=data), \
+             patch("plan_guard._count_total_blogs", return_value=_FREE_BLOG_LIMIT):
+            with pytest.raises(HTTPException) as exc_info:
+                check_blog_limit(clinic_id=2)
+        assert exc_info.value.status_code == 429
+        assert exc_info.value.detail["error"] == "plan_limit_exceeded"
 
     def test_trial_cannot_be_reactivated(self):
         """plan_guard 내에 DB에 trial_expires_at을 쓰는 SQL이 없어야 한다."""
@@ -87,40 +100,44 @@ class TestTrialPlan:
 
 class TestFreePlan:
     def test_under_limit_allows_access(self):
-        """베타 무료 플랜, 누적 9편 생성 → 통과 (한도 10편)."""
+        """베타 무료 플랜, 한도 미만 생성 → 통과."""
+        from plan_guard import _FREE_BLOG_LIMIT
         data = _mock_plan()
         with patch("plan_guard._fetch_plan_data", return_value=data), \
-             patch("plan_guard._count_total_blogs", return_value=9):
+             patch("plan_guard._count_total_blogs", return_value=_FREE_BLOG_LIMIT - 1):
             check_blog_limit(clinic_id=3)  # 예외 없음
 
     def test_over_limit_raises_429(self):
-        """베타 무료 플랜, 누적 10편 생성 → 429 발생."""
+        """베타 무료 플랜, 한도 도달 → 429 발생."""
+        from plan_guard import _FREE_BLOG_LIMIT
         data = _mock_plan()
         with patch("plan_guard._fetch_plan_data", return_value=data), \
-             patch("plan_guard._count_total_blogs", return_value=10):
+             patch("plan_guard._count_total_blogs", return_value=_FREE_BLOG_LIMIT):
             with pytest.raises(HTTPException) as exc_info:
                 check_blog_limit(clinic_id=4)
         assert exc_info.value.status_code == 429
         assert exc_info.value.detail["error"] == "plan_limit_exceeded"
-        assert exc_info.value.detail["current"] == 10
-        assert exc_info.value.detail["limit"] == 10
+        assert exc_info.value.detail["current"] == _FREE_BLOG_LIMIT
+        assert exc_info.value.detail["limit"] == _FREE_BLOG_LIMIT
 
 
 class TestExpiredPlans:
     def test_expired_paid_plan_falls_to_free(self):
         """유료 플랜 만료 후 free 처리 → 누적 한도 초과 시 429."""
+        from plan_guard import _FREE_BLOG_LIMIT
         data = _mock_plan(plan_expires_at=_iso(-1))
         with patch("plan_guard._fetch_plan_data", return_value=data), \
-             patch("plan_guard._count_total_blogs", return_value=10):
+             patch("plan_guard._count_total_blogs", return_value=_FREE_BLOG_LIMIT):
             with pytest.raises(HTTPException) as exc_info:
                 check_blog_limit(clinic_id=5)
         assert exc_info.value.status_code == 429
 
     def test_expired_trial_falls_to_free(self):
         """체험 플랜 만료 후 free 처리 → 누적 한도 초과 시 429."""
+        from plan_guard import _FREE_BLOG_LIMIT
         data = _mock_plan(trial_expires_at=_iso(-1))
         with patch("plan_guard._fetch_plan_data", return_value=data), \
-             patch("plan_guard._count_total_blogs", return_value=10):
+             patch("plan_guard._count_total_blogs", return_value=_FREE_BLOG_LIMIT):
             with pytest.raises(HTTPException) as exc_info:
                 check_blog_limit(clinic_id=6)
         assert exc_info.value.status_code == 429

@@ -638,8 +638,7 @@ async def api_image_regenerate(
                 "used": exc.used,
                 "limit": exc.limit,
                 "message": (
-                    f"{exc.plan_id} 플랜 재생성 무료 한도({exc.limit}회)에 도달했습니다. "
-                    "초과 분은 정식 출시 후 종량제로 제공됩니다."
+                    f"이 블로그의 이미지 재생성 한도({exc.limit}회)에 도달했어요."
                 ),
             },
         )
@@ -720,8 +719,7 @@ async def api_image_edit(
                 "used": exc.used,
                 "limit": exc.limit,
                 "message": (
-                    f"{exc.plan_id} 플랜 수정 무료 한도({exc.limit}회)에 도달했습니다. "
-                    "초과 분은 정식 출시 후 종량제로 제공됩니다."
+                    f"이 블로그의 이미지 수정 한도({exc.limit}회)에 도달했어요."
                 ),
             },
         )

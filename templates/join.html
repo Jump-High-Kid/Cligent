@@ -231,8 +231,18 @@
         <textarea id="f-note" placeholder="자유롭게 적어주세요"></textarea>
       </div>
 
-      <label class="consent" for="f-terms">
-        <input type="checkbox" id="f-terms">
+      <label class="consent" for="f-tos">
+        <input type="checkbox" id="f-tos">
+        <span class="consent-text">
+          <strong>[필수]</strong> Cligent <a href="/terms" target="_blank">이용약관</a>에 동의합니다.
+          <span class="consent-note">
+            베타 단계 무료 운영 · 어뷰징·과다 사용 금지 · 환자 식별정보 입력 금지 등
+          </span>
+        </span>
+      </label>
+
+      <label class="consent" for="f-privacy">
+        <input type="checkbox" id="f-privacy">
         <span class="consent-text">
           <strong>[필수]</strong> 개인정보 수집·이용에 동의합니다.
           (수집 항목: 이름·한의원명·이메일·연락처·메모, 보유: 미가입 시 30일,
@@ -278,7 +288,8 @@
       const email      = document.getElementById('f-email').value.trim();
       const phone      = document.getElementById('f-phone').value.trim();
       const note       = document.getElementById('f-note').value.trim();
-      const termsConsent     = document.getElementById('f-terms').checked;
+      const tosConsent       = document.getElementById('f-tos').checked;
+      const privacyConsent   = document.getElementById('f-privacy').checked;
       const marketingConsent = document.getElementById('f-marketing').checked;
 
       errMsg.style.display = 'none';
@@ -291,7 +302,11 @@
         showErr('유효한 이메일 주소를 입력해 주세요.');
         return;
       }
-      if (!termsConsent) {
+      if (!tosConsent) {
+        showErr('이용약관에 동의해 주세요.');
+        return;
+      }
+      if (!privacyConsent) {
         showErr('개인정보 수집·이용에 동의해 주세요.');
         return;
       }
@@ -305,7 +320,8 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             name, clinic_name: clinicName, email, phone, note,
-            terms_consent: termsConsent,
+            tos_consent: tosConsent,
+            privacy_consent: privacyConsent,
             marketing_consent: marketingConsent,
           }),
         });

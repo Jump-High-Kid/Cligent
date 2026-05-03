@@ -827,7 +827,12 @@
         </div>
 
         <div class="card">
-          <h3>최근 생성 이력</h3>
+          <div class="flex items-start justify-between flex-wrap gap-2" style="margin-bottom: 4px;">
+            <h3 style="margin: 0;">최근 생성 이력</h3>
+            <div id="blog-history-beta-summary" style="font-size: 12px; color: var(--stone-500); text-align: right; line-height: 1.5;">
+              <span class="empty-state" style="font-size: 12px;">불러오는 중…</span>
+            </div>
+          </div>
           <p class="card-desc">최근 30일간 생성된 블로그. 본문은 30일 후 삭제됩니다.</p>
           <div id="blog-history" class="flex flex-col gap-2">
             <div class="empty-state">불러오는 중…</div>
@@ -846,7 +851,19 @@
           <span>AI 설정은 대표원장만 가능합니다.</span>
         </div>
 
-        <div class="card">
+        <!-- 베타 안내 배너 (BYOAI 봉인 동안 표시) -->
+        <div class="card" style="background: var(--emerald-50, #ecfdf5); border-color: var(--emerald-200, #a7f3d0);">
+          <h3 style="color: var(--emerald-900);">베타 단계 — 회사 제공 AI 사용 중</h3>
+          <p class="card-desc" style="color: var(--emerald-800);">
+            1차 베타 동안은 회사가 제공하는 AI(본문: Claude Sonnet 4.6 / 이미지: gpt-image-2 / 메타: Claude Haiku 4.5)로 모든 기능이 무료 운영됩니다. 별도 API 키 등록은 필요하지 않습니다.
+          </p>
+          <p class="card-desc" style="color: var(--emerald-800); margin-top: 8px;">
+            <strong>BYOAI</strong>(Bring Your Own AI — 본인 명의 API 키 등록 방식)는 정식 서비스 출시 이후 단계적으로 도입될 예정입니다.
+          </p>
+        </div>
+
+        <!-- BYOAI 봉인 동안 hidden — 재도입 시 hidden 속성만 제거 -->
+        <div class="card" hidden>
           <h3>Anthropic API 키 <span style="font-size: 12px; font-weight: 500; color: var(--emerald-700);">— 블로그 본문(문서) 생성 전용</span></h3>
           <p class="card-desc">Claude 모델로 블로그 본문·메타데이터를 생성합니다. console.anthropic.com에서 발급받은 키를 입력하세요. 서버에 암호화되어 저장됩니다.</p>
           <div class="field">
@@ -864,7 +881,8 @@
           </div>
         </div>
 
-        <div class="card">
+        <!-- BYOAI 봉인 동안 hidden — 재도입 시 hidden 속성만 제거 -->
+        <div class="card" hidden>
           <h3>기본 모델</h3>
           <p class="card-desc">블로그 본문 생성에 사용되는 Claude 모델. 메타데이터는 항상 Haiku 4.5로 자동 생성합니다.</p>
           <div class="radio-card-group" id="model-radio-group">
@@ -1177,7 +1195,7 @@ function activateSection(section) {
     LOADED[section] = true;
     if (section === 'clinic')   { loadClinicProfile(); loadPlanUsage(); }
     if (section === 'team')     loadStaff();
-    if (section === 'blog')     { loadBlogSettings(); loadBlogHistory(1); }
+    if (section === 'blog')     { loadBlogSettings(); loadBlogHistory(1); loadBetaBlogSummary(); }
     if (section === 'ai')       loadAiSettings();
     if (section === 'security') loadLoginHistory();
   }
@@ -1280,6 +1298,25 @@ async function saveNaverBlogId() {
 }
 document.getElementById('blog-naver-blog-id')?.addEventListener('input', () => debounceSave('naver', saveNaverBlogId));
 
+/* 블로그 설정 카드 헤더 — 베타 기간·한도 요약 (블로그 설정 탭에서 호출) */
+async function loadBetaBlogSummary() {
+  const box = document.getElementById('blog-history-beta-summary');
+  if (!box) return;
+  try {
+    const r = await fetch('/api/settings/plan/usage');
+    if (!r.ok) { box.textContent = ''; return; }
+    const d = await r.json();
+    const trialPart = (d.trial_days_left != null)
+      ? `베타 테스트 기간 ${d.trial_days_left}일 남음`
+      : '';
+    const usagePart = (d.beta_limit && d.beta_limit > 0)
+      ? `생성 블로그 수 <strong>${d.beta_used}/${d.beta_limit}</strong>`
+      : '';
+    const sep = (trialPart && usagePart) ? ' · ' : '';
+    box.innerHTML = `${trialPart}${sep}${usagePart}`;
+  } catch { box.textContent = ''; }
+}
+
 /* 플랜·사용량 */
 async function loadPlanUsage() {
   const box = document.getElementById('plan-info');
@@ -1287,17 +1324,42 @@ async function loadPlanUsage() {
     const r = await fetch('/api/settings/plan/usage');
     if (!r.ok) { box.innerHTML = `<div class="empty-state">불러올 수 없음</div>`; return; }
     const d = await r.json();
-    const pct = Math.min(100, d.usage_pct ?? 0);
-    const cls = pct >= 100 ? 'danger' : pct >= 80 ? 'warn' : '';
     const trial = d.trial_days_left != null ? ` · 트라이얼 ${d.trial_days_left}일 남음` : '';
-    box.innerHTML = `
-      <div style="font-size: 16px; font-weight: 600; color: var(--stone-900);">${esc(d.plan_name)}${trial}</div>
-      <div style="margin-top: 12px;">
-        <div class="usage-bar"><div class="usage-bar-fill ${cls}" style="width: ${pct}%"></div></div>
+
+    // 베타 누적 사용량 (config.yaml beta.blog_limit_total 기반, 항상 노출)
+    const betaPct = Math.min(100, d.beta_pct ?? 0);
+    const betaCls = betaPct >= 100 ? 'danger' : betaPct >= 80 ? 'warn' : '';
+    const betaBlock = (d.beta_limit && d.beta_limit > 0) ? `
+      <div style="margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--stone-100);">
+        <div style="font-size: 13px; font-weight: 600; color: var(--stone-700); margin-bottom: 8px;">베타 누적 사용량</div>
+        <div class="usage-bar"><div class="usage-bar-fill ${betaCls}" style="width: ${betaPct}%"></div></div>
         <div style="font-size: 12px; color: var(--stone-500); margin-top: 6px;">
-          이번 달 사용 ${d.used_this_month} / ${d.monthly_limit} 편 (${pct.toFixed(0)}%)
+          ${d.beta_used} / ${d.beta_limit} 편 (${betaPct.toFixed(0)}%)
+          · 한도·정책 안내는 <a href="/help" target="_blank" style="color: var(--emerald-700); text-decoration: underline;">도움말 › 사용량/플랜</a>
         </div>
       </div>
+    ` : '';
+
+    // 월간 사용량 (free 플랜일 때만 의미 있음)
+    let monthlyBlock = '';
+    if (d.monthly_limit && d.monthly_limit > 0) {
+      const pct = Math.min(100, d.usage_pct ?? 0);
+      const cls = pct >= 100 ? 'danger' : pct >= 80 ? 'warn' : '';
+      monthlyBlock = `
+        <div style="margin-top: 12px;">
+          <div style="font-size: 13px; font-weight: 600; color: var(--stone-700); margin-bottom: 8px;">이번 달 사용량</div>
+          <div class="usage-bar"><div class="usage-bar-fill ${cls}" style="width: ${pct}%"></div></div>
+          <div style="font-size: 12px; color: var(--stone-500); margin-top: 6px;">
+            ${d.used_this_month} / ${d.monthly_limit} 편 (${pct.toFixed(0)}%)
+          </div>
+        </div>
+      `;
+    }
+
+    box.innerHTML = `
+      <div style="font-size: 16px; font-weight: 600; color: var(--stone-900);">${esc(d.plan_name)}${trial}</div>
+      ${monthlyBlock}
+      ${betaBlock}
     `;
   } catch { box.innerHTML = `<div class="empty-state">오류</div>`; }
 }

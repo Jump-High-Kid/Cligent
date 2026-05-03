@@ -26,6 +26,59 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **처방 로직**은 의료진 최종 확인 단계 포함
 - **의료 기록 삭제**는 소프트 딜리트(soft delete) 방식
 
+## Task #8 완료 (2026-05-04) — 베타 사용자 공지 + BYOAI 잔존 정리 + 한도 정책
+
+> 상세: 메모리 `project_beta1_policy_and_invite.md`, `project_byoai_disabled.md`, `feedback_terminology_roles_and_contact.md`
+
+**1차 베타 정책 확정**:
+- 5인 / 15일 / 블로그 누적 25편 / 제한적 무료 ("완전 무료" 표현 금지)
+- trial 활성이라도 베타 한도 25편 강제 적용 (`plan_guard.check_blog_limit` 분기: `effective["plan_id"] != "trial"` 조건)
+- 이미지: 편당 재생성 1회 + 부분 수정 2회 (trial=Standard와 동일 적용)
+- contact: `cligent.ai@gmail.com` 단일 채널 (베타 신청 + Sentry + 사용자 문의)
+
+**한도 변경 = config.yaml beta: 섹션 수정 + 서버 재시작** (코드 수정 0):
+```yaml
+beta:
+  blog_limit_total: 25       # 누적 블로그 한도
+  trial_days: 15             # trial 기간(일)
+  image_regen_per_blog: 1    # trial 이미지 재생성 한도 (편당)
+  image_edit_per_blog: 2     # trial 이미지 수정 한도 (편당)
+```
+
+**약관 v1 (시행일 2026-05-04, TERMS_VERSION = `v1.0-2026-05-04`)**:
+- 제5조 회사 제공 AI 명시, BYOAI 정식 출시 후 도입
+- 제6조 BYOAI 책임 분담 적용 시점 = BYOAI 도입 시점부터
+- 제7조 3소절 강화: 7.1 개인정보·환자정보 / 7.2 어뷰징·과다 사용 / 7.3 콘텐츠·의료 윤리
+- 제8조 1차 베타 무료 + 2차 베타/정식 출시 유료화 30일 전 공지 + 탈퇴권
+- `templates/join.html` 동의 체크박스 분리: `tos_consent` + `privacy_consent` 모두 필수 (auth.py 하위 호환 분기 포함)
+
+**용어 구분 (UI 일관성 필수)**:
+- 클리닉 대표원장 / 원장님 / chief_director — 각 한의원 최고 권한자 (마케팅 카피·UI에서 호칭 OK)
+- Cligent 운영팀 / 제작자 — 서비스 운영자 (단독 "운영팀"은 모호 → 항상 "Cligent 운영팀")
+
+**BYOAI 잔존 정리**:
+- `templates/landing.html` 3곳 (비교표·hero-meta·FAQ)
+- `templates/onboard.html` "다음 단계 (API 키 설정)" → "대시보드로 이동"
+- `templates/settings.html` AI 설정 섹션: Anthropic 키 카드 + 기본 모델 카드 `hidden`, emerald 안내 배너 추가 (재도입 시 hidden 속성만 제거)
+- `templates/help.html` BYOAI 관련 4 QA 갱신, "AI 도우미" 언급 3곳 → "오류/불편 접수 패널" + cligent.ai@gmail.com
+- `templates/help.html` 새 카테고리 "사용량/플랜" + Q&A 3개 (베타 한도/한도 도달/베타 비용)
+
+**설정 페이지 사용량 표시**:
+- `templates/settings.html` "현재 플랜" 카드 — 베타 누적 사용량 progress bar
+- `templates/settings.html` "최근 생성 이력" 카드 헤더 우측 — "베타 테스트 기간 N일 남음 · 생성 블로그 수 N/25"
+- `src/routers/billing.py /api/settings/plan/usage` 응답에 `beta_used / beta_limit / beta_pct` 추가
+
+**한도 초과 메시지**:
+- 블로그: "베타 누적 블로그 생성 한도(25편)에 도달했습니다. Cligent 운영팀(cligent.ai@gmail.com)으로 문의해 주세요." (운영팀 문의 유지)
+- 이미지 재생성: "이 블로그의 이미지 재생성 한도(1회)에 도달했어요." (운영팀 문의 제거 — 사용자 결정)
+- 이미지 수정: "이 블로그의 이미지 수정 한도(2회)에 도달했어요."
+
+**공지 본문 작성 완료** (어드민 패널 `/admin/announcements/new`에서 사용자가 직접 게시):
+- 제목 "Cligent 1차 베타에 오신 것을 환영합니다", 카테고리 업데이트, 상단 고정
+- 사용자가 "완전 무료" 표현은 직접 수정 후 게시
+
+**회귀 테스트**: 418 pass / 4 fail (baseline 정확 일치, 신규 회귀 0)
+
 ## 진행 중 (2026-05-04)
 
 > 상세는 CHANGELOG 항목 참조.

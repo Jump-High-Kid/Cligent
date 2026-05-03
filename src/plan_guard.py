@@ -21,8 +21,10 @@ trial abuse 방어:
 import logging
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Dict, Optional, Tuple
 
+import yaml
 from fastapi import HTTPException, status
 
 logger = logging.getLogger(__name__)
@@ -31,8 +33,25 @@ logger = logging.getLogger(__name__)
 _plan_cache: Dict[int, Tuple[dict, float]] = {}
 _CACHE_TTL = 60      # 초
 _MAX_CACHE = 500     # 최대 클리닉 수
-_FREE_BLOG_LIMIT = 10      # 베타 기간 총 생성 한도
-_PROMPT_COPY_LIMIT = 30   # 베타 기간 프롬프트 복사 총 한도
+
+# 베타 한도는 config.yaml beta: 섹션에서 로드 (코드 수정 없이 변경 가능)
+_CONFIG_PATH = Path(__file__).resolve().parent.parent / "config.yaml"
+
+
+def _load_beta_config() -> dict:
+    try:
+        with open(_CONFIG_PATH, "r", encoding="utf-8") as f:
+            cfg = yaml.safe_load(f) or {}
+        return cfg.get("beta", {}) or {}
+    except Exception as exc:
+        logger.warning("plan_guard: config.yaml 로드 실패, 기본값 사용 (%s)", exc)
+        return {}
+
+
+_BETA_CFG = _load_beta_config()
+_FREE_BLOG_LIMIT = int(_BETA_CFG.get("blog_limit_total", 25))      # 베타 기간 총 생성 한도
+_PROMPT_COPY_LIMIT = int(_BETA_CFG.get("prompt_copy_limit", 999))  # 베타 기간 프롬프트 복사 한도
+_TRIAL_DAYS = int(_BETA_CFG.get("trial_days", 90))                 # signup 시 trial 기간(일)
 
 
 def _now_iso() -> str:
@@ -257,10 +276,12 @@ def check_blog_limit(clinic_id: int) -> None:
         plan_data.get("trial_expires_at"),
     )
 
-    if effective["has_unlimited"]:
-        return  # 유료 또는 체험 플랜 — 한도 없음
+    # 유료 플랜(standard/pro)만 진짜 무제한. trial은 베타 한도 적용 (1차 베타 정책).
+    # 정식 출시 후 BYOAI 도입 시 trial 분기를 다시 has_unlimited에 포함시키면 됨.
+    if effective["has_unlimited"] and effective["plan_id"] != "trial":
+        return  # 유료 플랜 — 한도 없음
 
-    # 베타 무료 플랜 → 총 한도 체크
+    # trial 또는 free → 베타 누적 한도 체크
     count = _count_total_blogs(clinic_id)
     if count < 0:
         return  # 사용량 조회 실패 → fail open
@@ -271,8 +292,8 @@ def check_blog_limit(clinic_id: int) -> None:
             detail={
                 "error": "plan_limit_exceeded",
                 "message": (
-                    f"베타 기간 블로그 생성 한도({_FREE_BLOG_LIMIT}편)에 도달했습니다. "
-                    "정식 출시 후 플랜을 업그레이드하면 제한 없이 생성할 수 있습니다."
+                    f"베타 누적 블로그 생성 한도({_FREE_BLOG_LIMIT}편)에 도달했습니다. "
+                    "Cligent 운영팀(cligent.ai@gmail.com)으로 문의해 주세요."
                 ),
                 "current": count,
                 "limit": _FREE_BLOG_LIMIT,

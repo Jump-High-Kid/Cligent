@@ -372,12 +372,14 @@ def create_clinic(name: str, max_slots: int = 5) -> int:
     """
     신규 한의원 생성 후 clinic_id 반환.
 
-    - trial_expires_at = NOW() + 14일 을 1회만 설정 (trial abuse 방어)
+    - trial_expires_at = NOW() + config.yaml beta.trial_days 만큼 1회만 설정 (trial abuse 방어)
     - 이미 trial_expires_at이 있는 행에는 절대 덮어쓰지 않음
     """
-    # 체험 기간 만료 시각: 현재 UTC + 14일
+    # 체험 기간 만료 시각: 현재 UTC + config beta.trial_days (기본 90일)
+    # lazy import로 순환 참조 회피
+    from plan_guard import _TRIAL_DAYS
     trial_expires_at = (
-        datetime.now(timezone.utc) + timedelta(days=14)
+        datetime.now(timezone.utc) + timedelta(days=_TRIAL_DAYS)
     ).strftime("%Y-%m-%dT%H:%M:%S+00:00")
 
     with get_db() as conn:

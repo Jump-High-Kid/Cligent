@@ -2,7 +2,7 @@
 """
 scripts/create_clinic.py — 신규 한의원 생성 CLI
 
-trial_expires_at(14일)을 자동으로 설정한다.
+trial_expires_at(config.yaml beta.trial_days, 기본 90일)을 자동으로 설정한다.
 프로덕션 배포 후 최초 한의원 등록 또는 베타 참가자 초대 시 사용.
 
 사용법:
@@ -42,12 +42,13 @@ def main() -> None:
     clinic_id = create_clinic(name, args.slots)
 
     from datetime import datetime, timedelta, timezone
+    from plan_guard import _TRIAL_DAYS
     trial_expires_at = (
-        datetime.now(timezone.utc) + timedelta(days=14)
+        datetime.now(timezone.utc) + timedelta(days=_TRIAL_DAYS)
     ).strftime("%Y-%m-%dT%H:%M:%S+00:00")
 
     print(f"clinic_id={clinic_id}  name={name!r}  max_slots={args.slots}")
-    print(f"trial_expires_at={trial_expires_at}  (DB에 저장된 값)")
+    print(f"trial_expires_at={trial_expires_at}  (DB에 저장된 값, trial_days={_TRIAL_DAYS})")
     print()
     print("다음 단계: 대표원장 계정 생성 후 초대 링크를 카톡으로 전달")
 

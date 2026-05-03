@@ -41,9 +41,11 @@ def client():
 
 
 def _apply(client, payload: dict, ip: str = "1.2.3.4"):
+    # 기본 동의 필드 자동 주입 (개별 테스트에서 override 가능)
+    body = {"tos_consent": True, "privacy_consent": True, **payload}
     return client.post(
         "/api/beta/apply",
-        json=payload,
+        json=body,
         headers={"X-Forwarded-For": ip},
     )
 

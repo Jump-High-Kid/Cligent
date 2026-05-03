@@ -103,6 +103,13 @@ async def get_plan_usage(user: dict = Depends(get_current_user)):
     else:
         usage_pct = 0
 
+    # 베타 누적 한도 (config.yaml beta.blog_limit_total 기반)
+    # trial 만료 후 또는 free 플랜일 때 적용. trial 활성 상태에서도 참고용으로 노출.
+    from plan_guard import _count_total_blogs
+    beta_used = max(0, _count_total_blogs(clinic_id))
+    beta_limit = _FREE_BLOG_LIMIT
+    beta_pct = min(100, int(beta_used / beta_limit * 100)) if beta_limit > 0 else 0
+
     return JSONResponse({
         "plan_id": effective_plan,
         "plan_name": plan_name,
@@ -110,6 +117,9 @@ async def get_plan_usage(user: dict = Depends(get_current_user)):
         "used_this_month": used,
         "monthly_limit": monthly_limit,
         "usage_pct": usage_pct,
+        "beta_used": beta_used,
+        "beta_limit": beta_limit,
+        "beta_pct": beta_pct,
     })
 
 
