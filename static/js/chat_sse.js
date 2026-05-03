@@ -46,7 +46,7 @@
       });
 
       if (res.status === 401) {
-        window.location.href = '/login';
+        (window.top || window).location.href = '/login';
         return handle;
       }
       if (!res.ok) {

@@ -94,7 +94,7 @@
           },
         }),
       });
-      if (res.status === 401) { window.location.href = '/login'; return; }
+      if (res.status === 401) { (window.top || window).location.href = '/login'; return; }
       if (res.ok) {
         showSystemMessage('피드백 감사합니다. 더 나은 Cligent로 개선하겠습니다.');
       } else {

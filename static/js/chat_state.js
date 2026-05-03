@@ -1045,6 +1045,11 @@
         } else {
           _releaseWakeLock();
         }
+        // 진행 stage(image) 외(feedback/done 등)로 전환 시 cancel 버튼 자동 숨김.
+        // 갤러리는 next_message로 오고 이후 stage_change('feedback')이 와서 잔존하던 버그.
+        if (frame.stage !== 'image') {
+          hideImageCancelBtn();
+        }
         // 2026-05-02: image stage 진입 즉시 취소 버튼 노출 (image_session_id 없어도 chat session 기반 pending 취소 가능)
         if (frame.stage === 'image') {
           showImageCancelBtn();
@@ -1106,7 +1111,7 @@
     let stats = { total: 0, recent_keywords: [] };
     try {
       const res = await fetch('/api/blog/stats', { credentials: 'same-origin' });
-      if (res.status === 401) { window.location.href = '/login'; return; }
+      if (res.status === 401) { (window.top || window).location.href = '/login'; return; }
       if (res.ok) stats = await res.json();
     } catch (_) { /* 네트워크 오류는 도메인 기본값으로 fallback */ }
 
@@ -1241,7 +1246,7 @@
     if (!state.session_id) return null;
     try {
       const res = await fetch(SESSION_GET_URL(state.session_id), { credentials: 'same-origin' });
-      if (res.status === 401) { window.location.href = '/login'; return null; }
+      if (res.status === 401) { (window.top || window).location.href = '/login'; return null; }
       if (!res.ok) return null;
       return await res.json();
     } catch (_) { return null; }
@@ -1408,7 +1413,7 @@
       if (res.status === 401) {
         // 인증 실패 — sessionStorage 정리 후 로그인 (다음 사용자가 이전 진행 안 보도록)
         try { sessionStorage.removeItem(SESSION_KEY); } catch (_) {}
-        window.location.href = '/login';
+        (window.top || window).location.href = '/login';
         return false;
       }
       if (!res.ok) {
