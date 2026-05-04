@@ -42,6 +42,7 @@ def _isolated_db(monkeypatch, tmp_path):
             user_id         INTEGER,
             stage           TEXT NOT NULL DEFAULT 'topic',
             state_json      TEXT NOT NULL,
+            turn_count      INTEGER NOT NULL DEFAULT 0,
             created_at      TEXT NOT NULL DEFAULT (datetime('now', 'utc')),
             last_active_at  TEXT NOT NULL DEFAULT (datetime('now', 'utc'))
         )
@@ -302,3 +303,70 @@ class TestCleanupStale:
         # DB에서 s_old만 사라짐
         assert blog_chat_state._load_from_db(s_old.session_id) is None
         assert blog_chat_state._load_from_db(s_new.session_id) is not None
+
+
+# ── turn_count (베타 KPI A6, Commit 7a) ─────────────────────
+
+
+class TestTurnCount:
+    def test_new_session_starts_at_zero(self):
+        from blog_chat_state import create_session
+
+        s = create_session(clinic_id=1, user_id=10)
+        assert s.turn_count == 0
+
+    def test_user_message_increments(self):
+        from blog_chat_state import append_message, create_session
+
+        s = create_session(clinic_id=1, user_id=10)
+        append_message(s, role="user", text="허리 통증")
+        assert s.turn_count == 1
+        append_message(s, role="user", text="2000자")
+        assert s.turn_count == 2
+
+    def test_assistant_message_does_not_increment(self):
+        from blog_chat_state import append_message, create_session
+
+        s = create_session(clinic_id=1, user_id=10)
+        append_message(s, role="assistant", text="어떤 주제로 작성할까요?")
+        append_message(s, role="system", text="세션 복원됨")
+        assert s.turn_count == 0
+
+    def test_persistence_round_trip(self):
+        import blog_chat_state
+        from blog_chat_state import (
+            append_message,
+            create_session,
+            save_session,
+        )
+
+        s = create_session(clinic_id=1, user_id=10)
+        append_message(s, role="user", text="첫 입력")
+        append_message(s, role="assistant", text="질문")
+        append_message(s, role="user", text="두 번째")
+        save_session(s)
+
+        # cache 비우고 DB 에서 복원
+        blog_chat_state._cache_clear()
+        loaded = blog_chat_state._load_from_db(s.session_id)
+        assert loaded is not None
+        assert loaded.turn_count == 2
+
+    def test_legacy_row_defaults_to_zero(self, tmp_path):
+        """레거시 row(turn_count 컬럼 미존재 시 ALTER DEFAULT 0)도 0 으로 복원."""
+        import blog_chat_state
+        from blog_chat_state import create_session
+        from db_manager import get_db
+
+        s = create_session(clinic_id=1, user_id=10)
+        # turn_count 를 NULL 로 강제 (레거시 row 시뮬레이션 — DEFAULT 가 NOT NULL 이지만
+        # 마이그레이션 직후 일부 row 가 0 이 아닌 상태로 들어왔을 가능성 방어).
+        with get_db() as conn:
+            conn.execute(
+                "UPDATE blog_chat_sessions SET turn_count = 0 WHERE session_id = ?",
+                (s.session_id,),
+            )
+        blog_chat_state._cache_clear()
+        loaded = blog_chat_state._load_from_db(s.session_id)
+        assert loaded is not None
+        assert loaded.turn_count == 0

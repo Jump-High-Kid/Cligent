@@ -141,6 +141,9 @@ class BlogChatState:
     quota: dict = field(default_factory=dict)
     # {regen_used, regen_limit, edit_used, edit_limit}
 
+    # 베타 KPI A6 — 사용자 메시지 누적 (assistant 제외)
+    turn_count: int = 0
+
     created_at: str = ""
     last_active_at: str = ""
 
@@ -152,7 +155,12 @@ class BlogChatState:
         in-memory state를 유지하는 동일 세션 안에서는 갤러리가 그대로 보임.
         """
         d: dict[str, Any] = asdict(self)
-        for k in ("session_id", "clinic_id", "user_id", "stage", "created_at", "last_active_at"):
+        # turn_count 는 별도 컬럼이라 state_json 에서 제외 (이중 저장 방지).
+        for k in (
+            "session_id", "clinic_id", "user_id", "stage",
+            "turn_count",
+            "created_at", "last_active_at",
+        ):
             d.pop(k, None)
         for m in d.get("messages", []) or []:
             meta = m.get("meta") or {}
@@ -167,6 +175,9 @@ class BlogChatState:
         """DB row → BlogChatState 복원."""
         data = json.loads(row["state_json"])
         msgs = [ChatMessage(**m) for m in data.get("messages", [])]
+        # turn_count 는 컬럼에서 직접 (레거시 row 는 ALTER DEFAULT 0).
+        # _load_from_db 가 dict(row) 로 변환해 전달. 호출자가 dict 가 아닐 가능성 대비 fallback.
+        tc_raw = row.get("turn_count", 0) if hasattr(row, "get") else 0
         return cls(
             session_id=row["session_id"],
             clinic_id=row["clinic_id"],
@@ -182,6 +193,7 @@ class BlogChatState:
             image_session_id=data.get("image_session_id"),
             auto_image=bool(data.get("auto_image", False)),
             quota=data.get("quota", {}),
+            turn_count=int(tc_raw or 0),
             created_at=row["created_at"],
             last_active_at=row["last_active_at"],
         )
@@ -237,11 +249,13 @@ def _save_to_db(state: BlogChatState) -> None:
         conn.execute(
             """
             INSERT INTO blog_chat_sessions
-              (session_id, clinic_id, user_id, stage, state_json, created_at, last_active_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+              (session_id, clinic_id, user_id, stage, state_json, turn_count,
+               created_at, last_active_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(session_id) DO UPDATE SET
               stage = excluded.stage,
               state_json = excluded.state_json,
+              turn_count = excluded.turn_count,
               last_active_at = excluded.last_active_at
             """,
             (
@@ -250,6 +264,7 @@ def _save_to_db(state: BlogChatState) -> None:
                 state.user_id,
                 state.stage.value,
                 state.to_state_json(),
+                int(state.turn_count or 0),
                 state.created_at,
                 state.last_active_at,
             ),
@@ -331,7 +346,12 @@ def append_message(
     options: Optional[list[dict]] = None,
     meta: Optional[dict] = None,
 ) -> ChatMessage:
-    """메시지 1건 추가. 저장은 호출자가 save_session()으로 별도."""
+    """메시지 1건 추가. 저장은 호출자가 save_session()으로 별도.
+
+    KPI A6 — role=='user' 일 때만 turn_count +1 (assistant·system 제외).
+    SSE frame 분리·재시도로 assistant 가 동일 응답 안에서 N건 append 될 수 있어
+    챗 길이 KPI 는 사용자 입력 횟수만 카운트한다.
+    """
     msg = ChatMessage(
         role=role,
         text=text,
@@ -340,6 +360,8 @@ def append_message(
         meta=meta or {},
     )
     state.messages.append(msg)
+    if role == "user":
+        state.turn_count = int(state.turn_count or 0) + 1
     return msg
 
 

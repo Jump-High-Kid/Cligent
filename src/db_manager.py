@@ -229,6 +229,7 @@ def init_db() -> None:
                 user_id         INTEGER REFERENCES users(id),
                 stage           TEXT    NOT NULL DEFAULT 'topic',
                 state_json      TEXT    NOT NULL,                    -- 누적 입력·옵션·본문·이미지 메타
+                turn_count      INTEGER NOT NULL DEFAULT 0,          -- 사용자 메시지 누적 (KPI A6)
                 created_at      TEXT    NOT NULL DEFAULT (datetime('now', 'utc')),
                 last_active_at  TEXT    NOT NULL DEFAULT (datetime('now', 'utc'))
             );
@@ -319,6 +320,13 @@ def init_db() -> None:
         existing_is = {row[1] for row in conn.execute("PRAGMA table_info(image_sessions)")}
         if "modules_json" not in existing_is:
             conn.execute("ALTER TABLE image_sessions ADD COLUMN modules_json TEXT")
+        # blog_chat_sessions 컬럼 마이그레이션 (베타 KPI Commit 7a, 2026-05-04)
+        # - turn_count: 사용자 메시지 누적. 레거시 row 는 0 으로 시작 (KPI 집계 시 무시 가능).
+        existing_bcs = {row[1] for row in conn.execute("PRAGMA table_info(blog_chat_sessions)")}
+        if "turn_count" not in existing_bcs:
+            conn.execute(
+                "ALTER TABLE blog_chat_sessions ADD COLUMN turn_count INTEGER NOT NULL DEFAULT 0"
+            )
         # feedback 컬럼 마이그레이션
         # - viewed_at: admin 뷰어 미확인/확인 토글
         # - context_json: blog_chat 발생 단계·session_id·error 등 (어드민 펼침용)
