@@ -6,8 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 세션 시작 시 자동 확인
 
-세션 시작 시 `data/feedback_report.md` 파일이 존재하면 내용을 읽어 요약 보고한다.
-파일이 없으면 무시한다. 확인 후 파일을 삭제하지 말 것 — 개발자가 수동으로 `data/feedback_ack.txt`를 갱신한다.
+세션 시작 시 다음 파일들을 차례로 확인한다 (존재할 때만, 없으면 무시):
+
+1. `data/next_session.md` — 직전 세션이 박은 다음 작업 진입점. 내용을 읽고 사용자에게 "마지막 세션 요약 + 다음에 할 일 1순위" 1~2줄로 보고한 뒤 사용자 지시 대기.
+2. `data/feedback_report.md` — 자동화 피드백 리포트. 내용 요약 보고. 확인 후 파일을 삭제하지 말 것 — 개발자가 수동으로 `data/feedback_ack.txt`를 갱신한다.
 
 ## 프로젝트 이름
 **Cligent** (GitHub: https://github.com/Jump-High-Kid/Cligent)

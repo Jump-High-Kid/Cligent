@@ -4,3 +4,6 @@
 
 # 해부학 데모 변형 결과 (일회성, 운영 자료 아님)
 data/anatomy/*/_demo/
+
+# 다음 세션 진입점 (휘발성, 매 /저장 시 갱신)
+data/next_session.md
