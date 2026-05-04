@@ -670,24 +670,65 @@ async def api_image_generate_initial(
     check_image_session_limit(user["clinic_id"])
 
     from plan_guard import get_effective_plan
-    from image_generator import generate_initial_set, get_quota_status, AIClientError as IGError  # noqa: F401
+    from image_generator import (
+        generate_initial_set, get_quota_status, get_plan_dimensions,
+        AIClientError as IGError,  # noqa: F401
+    )
     from ai_client import AIClientError
     from image_session_manager import create_session
+    from cost_logger import record_cost
+    from pricing import calculate_openai_image_cost
 
     plan = get_effective_plan(user["clinic_id"])
     plan_id = plan.get("plan_id", "free")
 
-    try:
-        result = generate_initial_set(prompt=prompt, plan_id=plan_id)
-    except AIClientError as exc:
-        raise _ai_error_to_http(exc)
-
+    # session_id 를 호출 전에 발급 — cost_logs.image_session_id 매핑용 (Commit 5b).
     session_id = create_session(
         clinic_id=user["clinic_id"],
         user_id=user["id"],
         blog_keyword=keyword,
         plan_id_at_start=plan_id,
     )
+
+    try:
+        result = generate_initial_set(prompt=prompt, plan_id=plan_id)
+    except AIClientError as exc:
+        # input_blocked (moderation 400) 만 비용 기록 — 그 외는 API 미호출 가정.
+        if exc.kind == "bad_request":
+            try:
+                size_b, quality_b = get_plan_dimensions(plan_id)
+                _cost = calculate_openai_image_cost(
+                    "gpt-image-2", size_b, quality_b, count=0, outcome="input_blocked",
+                )
+                record_cost(
+                    kind="openai_image_init", clinic_id=user["clinic_id"],
+                    cost_usd=_cost, model="gpt-image-2",
+                    image_session_id=session_id,
+                    metadata={"outcome": "input_blocked", "keyword": keyword},
+                )
+            except Exception:
+                pass
+        raise _ai_error_to_http(exc)
+
+    # 정상: per-image × len(images). 단일 호출 = 1 row.
+    try:
+        _cost = calculate_openai_image_cost(
+            "gpt-image-2", result.size, result.quality,
+            count=len(result.images), outcome="success",
+        )
+        record_cost(
+            kind="openai_image_init", clinic_id=user["clinic_id"],
+            cost_usd=_cost, model="gpt-image-2",
+            image_session_id=session_id,
+            metadata={
+                "outcome": "success",
+                "image_count": len(result.images),
+                "plan_id": result.plan_id,
+                "keyword": keyword,
+            },
+        )
+    except Exception:
+        pass  # fail-soft
 
     # 한의원 로고 합성 (콘텐츠 개인화 — 베타 게이트 ④)
     from logo_compositor import apply_logo_to_b64_images
@@ -743,6 +784,10 @@ async def api_image_regenerate(
     regen_used = sess["regen_count"]
     edit_used = sess["edit_count"]
 
+    from cost_logger import record_cost
+    from pricing import calculate_openai_image_cost
+    from image_generator import get_plan_dimensions
+
     try:
         result = regenerate_set(prompt=prompt, plan_id=plan_id, regen_used=regen_used, n=n)
     except ImageQuotaExceeded as exc:
@@ -760,7 +805,40 @@ async def api_image_regenerate(
             },
         )
     except AIClientError as exc:
+        if exc.kind == "bad_request":
+            try:
+                size_b, quality_b = get_plan_dimensions(plan_id)
+                _cost = calculate_openai_image_cost(
+                    "gpt-image-2", size_b, quality_b, count=0, outcome="input_blocked",
+                )
+                record_cost(
+                    kind="openai_image_regen", clinic_id=user["clinic_id"],
+                    cost_usd=_cost, model="gpt-image-2",
+                    image_session_id=session_id,
+                    metadata={"outcome": "input_blocked", "n": n},
+                )
+            except Exception:
+                pass
         raise _ai_error_to_http(exc)
+
+    # 정상: 단일 호출 = 1 row, count=len(images).
+    try:
+        _cost = calculate_openai_image_cost(
+            "gpt-image-2", result.size, result.quality,
+            count=len(result.images), outcome="success",
+        )
+        record_cost(
+            kind="openai_image_regen", clinic_id=user["clinic_id"],
+            cost_usd=_cost, model="gpt-image-2",
+            image_session_id=session_id,
+            metadata={
+                "outcome": "success",
+                "image_count": len(result.images),
+                "plan_id": result.plan_id,
+            },
+        )
+    except Exception:
+        pass
 
     new_regen_count = increment_regen(session_id, user["clinic_id"])
 
@@ -809,8 +887,10 @@ async def api_image_edit(
     mask_bytes = await mask_file.read() if mask_file is not None and hasattr(mask_file, "read") else None
 
     from image_session_manager import get_session, increment_edit
-    from image_generator import edit_image, get_quota_status, ImageQuotaExceeded
+    from image_generator import edit_image, get_quota_status, ImageQuotaExceeded, get_plan_dimensions
     from ai_client import AIClientError
+    from cost_logger import record_cost
+    from pricing import calculate_openai_image_cost
 
     sess = get_session(session_id)
     if sess is None:
@@ -821,6 +901,9 @@ async def api_image_edit(
     plan_id = sess["plan_id_at_start"] or "free"
     regen_used = sess["regen_count"]
     edit_used = sess["edit_count"]
+
+    # edit 모델 = gpt-image-1.5 (ai_client 내부 고정).
+    EDIT_MODEL = "gpt-image-1.5"
 
     try:
         result = edit_image(
@@ -845,7 +928,42 @@ async def api_image_edit(
             },
         )
     except AIClientError as exc:
+        if exc.kind == "bad_request":
+            try:
+                size_b, quality_b = get_plan_dimensions(plan_id)
+                _cost = calculate_openai_image_cost(
+                    EDIT_MODEL, size_b, quality_b, count=0, outcome="input_blocked",
+                )
+                record_cost(
+                    kind="openai_image_edit", clinic_id=user["clinic_id"],
+                    cost_usd=_cost, model=EDIT_MODEL,
+                    image_session_id=session_id,
+                    metadata={"outcome": "input_blocked", "tokens_unmeasured": True},
+                )
+            except Exception:
+                pass
         raise _ai_error_to_http(exc)
+
+    # edits image_input 토큰은 SDK 응답에서 분리 보고 안 함 → 0 으로 기록.
+    # 정확한 토큰 회계는 Phase 2 (메타에 표식).
+    try:
+        _cost = calculate_openai_image_cost(
+            EDIT_MODEL, result.size, result.quality,
+            count=len(result.images), outcome="success",
+        )
+        record_cost(
+            kind="openai_image_edit", clinic_id=user["clinic_id"],
+            cost_usd=_cost, model=EDIT_MODEL,
+            image_session_id=session_id,
+            metadata={
+                "outcome": "success",
+                "image_count": len(result.images),
+                "plan_id": result.plan_id,
+                "tokens_unmeasured": True,
+            },
+        )
+    except Exception:
+        pass
 
     new_edit_count = increment_edit(session_id, user["clinic_id"])
 

@@ -1154,6 +1154,8 @@ def _stream_generator_for_image(state: BlogChatState, user_input: str):
     try:
         from image_generator import get_plan_dimensions
         from ai_client import call_openai_image_generate
+        from cost_logger import record_cost
+        from pricing import calculate_openai_image_cost
         size, quality = get_plan_dimensions(plan_id)
         images: list[str] = []
         for idx, p in enumerate(prompt_list):
@@ -1185,6 +1187,25 @@ def _stream_generator_for_image(state: BlogChatState, user_input: str):
                 yield _sse_frame({"type": "done"})
                 return
             images.append(responses[0].content)
+            # Commit 5b — 호출 1회 = 1 row (5번 호출 → 5 rows, blog_session_id 로 묶임).
+            try:
+                _cost = calculate_openai_image_cost(
+                    "gpt-image-2", size, quality, count=1, outcome="success",
+                )
+                record_cost(
+                    kind="openai_image_init", clinic_id=state.clinic_id,
+                    cost_usd=_cost, model="gpt-image-2",
+                    image_session_id=image_session_id,
+                    blog_session_id=state.session_id,
+                    metadata={
+                        "outcome": "success",
+                        "scene_index": idx,
+                        "title": title_list[idx] if idx < len(title_list) else "",
+                        "plan_id": plan_id,
+                    },
+                )
+            except Exception:
+                pass
             # OpenAI 응답 후에도 한 번 더 체크 — 마지막 장 직전에 취소되었을 때
             if is_image_session_cancelled(image_session_id) and idx < len(prompt_list) - 1:
                 _clear_cancel_flag(image_session_id)

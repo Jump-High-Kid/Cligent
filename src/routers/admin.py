@@ -361,11 +361,34 @@ async def api_admin_image_test_generate(request: Request):
         ImageQuotaExceeded, get_plan_dimensions, normalize_plan_id,
     )
     from ai_client import call_openai_image_generate, AIClientError
+    from cost_logger import record_cost
+    from pricing import calculate_openai_image_cost
+    from dependencies import _admin_clinic_id
 
     started = time.time()
     images_out: list[dict] = []
     total_usage = {"input": 0, "output": 0, "image_count": 0}
     analysis_out: Optional[dict] = None
+    _admin_cid = _admin_clinic_id()
+
+    def _log_admin_image_cost(n_images: int, _outcome: str = "success") -> None:
+        """어드민 테스트 툴 비용 기록 — kind='openai_image_admin' (KPI 분리).
+        호출 1회 = 1 row. fail-soft.
+        """
+        if _admin_cid is None:
+            return
+        try:
+            sz, ql = get_plan_dimensions(plan)
+            c = calculate_openai_image_cost(
+                "gpt-image-2", sz, ql, count=n_images, outcome=_outcome,
+            )
+            record_cost(
+                kind="openai_image_admin", clinic_id=_admin_cid,
+                cost_usd=c, model="gpt-image-2",
+                metadata={"outcome": _outcome, "mode": mode, "image_count": n_images},
+            )
+        except Exception:
+            pass
 
     try:
         if mode == "raw":
@@ -382,16 +405,19 @@ async def api_admin_image_test_generate(request: Request):
                 resps = call_openai_image_generate(prompt=raw_prompt, size=size, quality=quality, n=1)
                 for r in resps:
                     images_out.append({"b64": r.content, "prompt": raw_prompt, "module": None, "region": None})
+                _log_admin_image_cost(len(resps))
             else:
                 if parallel:
                     resps = call_openai_image_generate(prompt=raw_prompt, size=size, quality=quality, n=5)
                     for r in resps:
                         images_out.append({"b64": r.content, "prompt": raw_prompt, "module": None, "region": None})
+                    _log_admin_image_cost(len(resps))
                 else:
                     for _ in range(5):
                         rs = call_openai_image_generate(prompt=raw_prompt, size=size, quality=quality, n=1)
                         if rs:
                             images_out.append({"b64": rs[0].content, "prompt": raw_prompt, "module": None, "region": None})
+                            _log_admin_image_cost(1)
             total_usage["image_count"] = len(images_out)
 
         else:  # pipeline
@@ -471,6 +497,7 @@ async def api_admin_image_test_generate(request: Request):
                 if rs:
                     m, r = _meta_for(0)
                     images_out.append({"b64": rs[0].content, "prompt": p, "module": m, "region": r})
+                    _log_admin_image_cost(1)
             else:
                 # 5 prompt 다중 호출
                 if parallel:
@@ -486,12 +513,14 @@ async def api_admin_image_test_generate(request: Request):
                             if rs:
                                 m, r = _meta_for(idx)
                                 images_out.append({"b64": rs[0].content, "prompt": prompts_list[idx], "module": m, "region": r})
+                                _log_admin_image_cost(1)
                 else:
                     for idx, p in enumerate(prompts_list):
                         rs = call_openai_image_generate(prompt=p, size=size, quality=quality, n=1)
                         if rs:
                             m, r = _meta_for(idx)
                             images_out.append({"b64": rs[0].content, "prompt": p, "module": m, "region": r})
+                            _log_admin_image_cost(1)
             total_usage["image_count"] = len(images_out)
 
     except HTTPException:
