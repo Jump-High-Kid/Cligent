@@ -83,7 +83,7 @@ beta:
 
 > 상세는 CHANGELOG 항목 참조.
 
-- **베타 KPI 인프라 — Commit 3·4·5·6 (2026-05-04)** — 7-commit 트랙 중 **6/7 완료**. baseline **624 pass / 4 fail** (532 → 624, 회귀 0). Commit 7 (어드민 KPI 페이지) 는 베타 데이터 1~2주 보고 결정.
+- **베타 KPI 인프라 — Commit 3·4·5·6·7 완료 (2026-05-04)** — 7-commit 트랙 **모두 완료 + 운영 배포**. baseline **647 pass / 4 fail** (532 → 647, 회귀 0). `/admin/kpi` 라이브 서비스 중. Commit 8 (알림) 만 베타 데이터 1~2주 보고 결정.
   - **Commit 3a (`16718a0`)** `src/pricing.py` 신규 + `calculate_anthropic_cost(model, in, out, cache_read, cache_create)` + `ANTHROPIC_PRICES` (sonnet-4-6 / haiku-4-5 per MTok).
   - **Commit 3b (`eff1140`)** `calculate_openai_image_cost(model, size, quality, count, *tokens, outcome)` + `OPENAI_IMAGE_PRICES` (gpt-image-2 / 1.5) + `OPENAI_TOKEN_PRICES`. outcome 정책 — `success` / `input_blocked` / `output_blocked`.
   - **Commit 4 (`a7bab0e`)** `src/telemetry.py` 신규 + `record_event(kind, clinic_id, session_id, stage, context)` + `POST /api/telemetry/event`. fail-soft. JSONL append.
@@ -96,7 +96,11 @@ beta:
   - **module = INTEGER 1~11** (`IMAGE_MODULES: dict[int, dict]`). modules_json 도 int list. KPI ORDER BY module 정수 정렬 정확.
   - **부수 fix (515d5bb)** 이미지 수정 패널 간격 축소 — textarea resize:none + min/max-height 44/88 + actions margin 4→2 + panel padding 6→4.
   - **부수 fix (e462954)** iframe 안 페이지 F5 시 사이드바 자동 복원 — `static/js/ensure_app_shell.js` 공통 JS (top frame 진입 감지 → sessionStorage `cligent_target_path` 박고 `/app` redirect, iframe 내부·`/app`·`/` 자기 자신 noop) + `app.html init()` sessionStorage 처리 (target_path 있으면 iframe.src 로 복원 + history.replaceState) + 20개 페이지 head 첫 `<script>` 일괄 박음 (admin 10 + announcement 3 + blog/chat/dashboard×2/help/settings×2). 향후 새 페이지도 ensure_app_shell.js 1줄 박으면 동일 동작. 메모리: `project_app_shell_wrap_pattern.md`.
-  - 메모리: `project_beta_kpi_in_progress.md`(6a~6d 완료 박힘) / `project_regenerate_persist_phase2.md`(재생성 서버 저장 Phase 2 백로그) / `project_app_shell_wrap_pattern.md`(F5 사이드바 복원 정책).
+  - **Commit 7a (`a6e3cd5`)** A6 turn_count — `blog_chat_sessions.turn_count INTEGER DEFAULT 0` ALTER (idempotent, init_db 패턴) + 라이브 cligent.db 직접 ALTER + 백업(`cligent.db.bak.20260504-pre-7a`). `BlogChatState.turn_count` 필드 (state_json 제외 — 별도 컬럼). `append_message(role='user')` 일 때만 +1 (assistant·system 제외 — SSE frame 분리·재시도가 의미 왜곡). 단위 테스트 5건 + 3개 fixture(`test_blog_chat_state/flow/route.py`) 컬럼 추가.
+  - **Commit 7b (`3e95a3f`)** 신규 모듈 `src/admin_kpi.py` — 라우터/HTTP 의존 0, fail-soft. 4함수: `get_cost_summary(days)` / `get_module_satisfaction()` / `get_chat_turn_distribution(days)` / `get_clinic_activity(days)`. 비용 집계에서 `kind='openai_image_admin'` 제외 (어드민 테스트 분리). module=NULL 레거시 마지막 정렬. turn_count 6 bin (0/1-2/3-4/5-7/8-12/13+). 단위 테스트 14건.
+  - **Commit 7c (`b250598`)** `/admin/kpi` 페이지 + inline SVG 차트. `routers/admin.py` GET `/admin/kpi` (HTML) + GET `/api/admin/kpi` (JSON 4함수 묶음). days=14 고정. `templates/admin_kpi.html` 신규 — 요약 카드 4종 + A1 일별 line + kind별 hbar + A6 turn vbar + D1 모듈 hbar + 클리닉 표. **inline SVG 헬퍼 3개 (line/hbar/vbar) — Chart.js 등 외부 라이브러리 0**. ensure_app_shell.js 박힘. `admin_index.html` KPI 카드 1개 추가. 통합 테스트 4건. **운영 반영 완료** (`launchctl kickstart -k`, `/api/version` 0.9.0 health pass).
+  - **Commit 7 정책**: 차트 = inline SVG (design.md "외부 UI 금지" 정합 + 데이터량 작아 정당) / 사이드바 미변경 (어드민 한정) / SQL 집계 모듈 분리 (routers/admin.py 1281줄 비대) / 14일 고정.
+  - 메모리: `project_beta_kpi_in_progress.md`(7a~7c 완료 박힘, 트랙 종료) / `project_regenerate_persist_phase2.md`(재생성 서버 저장 Phase 2 백로그) / `project_app_shell_wrap_pattern.md`(F5 사이드바 복원 정책).
 
 - **어드민 이미지 생성 테스트 툴 (2026-05-04)** — `/admin/image-test` 페이지 + API 4개. 블로그 글 생성 없이 이미지 단독 호출. 모드 3종: ① 전체 글 → 파이프라인, ② 본문 구간 드래그 + anatomical_region 강제, ③ 자유 raw 프롬프트(Stage 1·2 우회). 1/5장 + 순차/병렬 + Standard/Pro 옵션. 글 자동 필터(500자↓·test/asdf 패턴·반복 글자 spam 6회+). 베타 한도 미반영. `image_prompt_generator._generate_prompts` 가 dict 리스트(`{prompt, negative_prompt, title_ko}`) 반환 — `blog_chat_flow.py:1076-1086` 의 dict→str+negative 통합 로직 동일 구현 필수. 메모리: `project_admin_image_test_tool.md`. baseline 523/4 일치.
 
