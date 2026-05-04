@@ -35,7 +35,9 @@ ROOT = Path(__file__).resolve().parent.parent
 _CACHE_PATH = ROOT / "data" / "exchange_rate_cache.json"
 _CONFIG_PATH = ROOT / "config.yaml"
 
-_KOREAEXIM_URL = "https://www.koreaexim.go.kr/site/program/financial/exchangeJSON"
+# 한국수출입은행 환율정보 API 호스트 — 2024년 이후 oapi.* 서브도메인으로 이전.
+# 기존 www.* 는 deprecate. 변경 시 본 상수만 갱신.
+_KOREAEXIM_URL = "https://oapi.koreaexim.go.kr/site/program/financial/exchangeJSON"
 _API_TIMEOUT_SEC = 5.0
 _LOOKBACK_DAYS = 7   # 영업일 외 직전 영업일까지 최대 거슬러 시도
 

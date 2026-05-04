@@ -7,3 +7,6 @@ data/anatomy/*/_demo/
 
 # 다음 세션 진입점 (휘발성, 매 /저장 시 갱신)
 data/next_session.md
+
+# 환율 캐시 (휘발성, 24h TTL — 환경별 갱신)
+data/exchange_rate_cache.json
