@@ -1,3 +1,18 @@
+pricing:
+  # 어드민 비용 KPI 패널(/admin/kpi cost-analysis 섹션) USD→KRW 환산 환율.
+  # 우선순위: 한국수출입은행 API (영업일) → 24h 디스크 캐시 → fallback 상수.
+  # exchange_rate_cache_hours: 캐시 TTL (영업일 외/공휴일 직전값 보존).
+  usd_to_krw_fallback: 1400
+  exchange_rate_cache_hours: 24
+  # 정식 출시 매출 단가 (KRW/편). 베타1 무료지만 마진율 계산은 정식 단가 기준.
+  # Standard 14.9만/월 ÷ 30건 / Pro 27.9만/월 ÷ 80건.
+  blog_price_krw_standard: 4967
+  blog_price_krw_pro: 3488
+  # 정책 알림 임계값
+  pro_margin_warn_pct: 50      # Pro 마진율 ≤ 50 → 노란 배지
+  pro_margin_critical_pct: 30  # Pro 마진율 ≤ 30 → 빨간 배지
+  edit_avg_warn: 3.0           # Pro 평균 edit 횟수 ≥ 3 → 정책 조정 검토 배지
+
 beta:
   blog_limit_total: 25
   prompt_copy_limit: 999
