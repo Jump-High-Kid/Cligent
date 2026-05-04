@@ -1006,12 +1006,22 @@
     // 현재 URL 기준으로 초기 페이지 결정 (?onboard=1은 쿼리만 제거)
     // /app 직접 접근 또는 /로 들어와서 /app으로 리다이렉트된 경우 → iframe은 /dashboard 로드
     // (iframe이 /를 로드하면 / → /app 리다이렉트로 무한 재귀 발생)
+    //
+    // ensure_app_shell.js 가 박은 cligent_target_path 가 있으면 우선 (iframe 안 페이지를
+    // F5/직접 진입했을 때 사이드바 유지하면서 그 페이지를 보여주는 흐름).
     const params = new URLSearchParams(location.search);
     const onboard = params.get('onboard') === '1';
-    const path = (location.pathname === '/app' || location.pathname === '/') ? '/dashboard' : location.pathname;
+    let path = (location.pathname === '/app' || location.pathname === '/') ? '/dashboard' : location.pathname;
+    try {
+      const target = sessionStorage.getItem('cligent_target_path');
+      if (target) {
+        path = target;
+        sessionStorage.removeItem('cligent_target_path');
+      }
+    } catch (_) {}
     document.getElementById('frame').src = path;
     updateActive(path);
-    // ?onboard=1 파라미터 제거 (히스토리에 깨끗한 URL 남기기)
+    // 히스토리에 원래 path 남기기 (뒤로가기 시 일관성)
     history.replaceState({ path }, '', path);
 
     // onboard=1이면 loadMe 완료 후 위자드가 자동으로 열림 (api_key_configured 체크 후)
