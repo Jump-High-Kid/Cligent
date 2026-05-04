@@ -83,6 +83,13 @@ beta:
 
 > 상세는 CHANGELOG 항목 참조.
 
+- **베타 KPI 인프라 — Commit 3·4 (2026-05-04 오후)** — 7-commit 트랙 중 4/7 완료. baseline **563 pass / 4 fail** (532 → 563, 회귀 0).
+  - **Commit 3a (`16718a0`)** `src/pricing.py` 신규 + `calculate_anthropic_cost(model, in, out, cache_read, cache_create)` + `ANTHROPIC_PRICES` (sonnet-4-6 / haiku-4-5 per MTok). 6 단위 테스트.
+  - **Commit 3b (`eff1140`)** `calculate_openai_image_cost(model, size, quality, count, *tokens, outcome)` + `OPENAI_IMAGE_PRICES` (gpt-image-2 / 1.5 9 size×quality 콤보) + `OPENAI_TOKEN_PRICES` (text/image input/output + cached). **outcome 청구 정책** — `success` / `input_blocked` (Stage 1, 토큰만) / `output_blocked` (Stage 2 "still billed", per-image=0 + input + image_output). edits 가격 = generation 동일 단가 + image_input 토큰 가산. 15 단위 테스트.
+  - **Commit 4 (`a7bab0e`)** `src/telemetry.py` 신규 + `record_event(kind, clinic_id, session_id, stage, context)` + `VALID_TELEMETRY_KINDS=("stuck","cancel")` + `DEFAULT_LOG_PATH=data/telemetry.jsonl`. `POST /api/telemetry/event` (dashboard router): 인증 필수, payload clinic_id 무시(보안). `chat_state.js _fireTelemetry()` fire-and-forget (`keepalive: true`) — `_doCancelImage` → cancel + image_session_id, `_markGenerationStuck` → stuck + 현재 stage. fail-soft. 10 단위/통합 테스트.
+  - **Commit 5 (재배치, 다음 세션)** = cost_logs INSERT 통합 — `src/ai_client.py` Anthropic usage → `calculate_anthropic_cost()` → cost_logs INSERT, `src/image_generator.py` OpenAI 이미지 호출 결과 → `calculate_openai_image_cost()` → cost_logs INSERT. blast radius 큼 → 단독 세션 권장.
+  - 메모리: `project_beta_kpi_in_progress.md` — 가격표·outcome 정책·Commit 5 가이드 모두 박힘.
+
 - **어드민 이미지 생성 테스트 툴 (2026-05-04)** — `/admin/image-test` 페이지 + API 4개. 블로그 글 생성 없이 이미지 단독 호출. 모드 3종: ① 전체 글 → 파이프라인, ② 본문 구간 드래그 + anatomical_region 강제, ③ 자유 raw 프롬프트(Stage 1·2 우회). 1/5장 + 순차/병렬 + Standard/Pro 옵션. 글 자동 필터(500자↓·test/asdf 패턴·반복 글자 spam 6회+). 베타 한도 미반영. `image_prompt_generator._generate_prompts` 가 dict 리스트(`{prompt, negative_prompt, title_ko}`) 반환 — `blog_chat_flow.py:1076-1086` 의 dict→str+negative 통합 로직 동일 구현 필수. 메모리: `project_admin_image_test_tool.md`. baseline 523/4 일치.
 
 - **v0.9.0 라우터 분할 완료 (6/6)** — main.py 4,021줄 → **506줄 (-3,515, -87.4%)** + 6 도메인 라우터. 베타 진행+영상/재고 모듈 추가 대비.
