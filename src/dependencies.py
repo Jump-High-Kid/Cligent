@@ -14,6 +14,7 @@ routers/* 어디서든 import 해서 사용. main.py도 backward-compat 으로 �
 """
 from __future__ import annotations
 
+import hmac
 import os
 from typing import Optional
 
@@ -59,7 +60,7 @@ def require_admin(request: Request) -> None:
     if not admin_secret:
         raise HTTPException(status_code=403, detail="관리자 기능이 비활성화되어 있습니다.")
     auth = request.headers.get("Authorization", "")
-    if not auth.startswith("Bearer ") or auth[7:] != admin_secret:
+    if not auth.startswith("Bearer ") or not hmac.compare_digest(auth[7:], admin_secret):
         raise HTTPException(status_code=401, detail="인증 실패")
 
 
@@ -71,7 +72,7 @@ def require_admin_or_session(request: Request) -> None:
     # 1) ADMIN_SECRET Bearer 우선
     admin_secret = os.getenv("ADMIN_SECRET", "")
     auth = request.headers.get("Authorization", "")
-    if admin_secret and auth.startswith("Bearer ") and auth[7:] == admin_secret:
+    if admin_secret and auth.startswith("Bearer ") and hmac.compare_digest(auth[7:], admin_secret):
         return
     # 2) 세션 쿠키 — chief_director + ADMIN_CLINIC_ID
     token = request.cookies.get(COOKIE_NAME)

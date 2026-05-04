@@ -65,6 +65,7 @@ include 해야 /announcements/new 가 dashboard /announcements/{ann_id} 보다 �
 from __future__ import annotations
 
 import asyncio
+import hmac
 import json as _json
 import logging as _logging
 import os
@@ -260,7 +261,7 @@ async def admin_create_clinic(request: Request):
         return JSONResponse({"detail": "관리자 기능이 비활성화되어 있습니다."}, status_code=403)
 
     auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer ") or auth_header[7:] != admin_secret:
+    if not auth_header.startswith("Bearer ") or not hmac.compare_digest(auth_header[7:], admin_secret):
         return JSONResponse({"detail": "인증 실패"}, status_code=401)
 
     try:
