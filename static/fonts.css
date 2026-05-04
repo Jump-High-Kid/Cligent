@@ -1,0 +1,63 @@
+/* Cligent 공통 폰트 — 셀프 호스팅 (FOUT 근본 차단)
+ *
+ * 외부 CDN(Google Fonts, jsdelivr) 의존 제거. font-display: block 으로
+ * 폰트 미도착 시 텍스트 자체를 invisible 처리 → Material Symbols ligature
+ * "dashboard"/"article" 등 단어 노출 방지.
+ *
+ * 셀프 호스팅이라 거의 즉시 로드 → 사용자 체감 invisible 시간 ≈ 0.
+ */
+
+/* Pretendard Variable — 본문 한글 글꼴 */
+@font-face {
+  font-family: 'Pretendard Variable';
+  font-weight: 45 920;
+  font-style: normal;
+  font-display: block;
+  src: url('/static/fonts/PretendardVariable.woff2') format('woff2-variations');
+}
+
+/* Manrope Variable (latin) — settings.html headline 글꼴 */
+@font-face {
+  font-family: 'Manrope';
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: block;
+  src: url('/static/fonts/manrope.woff2') format('woff2');
+}
+
+/* Material Symbols Outlined Variable — 아이콘 ligature */
+@font-face {
+  font-family: 'Material Symbols Outlined';
+  font-style: normal;
+  font-weight: 100 700;
+  font-display: block;
+  src: url('/static/fonts/material-symbols-outlined.woff2') format('woff2');
+}
+
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  font-feature-settings: 'liga';
+  -webkit-font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Tailwind CDN JIT 평가 전 unstyled 노출 차단.
+ * <html class="cligent-booting"> 초기 visibility:hidden → DOMContentLoaded 후
+ * 인라인 스크립트로 .cligent-ready 추가 시 visible.
+ * JS 차단 환경 fallback: noscript에서 ready 강제 적용.
+ */
+html.cligent-booting:not(.cligent-ready) {
+  visibility: hidden;
+}
+</content>
+</invoke>

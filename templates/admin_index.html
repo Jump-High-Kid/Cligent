@@ -1,11 +1,12 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" class="cligent-booting">
 <head>
+<link rel="preload" as="font" type="font/woff2" href="/static/fonts/PretendardVariable.woff2" crossorigin>
+<link rel="preload" as="font" type="font/woff2" href="/static/fonts/material-symbols-outlined.woff2" crossorigin>
+<link href="/static/fonts.css" rel="stylesheet"/>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Cligent — 관리자</title>
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
-<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet"/>
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <script>
@@ -15,6 +16,8 @@
   body { font-family: 'Pretendard', sans-serif; background: #fafaf9; }
   .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24; }
 </style>
+<script>document.addEventListener('DOMContentLoaded',function(){requestAnimationFrame(function(){document.documentElement.classList.add('cligent-ready');});});</script>
+<noscript><style>html.cligent-booting{visibility:visible !important;}</style></noscript>
 </head>
 <body class="text-stone-800">
 
@@ -114,6 +117,17 @@
       </div>
       <p class="text-sm text-stone-500 leading-relaxed">
         네이버 검색 API 키 등 외부 서비스 연동.
+      </p>
+    </a>
+
+    <a href="/admin/image-test"
+      class="block bg-white border border-stone-200 rounded-2xl p-5 hover:border-emerald-300 hover:shadow-sm transition-all">
+      <div class="flex items-center gap-3 mb-2">
+        <span class="material-symbols-outlined text-emerald-900">image_search</span>
+        <h2 class="font-semibold text-stone-900">이미지 생성 테스트</h2>
+      </div>
+      <p class="text-sm text-stone-500 leading-relaxed">
+        블로그 글 생성 없이 이미지만 단독 호출. 해부학 정확도·자유 프롬프트 검증.
       </p>
     </a>
   </div>

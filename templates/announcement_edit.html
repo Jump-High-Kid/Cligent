@@ -1,11 +1,12 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" class="cligent-booting">
 <head>
+<link rel="preload" as="font" type="font/woff2" href="/static/fonts/PretendardVariable.woff2" crossorigin>
+<link rel="preload" as="font" type="font/woff2" href="/static/fonts/material-symbols-outlined.woff2" crossorigin>
+<link href="/static/fonts.css" rel="stylesheet"/>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Cligent - 공지 작성</title>
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
-<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet"/>
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -24,6 +25,8 @@
   .markdown ol { padding-left: 1.5rem; list-style: decimal; margin: 0.5rem 0; }
   .markdown img { max-width: 100%; height: auto; border-radius: 0.5rem; }
 </style>
+<script>document.addEventListener('DOMContentLoaded',function(){requestAnimationFrame(function(){document.documentElement.classList.add('cligent-ready');});});</script>
+<noscript><style>html.cligent-booting{visibility:visible !important;}</style></noscript>
 </head>
 <body class="text-stone-800">
 

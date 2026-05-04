@@ -1,6 +1,9 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" class="cligent-booting">
 <head>
+<link rel="preload" as="font" type="font/woff2" href="/static/fonts/PretendardVariable.woff2" crossorigin>
+<link rel="preload" as="font" type="font/woff2" href="/static/fonts/material-symbols-outlined.woff2" crossorigin>
+<link href="/static/fonts.css" rel="stylesheet"/>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5">
 <title>Cligent — 원장님의 시간을 돌려드립니다</title>
@@ -72,8 +75,6 @@
 }
 </script>
 
-<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet"/>
-<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" rel="stylesheet"/>
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
 <link rel="apple-touch-icon" href="/static/favicon.svg"/>
 <style>
@@ -793,6 +794,8 @@
     .compare-table th, .compare-table td { padding: 14px 16px; font-size: 13.5px; }
   }
 </style>
+<script>document.addEventListener('DOMContentLoaded',function(){requestAnimationFrame(function(){document.documentElement.classList.add('cligent-ready');});});</script>
+<noscript><style>html.cligent-booting{visibility:visible !important;}</style></noscript>
 </head>
 <body>
 
@@ -1038,7 +1041,6 @@
     </div>
   </div>
 </section>
-
 
 <!-- ── Beta form ──────────────────────────────────────────── -->
 <section id="beta" class="beta-section">

@@ -1,15 +1,13 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" class="cligent-booting">
 <head>
+<link rel="preload" as="font" type="font/woff2" href="/static/fonts/PretendardVariable.woff2" crossorigin>
+<link rel="preload" as="font" type="font/woff2" href="/static/fonts/material-symbols-outlined.woff2" crossorigin>
+<link href="/static/fonts.css" rel="stylesheet"/>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>블로그 챗 — Cligent</title>
-  <link rel="preconnect" href="https://cdn.jsdelivr.net">
-  <link rel="stylesheet" as="style" crossorigin
-    href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
-  <link rel="stylesheet"
-    href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,100..700,0..1,0">
-  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
   <style>
     /* ── 디자인 토큰 (v9 명세 Pass 5) ──────────────────────────── */
     :root {
@@ -494,6 +492,8 @@
   </style>
   <!-- JSZip — 클라이언트사이드 ZIP 묶기 (5b 이미지 갤러리 전체 다운로드) -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script>document.addEventListener('DOMContentLoaded',function(){requestAnimationFrame(function(){document.documentElement.classList.add('cligent-ready');});});</script>
+<noscript><style>html.cligent-booting{visibility:visible !important;}</style></noscript>
 </head>
 <body>
 

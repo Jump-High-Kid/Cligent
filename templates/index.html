@@ -1,13 +1,14 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" class="cligent-booting">
 <head>
+<link rel="preload" as="font" type="font/woff2" href="/static/fonts/PretendardVariable.woff2" crossorigin>
+<link rel="preload" as="font" type="font/woff2" href="/static/fonts/material-symbols-outlined.woff2" crossorigin>
+<link href="/static/fonts.css" rel="stylesheet"/>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Cligent 블로그 생성기</title>
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
-  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet"/>
-  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" rel="stylesheet"/>
-  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
+
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
   <link rel="apple-touch-icon" href="/static/favicon.svg"/>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -522,6 +523,8 @@
       to   { opacity:1; transform:translateY(0); }
     }
   </style>
+<script>document.addEventListener('DOMContentLoaded',function(){requestAnimationFrame(function(){document.documentElement.classList.add('cligent-ready');});});</script>
+<noscript><style>html.cligent-booting{visibility:visible !important;}</style></noscript>
 </head>
 <body>
 
@@ -631,7 +634,6 @@
   </div>
 
   <div class="card">
-
 
     <!-- #5 API 키 미설정 배너 -->
     <div id="apiKeyBanner" class="hidden error-msg" style="background:#fff8e1;color:#7c5c00;border-left:3px solid #f59e0b;margin-bottom:16px;">
@@ -2276,7 +2278,6 @@
     initTrendingChips();
     loadClinicInfo();
     loadBetaUsage();
-
 
     // #4 생성 중 이탈 경고
     window.addEventListener('beforeunload', e => {

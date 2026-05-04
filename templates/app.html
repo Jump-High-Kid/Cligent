@@ -1,12 +1,13 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" class="cligent-booting">
 <head>
+<link rel="preload" as="font" type="font/woff2" href="/static/fonts/PretendardVariable.woff2" crossorigin>
+<link rel="preload" as="font" type="font/woff2" href="/static/fonts/material-symbols-outlined.woff2" crossorigin>
+<link href="/static/fonts.css" rel="stylesheet"/>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Cligent</title>
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
-<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet"/>
-<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" rel="stylesheet"/>
+
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
 <link rel="apple-touch-icon" href="/static/favicon.svg"/>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
@@ -88,6 +89,8 @@
     margin: 0 auto;
   }
 </style>
+<script>document.addEventListener('DOMContentLoaded',function(){requestAnimationFrame(function(){document.documentElement.classList.add('cligent-ready');});});</script>
+<noscript><style>html.cligent-booting{visibility:visible !important;}</style></noscript>
 </head>
 <body class="flex flex-row h-screen bg-stone-100 overflow-hidden">
 
@@ -215,7 +218,6 @@
   class="fixed top-4 z-[55] w-9 h-9 bg-amber-50 border border-emerald-700 rounded-full shadow-sm flex items-center justify-center text-amber-700 hover:bg-amber-100">
   <span class="material-symbols-outlined text-[20px]">priority_high</span>
 </button>
-
 
 <!-- API 키 온보딩 위자드 모달 -->
 <div id="onboarding-overlay"
@@ -637,7 +639,6 @@
 <!-- 모바일 햄버거 + drawer 삭제됨 (2026-05-02): 4탭 하단 nav만 사용. -->
 <!-- 도움말·로그아웃 등 햄버거 기능은 /settings 페이지로 이전. -->
 
-
 <!-- 모바일 하단 네비게이션 -->
 <nav id="mobile-nav" style="display:none;"
   class="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-stone-200 safe-area-inset-bottom">
@@ -669,7 +670,6 @@
     </button>
   </div>
 </nav>
-
 
 <script>
   const ROLE_LABELS = {
