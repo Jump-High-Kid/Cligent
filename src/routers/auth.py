@@ -319,7 +319,16 @@ async def api_my_login_history(user: dict = Depends(get_current_user)):
 
 @router.post("/api/auth/change-password")
 async def api_change_password(request: Request, user: dict = Depends(get_current_user)):
-    """비밀번호 변경."""
+    """
+    임시 비밀번호 강제 변경 흐름 전용.
+    K-5: 일반 세션(must_change_pw=0)은 호출 불가 — 세션 탈취로 PW 영구 교체 차단.
+    일반 사용자 자가 변경은 베타 후 별도 라우트 (/api/auth/change-password-with-current).
+    """
+    if not user.get("must_change_pw"):
+        return JSONResponse(
+            {"detail": "비밀번호 변경은 임시 비밀번호 흐름에서만 허용됩니다."},
+            status_code=403,
+        )
     body = await request.json()
     new_pw = body.get("new_password", "")
     if len(new_pw) < 8:
