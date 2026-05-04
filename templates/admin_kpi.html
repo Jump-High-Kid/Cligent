@@ -420,13 +420,23 @@
       if (res.status === 401 || res.status === 403) { return; }
       const d = await res.json();
 
-      // 환율 표시
+      // 환율 표시 — 원본 source 보존 + 캐시 age 표기
       const rate = d.rate || {};
       document.getElementById('cost-days').textContent = d.days;
       document.getElementById('cost-rate').textContent = Math.round(rate.rate||0).toLocaleString('ko-KR');
-      const srcLabel = { koreaexim: '수출입은행', cache: '캐시', fallback: '기본값' };
-      document.getElementById('cost-rate-source').textContent =
-        (srcLabel[rate.source] || rate.source || '') + (rate.date ? ` (${rate.date})` : '');
+      const srcLabel = { koreaexim: '수출입은행', fallback: '기본값' };
+      const labelParts = [srcLabel[rate.source] || rate.source || ''];
+      if (rate.date) labelParts.push(`(${rate.date}`);
+      if (rate.cached && rate.fetched_at) {
+        const ageMin = Math.max(0, Math.floor((Date.now() - new Date(rate.fetched_at).getTime()) / 60000));
+        const ageStr = ageMin < 60 ? `${ageMin}분 전` :
+                       ageMin < 1440 ? `${Math.floor(ageMin/60)}시간 전` :
+                       `${Math.floor(ageMin/1440)}일 전`;
+        labelParts[labelParts.length-1] += `, 캐시 ${ageStr})`;
+      } else if (rate.date) {
+        labelParts[labelParts.length-1] += ')';
+      }
+      document.getElementById('cost-rate-source').textContent = labelParts.join(' ');
 
       // C2 알림
       renderAlerts(d.alerts || []);

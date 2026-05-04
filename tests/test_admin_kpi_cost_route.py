@@ -82,9 +82,11 @@ def test_kpi_cost_json_returns_expected_structure(client):
     ):
         assert key in d, f"missing key: {key}"
 
-    # rate 환율 — KOREAEXIM_API_KEY 비었으니 fallback 경로
-    assert d["rate"]["source"] in ("fallback", "cache")
+    # rate 환율 — KOREAEXIM_API_KEY 비었으나 디스크 캐시 있을 수 있음.
+    # source 는 원본 보존 (koreaexim 또는 fallback). 캐시 hit 일 땐 cached=True.
+    assert d["rate"]["source"] in ("fallback", "koreaexim")
     assert d["rate"]["rate"] > 0
+    assert "cached" in d["rate"]
 
     # margin: standard / pro 두 plan
     assert "standard" in d["margin"]

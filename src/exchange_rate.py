@@ -172,26 +172,17 @@ def get_usd_to_krw(force_refresh: bool = False) -> dict:
         {
           "rate": 1400.5,           # KRW per 1 USD
           "date": "2026-05-04",     # 환율 기준일 (영업일)
-          "source": "koreaexim" | "cache" | "fallback",
-          "fetched_at": "ISO8601 UTC",
+          "source": "koreaexim" | "fallback",   # 원본 출처 (캐시 hit 시도 보존)
+          "fetched_at": "ISO8601 UTC",          # 원본 받아온 시각
+          "cached": bool,                       # True = 캐시에서 읽음 (외부 호출 안 함)
         }
     """
     # 1) 캐시 신선도 확인 (force_refresh=False 일 때만)
     if not force_refresh:
         cached = _read_cache()
-        if cached and _is_cache_fresh(cached):
-            rate = cached.get("rate")
-            try:
-                rate_f = float(rate) if rate is not None else None
-            except (TypeError, ValueError):
-                rate_f = None
-            if rate_f and rate_f > 0:
-                return {
-                    "rate": rate_f,
-                    "date": str(cached.get("date") or ""),
-                    "source": "cache",
-                    "fetched_at": str(cached.get("fetched_at") or ""),
-                }
+        cached_dict = _cached_response(cached, fresh=True)
+        if cached_dict:
+            return cached_dict
 
     # 2) API 키 있으면 영업일 거슬러 시도
     api_key = os.getenv("KOREAEXIM_API_KEY", "").strip()
@@ -202,23 +193,13 @@ def get_usd_to_krw(force_refresh: bool = False) -> dict:
             result = _fetch_from_koreaexim(api_key, target)
             if result:
                 _write_cache(result)
+                result["cached"] = False
                 return result
 
     # 3) 캐시 (만료됐어도) 마지막 성공값 우선
-    cached = _read_cache()
-    if cached:
-        rate = cached.get("rate")
-        try:
-            rate_f = float(rate) if rate is not None else None
-        except (TypeError, ValueError):
-            rate_f = None
-        if rate_f and rate_f > 0:
-            return {
-                "rate": rate_f,
-                "date": str(cached.get("date") or ""),
-                "source": "cache",
-                "fetched_at": str(cached.get("fetched_at") or ""),
-            }
+    cached_dict = _cached_response(_read_cache(), fresh=False)
+    if cached_dict:
+        return cached_dict
 
     # 4) 최종 fallback
     return {
@@ -226,6 +207,27 @@ def get_usd_to_krw(force_refresh: bool = False) -> dict:
         "date": "",
         "source": "fallback",
         "fetched_at": datetime.now(timezone.utc).isoformat(),
+        "cached": False,
+    }
+
+
+def _cached_response(cached: Optional[dict], *, fresh: bool) -> Optional[dict]:
+    """캐시 dict 를 응답 형태로 변환. 원본 source 보존 + cached=True 플래그."""
+    if not cached:
+        return None
+    rate = cached.get("rate")
+    try:
+        rate_f = float(rate) if rate is not None else None
+    except (TypeError, ValueError):
+        rate_f = None
+    if not rate_f or rate_f <= 0:
+        return None
+    return {
+        "rate": rate_f,
+        "date": str(cached.get("date") or ""),
+        "source": str(cached.get("source") or "koreaexim"),
+        "fetched_at": str(cached.get("fetched_at") or ""),
+        "cached": True,
     }
 
 
