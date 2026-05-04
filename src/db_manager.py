@@ -195,6 +195,7 @@ def init_db() -> None:
             CREATE TABLE IF NOT EXISTS server_secrets (
                 name              TEXT    PRIMARY KEY,                 -- e.g., 'openai_api_key'
                 value_enc         TEXT    NOT NULL,                    -- Fernet 암호화 (SECRET_KEY 파생)
+                salt              BLOB,                                 -- K-9 per-row salt (NULL = 레거시 cligent_v1)
                 updated_at        TEXT    NOT NULL DEFAULT (datetime('now', 'utc')),
                 updated_by_user_id INTEGER REFERENCES users(id)
             );
@@ -333,9 +334,16 @@ def init_db() -> None:
             ("logo_position",        "TEXT DEFAULT 'br'"),  # tl/tr/bl/br
             ("logo_size_pct",        "INTEGER DEFAULT 10"), # 8~12 (이미지 가로 대비 %)
             ("logo_opacity_pct",     "INTEGER DEFAULT 80"), # 70~90
+            # K-9 (2026-05-04): per-row salt. NULL = 레거시 (b'cligent_v1') fallback.
+            ("crypto_salt",          "BLOB"),
         ]:
             if col not in existing:
                 conn.execute(f"ALTER TABLE clinics ADD COLUMN {col} {definition}")
+
+        # K-9: server_secrets 에 salt 컬럼 추가. NULL = 레거시 fallback.
+        existing_ss = {row[1] for row in conn.execute("PRAGMA table_info(server_secrets)")}
+        if "salt" not in existing_ss:
+            conn.execute("ALTER TABLE server_secrets ADD COLUMN salt BLOB")
 
         # 기존 API 키 보유 한의원은 api_key_configured=1로 초기화 (마이그레이션)
         conn.execute(

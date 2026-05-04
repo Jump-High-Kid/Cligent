@@ -26,8 +26,8 @@ _cache: dict[str, tuple[str, float]] = {}
 _CACHE_TTL = 60  # 초
 
 
-def _get_fernet():
-    """SECRET_KEY 환경변수에서 Fernet 인스턴스 파생 — main.py와 동일 derivation."""
+def _build_fernet(salt: bytes):
+    """SECRET_KEY + 주어진 salt 로 Fernet 인스턴스 파생."""
     from cryptography.fernet import Fernet
     from cryptography.hazmat.primitives import hashes
     from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
@@ -38,19 +38,32 @@ def _get_fernet():
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
         length=32,
-        salt=b"cligent_v1",
+        salt=salt,
         iterations=100_000,
     )
     raw = kdf.derive(secret.encode())
     return Fernet(base64.urlsafe_b64encode(raw))
 
 
-def _encrypt(plain: str) -> str:
-    return _get_fernet().encrypt(plain.encode()).decode()
+# K-9: 마이그레이션 호환용 레거시 salt. 신규 row는 절대 사용하지 않음.
+_LEGACY_SALT = b"cligent_v1"
 
 
-def _decrypt(enc: str) -> str:
-    return _get_fernet().decrypt(enc.encode()).decode()
+def _get_fernet():
+    """레거시 alias — 레거시 salt 기반. K-9 이전 코드 호환용."""
+    return _build_fernet(_LEGACY_SALT)
+
+
+def _encrypt_with_salt(plain: str) -> tuple[str, bytes]:
+    """평문 → (암호문, 16바이트 random salt). K-9 신규 저장 경로."""
+    salt = os.urandom(16)
+    return _build_fernet(salt).encrypt(plain.encode()).decode(), salt
+
+
+def _decrypt_with_salt(enc: str, salt: Optional[bytes]) -> str:
+    """암호문 + 저장된 salt → 평문. salt None/빈값 시 레거시 salt 사용."""
+    actual = salt if salt else _LEGACY_SALT
+    return _build_fernet(actual).decrypt(enc.encode()).decode()
 
 
 def mask_secret(plain: str) -> str:
@@ -67,19 +80,20 @@ def set_server_secret(name: str, value: str, user_id: Optional[int] = None) -> N
     """
     if not name or not value:
         raise ValueError("name과 value는 비어 있을 수 없습니다.")
-    enc = _encrypt(value)
+    enc, salt = _encrypt_with_salt(value)
     from db_manager import get_db
     with get_db() as conn:
         conn.execute(
             """
-            INSERT INTO server_secrets (name, value_enc, updated_at, updated_by_user_id)
-            VALUES (?, ?, datetime('now', 'utc'), ?)
+            INSERT INTO server_secrets (name, value_enc, salt, updated_at, updated_by_user_id)
+            VALUES (?, ?, ?, datetime('now', 'utc'), ?)
             ON CONFLICT(name) DO UPDATE SET
                 value_enc = excluded.value_enc,
+                salt = excluded.salt,
                 updated_at = excluded.updated_at,
                 updated_by_user_id = excluded.updated_by_user_id
             """,
-            (name, enc, user_id),
+            (name, enc, salt, user_id),
         )
     invalidate_cache(name)
     logger.info("server_secret 갱신: name=%s by user_id=%s", name, user_id)
@@ -101,12 +115,12 @@ def get_server_secret(name: str) -> Optional[str]:
         from db_manager import get_db
         with get_db() as conn:
             row = conn.execute(
-                "SELECT value_enc FROM server_secrets WHERE name = ?",
+                "SELECT value_enc, salt FROM server_secrets WHERE name = ?",
                 (name,),
             ).fetchone()
         if row is None:
             return None
-        plain = _decrypt(row["value_enc"])
+        plain = _decrypt_with_salt(row["value_enc"], row["salt"])
         _cache[name] = (plain, time.monotonic() + _CACHE_TTL)
         return plain
     except Exception as exc:
@@ -124,7 +138,7 @@ def get_secret_meta(name: str) -> Optional[dict]:
         with get_db() as conn:
             row = conn.execute(
                 """
-                SELECT s.value_enc, s.updated_at, s.updated_by_user_id, u.email
+                SELECT s.value_enc, s.salt, s.updated_at, s.updated_by_user_id, u.email
                 FROM server_secrets s
                 LEFT JOIN users u ON u.id = s.updated_by_user_id
                 WHERE s.name = ?
@@ -133,7 +147,7 @@ def get_secret_meta(name: str) -> Optional[dict]:
             ).fetchone()
         if row is None:
             return None
-        plain = _decrypt(row["value_enc"])
+        plain = _decrypt_with_salt(row["value_enc"], row["salt"])
         return {
             "name": name,
             "masked": mask_secret(plain),

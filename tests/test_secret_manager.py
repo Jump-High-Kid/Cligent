@@ -37,6 +37,7 @@ def _isolated_db(monkeypatch, tmp_path):
         CREATE TABLE IF NOT EXISTS server_secrets (
             name              TEXT PRIMARY KEY,
             value_enc         TEXT NOT NULL,
+            salt              BLOB,
             updated_at        TEXT NOT NULL DEFAULT (datetime('now', 'utc')),
             updated_by_user_id INTEGER
         )

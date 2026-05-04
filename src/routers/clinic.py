@@ -559,7 +559,7 @@ async def get_clinic_ai(user: dict = Depends(get_current_user)):
     from db_manager import get_db
     with get_db() as conn:
         row = conn.execute(
-            "SELECT model, monthly_budget_krw, api_key_enc FROM clinics WHERE id = ?",
+            "SELECT model, monthly_budget_krw, api_key_enc, crypto_salt FROM clinics WHERE id = ?",
             (user["clinic_id"],),
         ).fetchone()
     if not row:
@@ -571,7 +571,7 @@ async def get_clinic_ai(user: dict = Depends(get_current_user)):
     api_key_masked = ""
     if api_key_set:
         try:
-            plain = decrypt_key(row["api_key_enc"])
+            plain = decrypt_key(row["api_key_enc"], row["crypto_salt"])
             api_key_masked = mask_key(plain)
         except Exception:
             api_key_masked = "복호화 오류"
@@ -608,6 +608,7 @@ async def save_clinic_ai(request: Request, user: dict = Depends(get_current_user
             return JSONResponse({"detail": "예산은 0 이상의 정수여야 합니다."}, status_code=400)
 
     api_key_enc = None
+    api_key_salt = None
     clear_key = body.get("clear_key", False)  # 명시적 키 삭제 요청
 
     if api_key_new:
@@ -616,21 +617,21 @@ async def save_clinic_ai(request: Request, user: dict = Depends(get_current_user
                 {"detail": "올바른 Anthropic API 키 형식이 아닙니다. (sk-ant- 로 시작해야 함)"},
                 status_code=400,
             )
-        api_key_enc = encrypt_key(api_key_new)
+        api_key_enc, api_key_salt = encrypt_key(api_key_new)
 
     from db_manager import get_db
     with get_db() as conn:
         if api_key_enc:
             conn.execute(
                 "UPDATE clinics SET model=COALESCE(NULLIF(?,''),(SELECT model FROM clinics WHERE id=?)), "
-                "monthly_budget_krw=COALESCE(?,monthly_budget_krw), api_key_enc=?, api_key_configured=1 WHERE id=?",
-                (model, user["clinic_id"], budget, api_key_enc, user["clinic_id"]),
+                "monthly_budget_krw=COALESCE(?,monthly_budget_krw), api_key_enc=?, crypto_salt=?, api_key_configured=1 WHERE id=?",
+                (model, user["clinic_id"], budget, api_key_enc, api_key_salt, user["clinic_id"]),
             )
         elif clear_key:
-            # 키 명시적 삭제 시 api_key_configured 리셋
+            # 키 명시적 삭제 시 api_key_configured 리셋 + salt 도 같이 정리
             conn.execute(
                 "UPDATE clinics SET model=COALESCE(NULLIF(?,''),(SELECT model FROM clinics WHERE id=?)), "
-                "monthly_budget_krw=COALESCE(?,monthly_budget_krw), api_key_enc=NULL, api_key_configured=0 WHERE id=?",
+                "monthly_budget_krw=COALESCE(?,monthly_budget_krw), api_key_enc=NULL, crypto_salt=NULL, api_key_configured=0 WHERE id=?",
                 (model, user["clinic_id"], budget, user["clinic_id"]),
             )
         else:

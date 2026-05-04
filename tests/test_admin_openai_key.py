@@ -40,6 +40,7 @@ def _isolated_env(monkeypatch, tmp_path):
         CREATE TABLE server_secrets (
             name TEXT PRIMARY KEY,
             value_enc TEXT NOT NULL,
+            salt BLOB,
             updated_at TEXT NOT NULL DEFAULT (datetime('now', 'utc')),
             updated_by_user_id INTEGER
         )

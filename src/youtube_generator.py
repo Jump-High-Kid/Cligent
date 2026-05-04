@@ -21,37 +21,23 @@ logger = logging.getLogger(__name__)
 def _get_clinic_api_key(clinic_id: int) -> Optional[str]:
     """
     DB에서 Fernet 복호화된 API 키 반환.
-    main.py의 /api/settings/clinic/ai GET 엔드포인트와 동일한 복호화 로직.
+    K-9: crypto_utils.decrypt_key 통합 — per-row salt 지원.
     """
+    import os
     try:
         from db_manager import get_db
+        from crypto_utils import decrypt_key
         with get_db() as conn:
             row = conn.execute(
-                "SELECT api_key_enc FROM clinics WHERE id = ?", (clinic_id,)
+                "SELECT api_key_enc, crypto_salt FROM clinics WHERE id = ?", (clinic_id,)
             ).fetchone()
         if not row or not row["api_key_enc"]:
-            import os
             return os.environ.get("ANTHROPIC_API_KEY") or None
-
-        import os
-        from cryptography.fernet import Fernet
-        fernet_key = os.environ.get("SECRET_KEY", "").encode()
-        if not fernet_key:
-            return None
-
-        # SECRET_KEY가 Fernet 키 형식이 아닐 경우 base64 변환
-        import base64
-        try:
-            f = Fernet(fernet_key)
-        except Exception:
-            f = Fernet(base64.urlsafe_b64encode(fernet_key[:32].ljust(32, b"\x00")))
-
-        return f.decrypt(row["api_key_enc"].encode()).decode()
+        return decrypt_key(row["api_key_enc"], row["crypto_salt"])
     except Exception as exc:
         logger.error("youtube_generator: API 키 복호화 실패 (clinic_id=%s): %s", clinic_id, exc)
 
     # DB 키 없으면 .env 폴백
-    import os
     return os.environ.get("ANTHROPIC_API_KEY") or None
 
 
