@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="ko" class="cligent-booting">
+<head>
+  <script src="/static/js/ensure_app_shell.js"></script>
+<link rel="preload" as="font" type="font/woff2" href="/static/fonts/PretendardVariable.woff2" crossorigin>
+<link rel="preload" as="font" type="font/woff2" href="/static/fonts/material-symbols-outlined.woff2" crossorigin>
+<link href="/static/fonts.css" rel="stylesheet"/>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Cligent — 베타 KPI</title>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+  tailwind.config = { theme: { extend: { fontFamily: { sans: ['Pretendard', 'sans-serif'] } } } };
+</script>
+<style>
+  body { font-family: 'Pretendard', sans-serif; background: #fafaf9; }
+  .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24; }
+  /* SVG 차트 텍스트 작게 */
+  .kpi-svg text { font-family: 'Pretendard', sans-serif; }
+</style>
+<script>document.addEventListener('DOMContentLoaded',function(){requestAnimationFrame(function(){document.documentElement.classList.add('cligent-ready');});});</script>
+<noscript><style>html.cligent-booting{visibility:visible !important;}</style></noscript>
+</head>
+<body class="text-stone-800">
+
+<main class="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+  <a href="/admin" class="inline-flex items-center gap-1 text-sm text-stone-500 hover:text-stone-800 mb-2">
+    <span class="material-symbols-outlined text-[16px]">arrow_back</span>관리자 메인
+  </a>
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-stone-900">베타 KPI 대시보드</h1>
+      <p class="text-xs text-stone-500 mt-1">최근 <span id="window-days">14</span>일 — 비용·챗 길이·모듈 만족도</p>
+    </div>
+    <button onclick="loadKpi()" class="inline-flex items-center gap-1 px-3 py-1.5 bg-stone-100 hover:bg-stone-200 rounded-lg text-sm text-stone-700">
+      <span class="material-symbols-outlined text-[16px]">refresh</span>새로고침
+    </button>
+  </div>
+
+  <!-- 요약 카드 4종 -->
+  <section class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+    <div class="bg-white border border-stone-200 rounded-2xl p-5">
+      <p class="text-xs text-stone-500 mb-1">총 비용 (USD)</p>
+      <p class="text-2xl font-bold text-emerald-900" id="m-total-usd">—</p>
+    </div>
+    <div class="bg-white border border-stone-200 rounded-2xl p-5">
+      <p class="text-xs text-stone-500 mb-1">총 챗 세션</p>
+      <p class="text-2xl font-bold" id="m-total-chats">—</p>
+    </div>
+    <div class="bg-white border border-stone-200 rounded-2xl p-5">
+      <p class="text-xs text-stone-500 mb-1">완료율</p>
+      <p class="text-2xl font-bold" id="m-completion">—</p>
+    </div>
+    <div class="bg-white border border-stone-200 rounded-2xl p-5">
+      <p class="text-xs text-stone-500 mb-1">평균 turn 수</p>
+      <p class="text-2xl font-bold" id="m-avg-turns">—</p>
+    </div>
+  </section>
+
+  <!-- A1 비용 — 일별 line + kind별 bar -->
+  <section class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
+    <div class="bg-white border border-stone-200 rounded-2xl p-5">
+      <h2 class="font-semibold text-stone-900 mb-3">일별 비용 (USD)</h2>
+      <div id="chart-cost-by-day" class="h-[200px]"></div>
+    </div>
+    <div class="bg-white border border-stone-200 rounded-2xl p-5">
+      <h2 class="font-semibold text-stone-900 mb-3">유형별 비용</h2>
+      <div id="chart-cost-by-kind" class="h-[200px]"></div>
+    </div>
+  </section>
+
+  <!-- A6 챗 turn 분포 + D1 모듈 만족도 -->
+  <section class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
+    <div class="bg-white border border-stone-200 rounded-2xl p-5">
+      <h2 class="font-semibold text-stone-900 mb-3">챗 turn 수 분포</h2>
+      <div id="chart-turn-hist" class="h-[200px]"></div>
+    </div>
+    <div class="bg-white border border-stone-200 rounded-2xl p-5">
+      <h2 class="font-semibold text-stone-900 mb-3">모듈 만족도</h2>
+      <p class="text-xs text-stone-500 mb-2">like rate = 좋아요 / 노출. 레거시(NULL)는 마지막.</p>
+      <div id="chart-module-sat"></div>
+    </div>
+  </section>
+
+  <!-- 클리닉별 활동 표 -->
+  <section class="bg-white border border-stone-200 rounded-2xl p-5 sm:p-6">
+    <h2 class="font-semibold text-stone-900 mb-4">클리닉별 활동 (비용 ↓)</h2>
+    <div id="clinic-table-container">
+      <p class="text-sm text-stone-400 text-center py-6">불러오는 중…</p>
+    </div>
+  </section>
+</main>
+
+<script>
+  function esc(s) {
+    return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  const fmtUsd = n => '$' + (Number(n)||0).toFixed(2);
+  const fmtPct = n => ((Number(n)||0) * 100).toFixed(1) + '%';
+
+  // ── inline SVG helpers ─────────────────────────────────────
+
+  // 일별 line: data = [{day, usd}]
+  function renderLineChart(el, data) {
+    el.innerHTML = '';
+    if (!data || !data.length) {
+      el.innerHTML = '<p class="text-sm text-stone-400 text-center py-10">데이터 없음</p>';
+      return;
+    }
+    const w = el.clientWidth || 500, h = 180, pad = { l: 36, r: 12, t: 10, b: 24 };
+    const max = Math.max(0.01, ...data.map(d => d.usd));
+    const xStep = (w - pad.l - pad.r) / Math.max(data.length - 1, 1);
+    const yScale = v => pad.t + (h - pad.t - pad.b) * (1 - (v / max));
+    const xPos = i => pad.l + i * xStep;
+    const points = data.map((d, i) => `${xPos(i)},${yScale(d.usd)}`).join(' ');
+    let ticks = '';
+    [0, max / 2, max].forEach(v => {
+      const y = yScale(v);
+      ticks += `<line x1="${pad.l}" x2="${w - pad.r}" y1="${y}" y2="${y}" stroke="#e7e5e4" stroke-width="1"/>` +
+               `<text x="${pad.l - 4}" y="${y + 3}" text-anchor="end" font-size="10" fill="#a8a29e">${fmtUsd(v)}</text>`;
+    });
+    let xLabels = '';
+    const showEvery = Math.max(1, Math.floor(data.length / 6));
+    data.forEach((d, i) => {
+      if (i % showEvery !== 0) return;
+      const lbl = (d.day || '').slice(5); // MM-DD
+      xLabels += `<text x="${xPos(i)}" y="${h - 8}" text-anchor="middle" font-size="10" fill="#78716c">${esc(lbl)}</text>`;
+    });
+    let dots = '';
+    data.forEach((d, i) => {
+      dots += `<circle cx="${xPos(i)}" cy="${yScale(d.usd)}" r="2.5" fill="#065f46"/>`;
+    });
+    el.innerHTML = `<svg viewBox="0 0 ${w} ${h}" class="kpi-svg w-full h-full">
+      ${ticks}
+      <polyline points="${points}" fill="none" stroke="#065f46" stroke-width="2" stroke-linejoin="round"/>
+      ${dots}
+      ${xLabels}
+    </svg>`;
+  }
+
+  // kind별 horizontal bar: data = [{label, value}]
+  function renderHBarChart(el, data, opts) {
+    opts = opts || {};
+    el.innerHTML = '';
+    if (!data || !data.length) {
+      el.innerHTML = '<p class="text-sm text-stone-400 text-center py-10">데이터 없음</p>';
+      return;
+    }
+    const w = el.clientWidth || 500;
+    const rowH = opts.rowH || 26;
+    const labelW = opts.labelW || 140;
+    const valW = opts.valW || 72;
+    const h = data.length * rowH + 8;
+    const max = Math.max(0.0001, ...data.map(d => d.value));
+    const barAreaW = w - labelW - valW - 8;
+    const fmt = opts.fmt || (v => v);
+    let svg = '';
+    data.forEach((d, i) => {
+      const y = i * rowH + 4;
+      const bw = (d.value / max) * barAreaW;
+      const color = d.color || '#065f46';
+      svg += `<text x="0" y="${y + 16}" font-size="11" fill="#44403c">${esc(d.label)}</text>`;
+      svg += `<rect x="${labelW}" y="${y + 6}" width="${bw}" height="${rowH - 14}" rx="3" fill="${color}"/>`;
+      svg += `<text x="${labelW + barAreaW + 6}" y="${y + 16}" font-size="11" fill="#44403c">${esc(fmt(d.value, d))}</text>`;
+    });
+    el.innerHTML = `<svg viewBox="0 0 ${w} ${h}" class="kpi-svg w-full" style="height:${h}px">${svg}</svg>`;
+  }
+
+  // turn 분포 vertical bar: data = [{bin, count}]
+  function renderVBarChart(el, data) {
+    el.innerHTML = '';
+    if (!data || !data.length) {
+      el.innerHTML = '<p class="text-sm text-stone-400 text-center py-10">데이터 없음</p>';
+      return;
+    }
+    const w = el.clientWidth || 500, h = 180, pad = { l: 24, r: 12, t: 12, b: 28 };
+    const max = Math.max(1, ...data.map(d => d.count));
+    const colW = (w - pad.l - pad.r) / data.length;
+    const barW = colW * 0.6;
+    const barAreaH = h - pad.t - pad.b;
+    let bars = '', labels = '', counts = '';
+    data.forEach((d, i) => {
+      const x = pad.l + i * colW + (colW - barW) / 2;
+      const bh = (d.count / max) * barAreaH;
+      const y = h - pad.b - bh;
+      bars   += `<rect x="${x}" y="${y}" width="${barW}" height="${bh}" rx="3" fill="#065f46"/>`;
+      labels += `<text x="${x + barW/2}" y="${h - 10}" text-anchor="middle" font-size="10" fill="#78716c">${esc(d.bin)}</text>`;
+      if (d.count > 0) {
+        counts += `<text x="${x + barW/2}" y="${y - 4}" text-anchor="middle" font-size="10" fill="#44403c">${d.count}</text>`;
+      }
+    });
+    el.innerHTML = `<svg viewBox="0 0 ${w} ${h}" class="kpi-svg w-full h-full">
+      ${bars}${counts}${labels}
+    </svg>`;
+  }
+
+  // ── kind label 정리 ─────────────────────────────────────────
+  const KIND_LABEL = {
+    anthropic_blog:        'Anthropic 본문',
+    anthropic_meta:        'Anthropic 메타',
+    openai_image_init:     '이미지 초기',
+    openai_image_regen:    '이미지 재생성',
+    openai_image_edit:     '이미지 수정',
+    openai_image_admin:    '어드민 테스트',
+  };
+  const MODULE_LABEL = {
+    1: '1 해부',
+    2: '2 경혈',
+    3: '3 침',
+    4: '4 한약',
+    5: '5 시술',
+    6: '6 진맥',
+    7: '7 환자',
+    8: '8 한의원',
+    9: '9 인포',
+    10: '10 일러스트',
+    11: '11 기타',
+  };
+
+  // ── data load ──────────────────────────────────────────────
+  async function loadKpi() {
+    const tbl = document.getElementById('clinic-table-container');
+    tbl.innerHTML = '<p class="text-sm text-stone-400 text-center py-6">불러오는 중…</p>';
+    try {
+      const res = await fetch('/api/admin/kpi');
+      if (res.status === 401 || res.status === 403) {
+        location.href = '/login?next=/admin/kpi'; return;
+      }
+      const d = await res.json();
+
+      // 요약 카드
+      document.getElementById('window-days').textContent = d.days;
+      document.getElementById('m-total-usd').textContent  = fmtUsd(d.cost?.total_usd || 0);
+      document.getElementById('m-total-chats').textContent = (d.turns?.total || 0) + '건';
+      document.getElementById('m-completion').textContent  = fmtPct(d.turns?.completion_rate || 0);
+      document.getElementById('m-avg-turns').textContent   = (d.turns?.avg_turns || 0).toFixed(1);
+
+      // 비용 line
+      renderLineChart(
+        document.getElementById('chart-cost-by-day'),
+        d.cost?.by_day || []
+      );
+
+      // 비용 kind bar
+      const kindRows = Object.entries(d.cost?.by_kind || {})
+        .map(([k, v]) => ({ label: KIND_LABEL[k] || k, value: v, _key: k }))
+        .sort((a, b) => b.value - a.value);
+      renderHBarChart(
+        document.getElementById('chart-cost-by-kind'),
+        kindRows,
+        { fmt: v => fmtUsd(v), labelW: 140, valW: 72 }
+      );
+
+      // turn 분포
+      renderVBarChart(
+        document.getElementById('chart-turn-hist'),
+        d.turns?.histogram || []
+      );
+
+      // 모듈 만족도 — rate% bar + (liked/total) 표기
+      const modRows = (d.modules || []).map(m => ({
+        label: m.module == null ? '레거시(NULL)' : (MODULE_LABEL[m.module] || `M${m.module}`),
+        value: m.rate,
+        _row: m,
+      }));
+      renderHBarChart(
+        document.getElementById('chart-module-sat'),
+        modRows,
+        {
+          fmt: (v, d) => `${fmtPct(v)} (${d._row.liked}/${d._row.total})`,
+          labelW: 110,
+          valW: 110,
+        }
+      );
+
+      // 클리닉 표
+      const clinics = d.clinics || [];
+      if (!clinics.length) {
+        tbl.innerHTML = '<p class="text-sm text-stone-400 text-center py-6">데이터 없음</p>';
+      } else {
+        tbl.innerHTML = `
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-xs text-stone-500 border-b border-stone-200">
+                <th class="text-left py-2 font-medium">#</th>
+                <th class="text-left py-2 font-medium">클리닉</th>
+                <th class="text-right py-2 font-medium">챗 세션</th>
+                <th class="text-right py-2 font-medium">이미지 세션</th>
+                <th class="text-right py-2 font-medium">비용 (USD)</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${clinics.map((r, i) => `
+                <tr class="border-b border-stone-100">
+                  <td class="py-2 text-stone-400">${i + 1}</td>
+                  <td class="py-2"><strong>${esc(r.clinic_name)}</strong>
+                    <span class="text-stone-400 text-xs ml-1">#${r.clinic_id}</span>
+                  </td>
+                  <td class="py-2 text-right ${r.blog_sessions > 0 ? '' : 'text-stone-300'}">${r.blog_sessions}</td>
+                  <td class="py-2 text-right ${r.image_sessions > 0 ? '' : 'text-stone-300'}">${r.image_sessions}</td>
+                  <td class="py-2 text-right font-bold ${r.cost_usd > 0 ? 'text-emerald-900' : 'text-stone-300'}">${fmtUsd(r.cost_usd)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>`;
+      }
+    } catch (e) {
+      tbl.innerHTML = '<p class="text-sm text-red-500 text-center py-6">불러오지 못했습니다.</p>';
+    }
+  }
+  loadKpi();
+</script>
+</body>
+</html>

@@ -216,6 +216,43 @@ async def admin_image_test_page(request: Request):
     return FileResponse(ROOT / "templates" / "admin_image_test.html")
 
 
+@router.get("/admin/kpi")
+async def admin_kpi_page(request: Request):
+    """베타 KPI 대시보드 페이지 (Commit 7c). 14일 고정 윈도우."""
+    _require_admin_or_session(request)
+    return FileResponse(ROOT / "templates" / "admin_kpi.html")
+
+
+@router.get("/api/admin/kpi")
+async def api_admin_kpi(request: Request):
+    """베타 KPI 집계 JSON. admin_kpi 모듈 4함수 묶음. 14일 고정.
+
+    응답:
+        {
+          "days": 14,
+          "cost":     {total_usd, by_kind, by_day, days},
+          "modules":  [{module, total, liked, rate}, ...],
+          "turns":    {total, completion_rate, avg_turns, histogram, days},
+          "clinics":  [{clinic_id, clinic_name, blog_sessions, image_sessions, cost_usd}, ...]
+        }
+    """
+    _require_admin_or_session(request)
+    from admin_kpi import (
+        get_chat_turn_distribution,
+        get_clinic_activity,
+        get_cost_summary,
+        get_module_satisfaction,
+    )
+    days = 14
+    return JSONResponse({
+        "days": days,
+        "cost": get_cost_summary(days=days),
+        "modules": get_module_satisfaction(),
+        "turns": get_chat_turn_distribution(days=days),
+        "clinics": get_clinic_activity(days=days),
+    })
+
+
 # ─────────────────────────────────────────────────────────────────
 # 어드민 API — 이미지 생성 테스트 (해부학·자유 프롬프트 검증용)
 # 베타 한도 미반영. 본인 클리닉(=ADMIN_CLINIC_ID) 글만 노출.
