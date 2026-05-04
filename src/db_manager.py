@@ -313,6 +313,18 @@ def init_db() -> None:
               ON gallery_likes(clinic_id, liked_at);
             CREATE INDEX IF NOT EXISTS idx_gallery_likes_module
               ON gallery_likes(module, liked);
+
+            -- 어드민 비용 reconciliation (Commit 8b, 2026-05-04)
+            -- 월별 OpenAI 콘솔 청구액 vs cost_logs 자동 합산값 비교용.
+            -- 어드민이 월 1회 수동 입력 → /admin/kpi cost-analysis 패널 A3 표시.
+            -- our_logged_usd 는 record_billing_recon() 호출 시점에 cost_logs
+            -- SUM 으로 자동 갱신 (kind LIKE 'openai_%' AND kind != openai_image_admin).
+            CREATE TABLE IF NOT EXISTS admin_billing_recon (
+                year_month         TEXT PRIMARY KEY,    -- 'YYYY-MM'
+                openai_invoice_usd REAL NOT NULL DEFAULT 0,
+                our_logged_usd     REAL NOT NULL DEFAULT 0,
+                recorded_at        TEXT NOT NULL
+            );
         """)
 
         # image_sessions 컬럼 마이그레이션 (베타 KPI Commit 6, 2026-05-04)

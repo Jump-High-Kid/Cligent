@@ -254,6 +254,105 @@ async def api_admin_kpi(request: Request):
 
 
 # ─────────────────────────────────────────────────────────────────
+# 어드민 KPI — 비용·수익 분석 패널 (Commit 8b)
+# /admin/kpi 페이지 하단 cost-analysis 섹션이 소비.
+# 베타1 종료 후 cost_revenue_analysis 재분석 시 SQL 직접 안 돌리고 끝.
+# ─────────────────────────────────────────────────────────────────
+
+
+@router.get("/api/admin/kpi/cost")
+async def api_admin_kpi_cost(request: Request, days: int = 30):
+    """비용 분석 + 사용 패턴 + 의사결정 인사이트 (A·B·C) 패널 JSON.
+
+    응답:
+        {
+          "days": int,
+          "rate": {"rate", "date", "source", "fetched_at"},  // 환율
+          "cost_per_blog": {...},        // A1
+          "margin": {...},               // A2
+          "billing_recon": [...],        // A3
+          "plan_distribution": {...},    // B1
+          "avg_usage": {...},            // B2
+          "image_calls": {...},          // B3
+          "loss_risk": [...],            // B4
+          "estimate_30users": {...},     // C1
+          "alerts": [...],               // C2
+        }
+    """
+    _require_admin_or_session(request)
+    days = max(1, min(int(days or 30), 365))
+    from admin_kpi_cost import (
+        estimate_annual_revenue_30users,
+        get_avg_usage_per_user,
+        get_billing_recon,
+        get_cost_per_blog,
+        get_image_calls_per_blog,
+        get_margin_summary,
+        get_plan_distribution,
+        get_policy_alerts,
+        get_pro_loss_risk_clinics,
+    )
+    from exchange_rate import get_usd_to_krw
+
+    rate_info = get_usd_to_krw()
+    rate = float(rate_info.get("rate") or 1400.0)
+
+    return JSONResponse({
+        "days": days,
+        "rate": rate_info,
+        "cost_per_blog": get_cost_per_blog(days=days),
+        "margin": get_margin_summary(days=days, usd_to_krw_rate=rate),
+        "billing_recon": get_billing_recon(months_back=3),
+        "plan_distribution": get_plan_distribution(),
+        "avg_usage": get_avg_usage_per_user(days=days),
+        "image_calls": get_image_calls_per_blog(days=days),
+        "loss_risk": get_pro_loss_risk_clinics(
+            days=days, top=10, usd_to_krw_rate=rate,
+        ),
+        "estimate_30users": estimate_annual_revenue_30users(
+            days=days, usd_to_krw_rate=rate,
+        ),
+        "alerts": get_policy_alerts(days=days, usd_to_krw_rate=rate),
+    })
+
+
+@router.post("/api/admin/kpi/cost/billing-recon")
+async def api_admin_billing_recon(request: Request):
+    """OpenAI 콘솔 월 청구액 입력 (UPSERT). our_logged_usd 자동 합산.
+
+    Body:
+        {"year_month": "YYYY-MM", "openai_invoice_usd": float}
+
+    Returns:
+        200 {"ok": true, "recon": [...]}  — 갱신 후 최근 3개월 row
+        400 형식/값 오류 시
+    """
+    _require_admin_or_session(request)
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="invalid_json")
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="invalid_body")
+
+    year_month = body.get("year_month")
+    invoice = body.get("openai_invoice_usd")
+    if not isinstance(year_month, str):
+        raise HTTPException(status_code=400, detail="year_month_required")
+    try:
+        invoice_f = float(invoice)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="invoice_invalid")
+
+    from admin_kpi_cost import get_billing_recon, record_billing_recon
+
+    if not record_billing_recon(year_month, invoice_f):
+        raise HTTPException(status_code=400, detail="record_failed")
+
+    return JSONResponse({"ok": True, "recon": get_billing_recon(months_back=3)})
+
+
+# ─────────────────────────────────────────────────────────────────
 # 어드민 API — 이미지 생성 테스트 (해부학·자유 프롬프트 검증용)
 # 베타 한도 미반영. 본인 클리닉(=ADMIN_CLINIC_ID) 글만 노출.
 # ─────────────────────────────────────────────────────────────────
