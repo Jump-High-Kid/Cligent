@@ -52,6 +52,8 @@ _BETA_CFG = _load_beta_config()
 _FREE_BLOG_LIMIT = int(_BETA_CFG.get("blog_limit_total", 25))      # 베타 기간 총 생성 한도
 _PROMPT_COPY_LIMIT = int(_BETA_CFG.get("prompt_copy_limit", 999))  # 베타 기간 프롬프트 복사 한도
 _TRIAL_DAYS = int(_BETA_CFG.get("trial_days", 90))                 # signup 시 trial 기간(일)
+# K-8 (2026-05-04): 이미지 세션 누적 한도 — 어뷰저의 generate-initial 무한 호출 차단.
+_IMAGE_SESSION_LIMIT = int(_BETA_CFG.get("image_session_limit_total", 30))
 
 
 def _now_iso() -> str:
@@ -233,6 +235,73 @@ def _count_total_prompt_copies(clinic_id: int) -> int:
     except Exception as exc:
         logger.warning("plan_guard: 프롬프트 복사 횟수 조회 실패 (clinic_id=%s): %s", clinic_id, exc)
         return -1
+
+
+def _count_total_image_sessions(clinic_id: int) -> int:
+    """베타 기간 누적 이미지 세션 생성 횟수. DB 장애 시 -1 반환.
+    image_sessions.idx_image_sessions_clinic 인덱스 적중.
+    """
+    try:
+        from db_manager import get_db
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS cnt FROM image_sessions WHERE clinic_id = ?",
+                (clinic_id,),
+            ).fetchone()
+        return row["cnt"] if row else 0
+    except Exception as exc:
+        logger.warning(
+            "plan_guard: 이미지 세션 횟수 조회 실패 (clinic_id=%s): %s",
+            clinic_id, exc,
+        )
+        return -1
+
+
+def check_image_session_limit(clinic_id: int) -> None:
+    """이미지 세션 신규 생성 전 한도 체크. HTTPException(429) 발생 시 차단.
+
+    /api/image/generate-initial 시작 부분에서 호출.
+
+    K-8 (2026-05-04): 어뷰저가 블로그 본문 호출 없이 generate-initial 만 반복
+    호출해서 OpenAI 비용 폭주시키는 진입점 차단. 유료 플랜(standard/pro)은
+    무제한, free/trial 은 누적 30 (= blog_limit 25 + 5 buffer cancel/retry 흡수).
+    """
+    plan_data = _fetch_plan_data(clinic_id)
+    if plan_data is None:
+        # DB 장애 + 캐시 miss → fail open (유료 유저 차단 방지 우선)
+        logger.warning(
+            "plan_guard.check_image_session_limit: 플랜 정보 없음, fail open "
+            "(clinic_id=%s)", clinic_id,
+        )
+        return
+
+    effective = resolve_effective_plan(
+        plan_data.get("plan_id"),
+        plan_data.get("plan_expires_at"),
+        plan_data.get("trial_expires_at"),
+    )
+
+    # 유료 플랜(standard/pro)만 무제한. trial 은 베타 한도 적용 (1차 베타 정책).
+    if effective["has_unlimited"] and effective["plan_id"] != "trial":
+        return
+
+    count = _count_total_image_sessions(clinic_id)
+    if count < 0:
+        return  # DB 장애 → fail open
+
+    if count >= _IMAGE_SESSION_LIMIT:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "error": "image_session_limit_exceeded",
+                "message": (
+                    f"베타 누적 이미지 세션 생성 한도({_IMAGE_SESSION_LIMIT}회)에 도달했습니다. "
+                    "Cligent 운영팀(cligent.ai@gmail.com)으로 문의해 주세요."
+                ),
+                "current": count,
+                "limit": _IMAGE_SESSION_LIMIT,
+            },
+        )
 
 
 def check_prompt_copy_limit(clinic_id: int) -> None:

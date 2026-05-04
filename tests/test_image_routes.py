@@ -267,3 +267,69 @@ class TestSessionStatus:
     def test_unknown_session_404(self):
         res = client.get("/api/image/session/no-such-id")
         assert res.status_code == 404
+
+
+# ── K-8 (2026-05-04): 누적 이미지 세션 한도 ──────────────────────────────
+
+
+class TestImageSessionLimitK8:
+    """K-8: 어뷰저의 generate-initial 무한 호출 차단 — free/trial 누적 한도."""
+
+    def test_free_plan_at_limit_returns_429(self, monkeypatch):
+        """free 플랜 + 누적 30 → 429 (image_session_limit_exceeded)."""
+        import plan_guard
+
+        monkeypatch.setattr(
+            plan_guard,
+            "_fetch_plan_data",
+            lambda cid: {
+                "plan_id": "free",
+                "plan_expires_at": None,
+                "trial_expires_at": None,
+            },
+        )
+        monkeypatch.setattr(
+            plan_guard,
+            "_count_total_image_sessions",
+            lambda cid: plan_guard._IMAGE_SESSION_LIMIT,
+        )
+
+        res = client.post(
+            "/api/image/generate-initial",
+            json={"prompt": "knee", "keyword": "x"},
+        )
+        assert res.status_code == 429
+        detail = res.json()["detail"]
+        assert detail["error"] == "image_session_limit_exceeded"
+        assert detail["limit"] == plan_guard._IMAGE_SESSION_LIMIT
+
+    def test_paid_plan_exceeds_limit_still_allowed(self, monkeypatch):
+        """유료 플랜은 누적 카운트 무관 — generate-initial 정상 동작."""
+        import plan_guard
+        from datetime import datetime, timedelta, timezone
+
+        future = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
+        monkeypatch.setattr(
+            plan_guard,
+            "_fetch_plan_data",
+            lambda cid: {
+                "plan_id": "standard",
+                "plan_expires_at": future,
+                "trial_expires_at": None,
+            },
+        )
+        monkeypatch.setattr(
+            plan_guard,
+            "_count_total_image_sessions",
+            lambda cid: 99999,
+        )
+
+        with patch(
+            "image_generator.call_openai_image_generate",
+            return_value=_fake_responses(5),
+        ):
+            res = client.post(
+                "/api/image/generate-initial",
+                json={"prompt": "knee", "keyword": "x"},
+            )
+        assert res.status_code == 200

@@ -4,6 +4,9 @@ beta:
   trial_days: 15
   image_regen_per_blog: 1
   image_edit_per_blog: 2
+  # K-8 (2026-05-04): 이미지 세션 누적 생성 한도 — 어뷰저의 generate-initial 무한 호출 차단.
+  # 정상 1블로그 = 1세션 → 25블로그 + 5 buffer (cancel/retry 흡수) = 30.
+  image_session_limit_total: 30
 flow:
   questions_enabled: true
   questions_count: 3

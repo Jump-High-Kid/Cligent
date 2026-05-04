@@ -28,6 +28,7 @@ from plan_guard import (
     _plan_cache,
     _set_cache,
     check_blog_limit,
+    check_image_session_limit,
     invalidate_plan_cache,
 )
 
@@ -163,3 +164,61 @@ class TestFailOpen:
         with patch("plan_guard._fetch_plan_data", return_value=data), \
              patch("plan_guard._count_monthly_blogs", return_value=-1):
             check_blog_limit(clinic_id=9)  # fail open → 예외 없음
+
+
+# ── K-8 (2026-05-04): 이미지 세션 누적 한도 ───────────────────────────────
+
+class TestImageSessionLimit:
+    def test_paid_plan_unlimited(self):
+        """유료 플랜 활성 → 누적 카운트 무관, 통과."""
+        data = _mock_plan(plan_expires_at=_iso(+24))
+        with patch("plan_guard._fetch_plan_data", return_value=data), \
+             patch("plan_guard._count_total_image_sessions", return_value=99999):
+            check_image_session_limit(clinic_id=10)  # 예외 없음
+
+    def test_trial_under_limit_allows(self):
+        """체험 플랜 + 한도 미만 → 통과 (1차 베타 정책)."""
+        from plan_guard import _IMAGE_SESSION_LIMIT
+        data = _mock_plan(trial_expires_at=_iso(+72))
+        with patch("plan_guard._fetch_plan_data", return_value=data), \
+             patch("plan_guard._count_total_image_sessions",
+                   return_value=_IMAGE_SESSION_LIMIT - 1):
+            check_image_session_limit(clinic_id=11)  # 예외 없음
+
+    def test_trial_at_limit_raises_429(self):
+        """체험 플랜이라도 누적 한도 도달 → 429."""
+        from plan_guard import _IMAGE_SESSION_LIMIT
+        data = _mock_plan(trial_expires_at=_iso(+72))
+        with patch("plan_guard._fetch_plan_data", return_value=data), \
+             patch("plan_guard._count_total_image_sessions",
+                   return_value=_IMAGE_SESSION_LIMIT):
+            with pytest.raises(HTTPException) as exc_info:
+                check_image_session_limit(clinic_id=12)
+        assert exc_info.value.status_code == 429
+        assert exc_info.value.detail["error"] == "image_session_limit_exceeded"
+        assert exc_info.value.detail["limit"] == _IMAGE_SESSION_LIMIT
+
+    def test_free_over_limit_raises_429(self):
+        """무료 플랜 한도 초과 → 429 + 운영팀 메시지."""
+        from plan_guard import _IMAGE_SESSION_LIMIT
+        data = _mock_plan()
+        with patch("plan_guard._fetch_plan_data", return_value=data), \
+             patch("plan_guard._count_total_image_sessions",
+                   return_value=_IMAGE_SESSION_LIMIT + 5):
+            with pytest.raises(HTTPException) as exc_info:
+                check_image_session_limit(clinic_id=13)
+        assert exc_info.value.status_code == 429
+        assert "이미지 세션" in exc_info.value.detail["message"]
+        assert "cligent.ai@gmail.com" in exc_info.value.detail["message"]
+
+    def test_db_failure_fail_open(self):
+        """DB 장애 (count = -1) → fail open."""
+        data = _mock_plan()
+        with patch("plan_guard._fetch_plan_data", return_value=data), \
+             patch("plan_guard._count_total_image_sessions", return_value=-1):
+            check_image_session_limit(clinic_id=14)  # 예외 없음
+
+    def test_plan_data_missing_fail_open(self):
+        """플랜 정보 자체가 없을 때 → fail open."""
+        with patch("plan_guard._fetch_plan_data", return_value=None):
+            check_image_session_limit(clinic_id=15)  # 예외 없음

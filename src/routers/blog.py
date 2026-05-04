@@ -46,7 +46,11 @@ from blog_history import get_blog_stats, get_history_list, get_blog_text, save_b
 from conversation_flow import generate_conversation_flow
 from image_prompt_generator import generate_image_prompts_stream
 from youtube_generator import generate_youtube_stream
-from plan_guard import check_blog_limit, check_prompt_copy_limit
+from plan_guard import (
+    check_blog_limit,
+    check_image_session_limit,
+    check_prompt_copy_limit,
+)
 from plan_notify import check_and_notify
 from usage_tracker import log_usage
 from agent_router import AgentRouter
@@ -660,6 +664,10 @@ async def api_image_generate_initial(
     keyword = _vs(body.get("keyword"), "image.keyword", max_len=200)
     if not prompt:
         raise HTTPException(status_code=400, detail="이미지 프롬프트가 비어 있습니다.")
+
+    # K-8 (2026-05-04) 누적 이미지 세션 한도 체크 — 어뷰저의 generate-initial
+    # 무한 호출 차단. free/trial 은 누적 30 (= 베타 25블로그 + 5 buffer), 유료 무제한.
+    check_image_session_limit(user["clinic_id"])
 
     from plan_guard import get_effective_plan
     from image_generator import generate_initial_set, get_quota_status, AIClientError as IGError  # noqa: F401
