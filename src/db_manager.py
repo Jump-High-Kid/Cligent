@@ -290,7 +290,35 @@ def init_db() -> None:
               ON cost_logs(kind);
             CREATE INDEX IF NOT EXISTS idx_cost_logs_blog_session
               ON cost_logs(blog_session_id);
+
+            -- 갤러리 좋아요 (베타 KPI Commit 6, 2026-05-04)
+            -- D1 시그널: 모듈별 만족도 측정용. (session_id, image_index) UPSERT.
+            -- module 컬럼은 image_sessions.modules_json[index] 에서 denormalize —
+            -- KPI 집계 GROUP BY module 시 JSON 파싱 비용 회피.
+            -- liked=0 row 는 toggle off 후에도 보존 (시간축 분석: 충동 클릭 vs 진짜 만족).
+            CREATE TABLE IF NOT EXISTS gallery_likes (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id  TEXT    NOT NULL,                      -- image_sessions.session_id
+                image_index INTEGER NOT NULL,                      -- 0~4 (initial 5장 기준)
+                clinic_id   INTEGER NOT NULL REFERENCES clinics(id),
+                user_id     INTEGER,
+                module      INTEGER,                               -- denormalized from modules_json (1~11)
+                liked       INTEGER NOT NULL DEFAULT 1,            -- 1=좋아요 / 0=취소(보존)
+                liked_at    TEXT    NOT NULL DEFAULT (datetime('now', 'utc')),
+                updated_at  TEXT    NOT NULL DEFAULT (datetime('now', 'utc')),
+                UNIQUE(session_id, image_index)
+            );
+            CREATE INDEX IF NOT EXISTS idx_gallery_likes_clinic
+              ON gallery_likes(clinic_id, liked_at);
+            CREATE INDEX IF NOT EXISTS idx_gallery_likes_module
+              ON gallery_likes(module, liked);
         """)
+
+        # image_sessions 컬럼 마이그레이션 (베타 KPI Commit 6, 2026-05-04)
+        # - modules_json: 5장 모듈 list (예: ["anatomy","acupuncture",...]). NULL = 레거시 row.
+        existing_is = {row[1] for row in conn.execute("PRAGMA table_info(image_sessions)")}
+        if "modules_json" not in existing_is:
+            conn.execute("ALTER TABLE image_sessions ADD COLUMN modules_json TEXT")
         # feedback 컬럼 마이그레이션
         # - viewed_at: admin 뷰어 미확인/확인 토글
         # - context_json: blog_chat 발생 단계·session_id·error 등 (어드민 펼침용)
