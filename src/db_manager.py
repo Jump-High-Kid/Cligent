@@ -263,6 +263,33 @@ def init_db() -> None:
               ON image_jobs(clinic_id);
             CREATE INDEX IF NOT EXISTS idx_image_jobs_session
               ON image_jobs(session_id);
+
+            -- 비용 로그 (베타 KPI 인프라, 2026-05-04)
+            -- kind: 'anthropic_blog' / 'anthropic_meta' / 'openai_image_init'
+            --       / 'openai_image_regen' / 'openai_image_edit'
+            -- cost_usd 만 저장 — KRW 변환은 어드민 표시 시점에 환율 적용
+            -- blog_session_id / image_session_id 둘 중 하나만 채움 (소스 매핑용)
+            CREATE TABLE IF NOT EXISTS cost_logs (
+                id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                clinic_id         INTEGER NOT NULL REFERENCES clinics(id),
+                kind              TEXT    NOT NULL,
+                model             TEXT,
+                tokens_in         INTEGER NOT NULL DEFAULT 0,
+                tokens_out        INTEGER NOT NULL DEFAULT 0,
+                cache_read        INTEGER NOT NULL DEFAULT 0,
+                cache_create      INTEGER NOT NULL DEFAULT 0,
+                cost_usd          REAL    NOT NULL DEFAULT 0,
+                blog_session_id   TEXT,
+                image_session_id  TEXT,
+                metadata          TEXT,
+                created_at        TEXT    NOT NULL DEFAULT (datetime('now', 'utc'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_cost_logs_clinic_created
+              ON cost_logs(clinic_id, created_at);
+            CREATE INDEX IF NOT EXISTS idx_cost_logs_kind
+              ON cost_logs(kind);
+            CREATE INDEX IF NOT EXISTS idx_cost_logs_blog_session
+              ON cost_logs(blog_session_id);
         """)
         # feedback 컬럼 마이그레이션
         # - viewed_at: admin 뷰어 미확인/확인 토글
