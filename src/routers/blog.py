@@ -333,8 +333,8 @@ async def publish_check(entry_id: int, user: dict = Depends(get_current_user)):
     if not naver_blog_id:
         raise HTTPException(status_code=400, detail="네이버 블로그 아이디가 설정되지 않았습니다. 설정 > 한의원 프로필에서 등록하세요.")
 
-    # 블로그 항목 조회
-    history = get_history_list(page=1, per_page=9999)
+    # 블로그 항목 조회 (본인 클리닉만)
+    history = get_history_list(clinic_id=user["clinic_id"], page=1, per_page=9999)
     target = next((e for e in history["items"] if e["id"] == entry_id), None)
     if not target:
         raise HTTPException(status_code=404, detail="블로그 항목을 찾을 수 없습니다.")
@@ -382,11 +382,11 @@ async def blog_history(
     per_page: int = 20,
     user: dict = Depends(get_current_user),
 ):
-    return JSONResponse(get_history_list(page=page, per_page=per_page))
+    return JSONResponse(get_history_list(clinic_id=user["clinic_id"], page=page, per_page=per_page))
 
 @router.get("/api/blog/history/{entry_id}/text")
 async def blog_history_text(entry_id: int, user: dict = Depends(get_current_user)):
-    text = get_blog_text(entry_id)
+    text = get_blog_text(entry_id, clinic_id=user["clinic_id"])
     if text is None:
         raise HTTPException(status_code=404, detail="전문을 찾을 수 없거나 만료되었습니다.")
     return JSONResponse({"text": text})

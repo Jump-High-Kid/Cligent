@@ -166,9 +166,12 @@ def purge_expired_texts() -> int:
     return removed
 
 
-def get_history_list(page: int = 1, per_page: int = 20) -> dict:
+def get_history_list(clinic_id: int, page: int = 1, per_page: int = 20) -> dict:
     """
     설정 페이지용 블로그 생성 이력 반환 (최신순, 페이지네이션)
+
+    K-6 보안: clinic_id 필터 강제 — 본인 클리닉 entry만 노출.
+    레거시 entry(clinic_id=None)는 어떤 일반 사용자에게도 보이지 않음.
 
     반환 형식:
     {
@@ -178,6 +181,8 @@ def get_history_list(page: int = 1, per_page: int = 20) -> dict:
     }
     """
     stats = _load_json(STATS_PATH, default=[])
+    # 본인 클리닉만 — 레거시 None은 자동 제외
+    stats = [e for e in stats if e.get("clinic_id") == clinic_id]
     texts = _load_json(TEXTS_PATH, default=[])
     text_map = {t["id"]: t for t in texts}
 
@@ -207,8 +212,14 @@ def get_history_list(page: int = 1, per_page: int = 20) -> dict:
     return {"total": total, "items": items}
 
 
-def get_blog_text(entry_id: int) -> Optional[str]:
-    """특정 항목의 전문 반환 (만료됐거나 없으면 None)"""
+def get_blog_text(entry_id: int, clinic_id: int) -> Optional[str]:
+    """특정 항목의 전문 반환 (만료됐거나 없거나 타 클리닉이면 None).
+
+    K-6 보안: stats를 거쳐 ownership 검증. blog_texts.json에는 clinic_id가
+    없어 stats가 단일 진실원. 레거시 entry(clinic_id=None)는 차단.
+    """
+    if not _entry_owned_by(entry_id, clinic_id):
+        return None
     texts = _load_json(TEXTS_PATH, default=[])
     now = datetime.now()
     for t in texts:
@@ -217,13 +228,24 @@ def get_blog_text(entry_id: int) -> Optional[str]:
     return None
 
 
-def get_text_expiry_info(entry_id: int) -> Optional[str]:
-    """특정 항목의 전문 만료 일시 반환 (없으면 None)"""
+def get_text_expiry_info(entry_id: int, clinic_id: int) -> Optional[str]:
+    """특정 항목의 전문 만료 일시 반환 (없거나 타 클리닉이면 None)."""
+    if not _entry_owned_by(entry_id, clinic_id):
+        return None
     texts = _load_json(TEXTS_PATH, default=[])
     for t in texts:
         if t.get("id") == entry_id:
             return t.get("expires_at")
     return None
+
+
+def _entry_owned_by(entry_id: int, clinic_id: int) -> bool:
+    """K-6 ownership 검증 헬퍼. 레거시 clinic_id=None은 어떤 비교에서도 False."""
+    stats = _load_json(STATS_PATH, default=[])
+    return any(
+        e.get("id") == entry_id and e.get("clinic_id") == clinic_id
+        for e in stats
+    )
 
 
 # ── 내부 헬퍼 ──────────────────────────────────────────────────
