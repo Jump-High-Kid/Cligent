@@ -44,7 +44,7 @@ from auth_manager import (
     record_login_attempt,
     verify_invite,
 )
-from dependencies import NO_CACHE_HEADERS, is_admin_clinic
+from dependencies import NO_CACHE_HEADERS, get_real_ip, is_admin_clinic
 from module_manager import role_has_access
 
 # 프로젝트 루트 (src/routers/auth.py 기준 3단계 위)
@@ -203,7 +203,7 @@ async def api_login(request: Request):
     email = body.get("email", "").strip()
     password = body.get("password", "")
 
-    ip = request.client.host if request.client else None
+    ip = get_real_ip(request)
     user_agent = request.headers.get("user-agent")
 
     user, reason = authenticate_user(email, password)
@@ -468,7 +468,7 @@ async def beta_apply(request: Request):
 
     IP당 5분 창 3회 제한. 30일 미가입 시 자동 만료.
     """
-    ip = request.client.host if request.client else "unknown"
+    ip = get_real_ip(request) or "unknown"
     if not _check_ip_apply_limit(ip):
         return JSONResponse({"detail": "잠시 후 다시 시도해 주세요."}, status_code=429)
 

@@ -8,6 +8,7 @@ routers/* 어디서든 import 해서 사용. main.py도 backward-compat 으로 �
   - require_admin         : ADMIN_SECRET Bearer 토큰 검증 (CLI 전용)
   - require_admin_or_session : Bearer 또는 chief_director 세션
   - require_announce_admin : 공지 작성 권한
+  - get_real_ip           : Caddy 뒤 실제 클라이언트 IP 추출 (X-Forwarded-For last-hop)
 
 주의: 단순 의존성만 모음. 도메인 로직은 각 라우터 또는 *_manager.py 에 둠.
 """
@@ -100,3 +101,16 @@ def require_announce_admin(user: dict) -> None:
     """공지 작성·수정·삭제 권한: ADMIN_CLINIC_ID + chief_director."""
     if not (is_admin_clinic(user) and user.get("role") == "chief_director"):
         raise HTTPException(status_code=403, detail="공지 작성 권한이 없습니다.")
+
+
+def get_real_ip(request: Request) -> Optional[str]:
+    """리버스 프록시(Caddy) 뒤에서 실제 클라이언트 IP 추출.
+
+    X-Forwarded-For 체인의 last-hop 을 신뢰. Caddy 가 추가하는 마지막 값이
+    Caddy 가 직접 본 클라이언트 IP. 클라이언트가 위조해 보낸 X-Forwarded-For
+    값은 Caddy 추가분 앞쪽에 오므로 무시된다.
+    """
+    xff = request.headers.get("X-Forwarded-For", "").strip()
+    if xff:
+        return xff.split(",")[-1].strip()
+    return request.client.host if request.client else None
