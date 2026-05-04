@@ -40,8 +40,14 @@ def create_session(
     user_id: Optional[int],
     blog_keyword: str = "",
     plan_id_at_start: str = "",
+    modules_json: Optional[str] = None,
 ) -> str:
-    """새 이미지 세션 생성. session_id (UUID4) 반환."""
+    """새 이미지 세션 생성. session_id (UUID4) 반환.
+
+    modules_json: 5장 모듈 list JSON 문자열 (예: '[1,4,8,2,11]').
+                  None = 레거시(image_prompt_generator 호출 전) 호환.
+                  KPI 집계 시 gallery_likes.module 매핑 source.
+    """
     from db_manager import get_db
 
     sid = str(uuid.uuid4())
@@ -51,10 +57,11 @@ def create_session(
             """
             INSERT INTO image_sessions
             (session_id, clinic_id, user_id, blog_keyword, plan_id_at_start,
-             regen_count, edit_count, created_at, last_active_at)
-            VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?)
+             regen_count, edit_count, created_at, last_active_at, modules_json)
+            VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?, ?)
             """,
-            (sid, clinic_id, user_id, blog_keyword, plan_id_at_start, now, now),
+            (sid, clinic_id, user_id, blog_keyword, plan_id_at_start, now, now,
+             modules_json),
         )
     return sid
 

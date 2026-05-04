@@ -87,3 +87,69 @@ class TestBuildModuleSection:
         section = _build_module_section(analysis)
         assert "Scene 3 addendum" in section
         assert "Module: 2" in section
+
+
+class TestExtractModulesFromAnalysis:
+    """Commit 6b — analysis.scenes 에서 module 5개 추출 (KPI denormalize)"""
+
+    def test_returns_5_module_ids_in_scene_order(self):
+        from image_prompt_generator import _extract_modules_from_analysis
+
+        analysis = {
+            "scenes": [
+                {"position": 1, "module": 1},
+                {"position": 2, "module": 4},
+                {"position": 3, "module": 8},
+                {"position": 4, "module": 2},
+                {"position": 5, "module": 11},
+            ]
+        }
+        assert _extract_modules_from_analysis(analysis) == [1, 4, 8, 2, 11]
+
+    def test_pads_with_none_when_fewer_scenes(self):
+        """scenes 가 5 미만이면 None 으로 padding (5 길이 보장)"""
+        from image_prompt_generator import _extract_modules_from_analysis
+
+        analysis = {"scenes": [{"position": 1, "module": 1}, {"position": 2, "module": 4}]}
+        assert _extract_modules_from_analysis(analysis) == [1, 4, None, None, None]
+
+    def test_truncates_when_more_than_5_scenes(self):
+        """scenes 가 5 초과면 앞 5개만"""
+        from image_prompt_generator import _extract_modules_from_analysis
+
+        analysis = {
+            "scenes": [
+                {"position": i + 1, "module": i + 1} for i in range(7)
+            ]
+        }
+        assert _extract_modules_from_analysis(analysis) == [1, 2, 3, 4, 5]
+
+    def test_missing_module_field_becomes_none(self):
+        """scene 에 module 필드가 없으면 None"""
+        from image_prompt_generator import _extract_modules_from_analysis
+
+        analysis = {
+            "scenes": [
+                {"position": 1, "module": 1},
+                {"position": 2},  # module 누락
+                {"position": 3, "module": 8},
+            ]
+        }
+        assert _extract_modules_from_analysis(analysis) == [1, None, 8, None, None]
+
+    def test_empty_scenes_returns_5_nones(self):
+        from image_prompt_generator import _extract_modules_from_analysis
+
+        assert _extract_modules_from_analysis({"scenes": []}) == [None] * 5
+
+    def test_no_scenes_key_returns_5_nones(self):
+        from image_prompt_generator import _extract_modules_from_analysis
+
+        assert _extract_modules_from_analysis({}) == [None] * 5
+
+    def test_non_dict_scene_skipped(self):
+        """scene 이 dict 아니면 None 으로 처리 (방어적)"""
+        from image_prompt_generator import _extract_modules_from_analysis
+
+        analysis = {"scenes": [{"position": 1, "module": 1}, "not-a-dict", {"position": 3, "module": 8}]}
+        assert _extract_modules_from_analysis(analysis) == [1, None, 8, None, None]

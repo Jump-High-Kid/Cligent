@@ -43,7 +43,8 @@ def _isolated_db(monkeypatch, tmp_path):
             regen_count       INTEGER NOT NULL DEFAULT 0,
             edit_count        INTEGER NOT NULL DEFAULT 0,
             created_at        TEXT NOT NULL DEFAULT (datetime('now', 'utc')),
-            last_active_at    TEXT NOT NULL DEFAULT (datetime('now', 'utc'))
+            last_active_at    TEXT NOT NULL DEFAULT (datetime('now', 'utc')),
+            modules_json      TEXT
         )
     """)
     conn.commit()
@@ -81,6 +82,32 @@ class TestCreateSession:
         from image_session_manager import get_session
 
         assert get_session("nonexistent-uuid") is None
+
+
+class TestCreateSessionModulesJson:
+    """Commit 6b — create_session(modules_json=...) 인자 + DB 저장 검증"""
+
+    def test_modules_json_stored(self):
+        from image_session_manager import create_session, get_session
+
+        sid = create_session(
+            clinic_id=1, user_id=10,
+            blog_keyword="허리디스크",
+            plan_id_at_start="standard",
+            modules_json='[1,4,8,2,11]',
+        )
+        sess = get_session(sid)
+        assert sess["modules_json"] == '[1,4,8,2,11]'
+
+    def test_modules_json_default_none(self):
+        """modules_json 미지정 시 NULL (레거시 호환)"""
+        from image_session_manager import create_session, get_session
+
+        sid = create_session(
+            clinic_id=1, user_id=10, plan_id_at_start="standard"
+        )
+        sess = get_session(sid)
+        assert sess["modules_json"] is None
 
 
 class TestIncrementRegen:

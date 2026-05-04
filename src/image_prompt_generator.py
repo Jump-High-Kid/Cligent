@@ -76,6 +76,28 @@ def _analyze_blog(keyword: str, blog_content: str, api_key: str) -> tuple[dict, 
     return _parse_json_response(text), usage
 
 
+def _extract_modules_from_analysis(analysis: dict) -> list:
+    """analysis.scenes 에서 module ID 5개 추출 (KPI denormalize 용).
+
+    반환: 길이 5의 list. 각 원소는 int (1~11) 또는 None.
+          - scenes 없거나 부족 → None 으로 padding
+          - scenes > 5 → 앞 5개만 사용
+          - scene 이 dict 아니거나 module 필드 없음 → None
+    """
+    modules: list = []
+    scenes = analysis.get("scenes") if isinstance(analysis, dict) else None
+    if not isinstance(scenes, list):
+        scenes = []
+    for scene in scenes[:5]:
+        if isinstance(scene, dict):
+            modules.append(scene.get("module"))
+        else:
+            modules.append(None)
+    while len(modules) < 5:
+        modules.append(None)
+    return modules
+
+
 def _build_module_section(analysis: dict) -> str:
     """분석 JSON의 scene별 module 필드를 읽어 모듈 addendum 결합.
 
@@ -166,9 +188,12 @@ def generate_image_prompts_stream(
             "input":  usage1["input"]  + usage2["input"],
             "output": usage1["output"] + usage2["output"],
         }
+        # Commit 6b — modules 5개를 done frame 에 동봉 (gallery_likes KPI denormalize)
+        modules = _extract_modules_from_analysis(analysis)
         yield _event({
             "done":   True,
             "prompts": result.get("prompts", []),
+            "modules": modules,
             "usage":  total_usage,
         })
 

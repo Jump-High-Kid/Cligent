@@ -1032,6 +1032,7 @@ def _stream_generator_for_image(state: BlogChatState, user_input: str):
     yield _sse_frame({"type": "stage_text", "text": _IMAGE_STAGE_TEXTS[0]})
 
     prompts: list[str] = []
+    modules: list = []  # Commit 6b — KPI denormalize 용 (image_session 에 저장)
     try:
         from image_prompt_generator import generate_image_prompts_stream
         gen = generate_image_prompts_stream(
@@ -1057,6 +1058,7 @@ def _stream_generator_for_image(state: BlogChatState, user_input: str):
                 yield _sse_frame({"type": "stage_text", "text": _IMAGE_STAGE_TEXTS[1]})
             if data.get("done"):
                 prompts = list(data.get("prompts") or [])
+                modules = list(data.get("modules") or [])
     except Exception:
         logger.exception("image prompt generation failed")
         yield _sse_frame({"type": "error", "message": "이미지 프롬프트 생성에 실패했어요."})
@@ -1119,11 +1121,14 @@ def _stream_generator_for_image(state: BlogChatState, user_input: str):
 
     image_session_id = None
     try:
+        # Commit 6b — modules 5개 JSON 직렬화. 비어있으면 None 으로 (레거시 호환).
+        modules_json = json.dumps(modules) if modules else None
         image_session_id = _create_image_session(
             clinic_id=state.clinic_id,
             user_id=state.user_id,
             blog_keyword=state.topic or "",
             plan_id_at_start=plan_id,
+            modules_json=modules_json,
         )
         state.image_session_id = image_session_id
         save_session(state)
