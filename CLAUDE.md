@@ -122,7 +122,7 @@ beta:
   - **K-1 시크릿 로테이션**: Anthropic 키 + Gmail 앱 비밀번호 .env 교체 + 라이브 검증. Google OAuth는 `.env.credentials.json` 고아 파일 발견(코드/MCP 어디도 미참조) → 삭제+활성 파일(`~/.config/gdrive/credentials.json`) 권한 644→600. Sentry DSN 위험도 낮아 스킵. 외부 콘솔 작업 todo 3건은 `next_steps.md` 상단 등록.
   - **K-2 실제 IP 추출 (d8570ae)**: `dependencies.get_real_ip()` — X-Forwarded-For 체인 last-hop 신뢰. Caddy 거친 위조 시도(`X-Forwarded-For: 1.2.3.4`)는 Caddy가 추가한 last-hop(192.168.50.1)에 가려 무시. routers/auth.py login + beta_apply 두 진입점 적용. 부수 발견: uvicorn 기본 `proxy_headers=True`라 XFF는 이미 처리되고 있었음 — 진짜 가치는 위조 방어 보장.
   - **K-4 무차별 대입 차단 (34d15ba)**: `auth_manager.count_failed_logins_by_ip / by_email` (DB 기반, idx_login_history_ip_at 적중, fail-open). login 라우트 시작 부분에 IP 10회 + 이메일 5회 / 15분 윈도우 체크 후 429. 동일 메시지로 enumeration 방어. 라이브 검증: 6번째 시도 429.
-  - **추가 발견 (별도 처리 필요)**: launchd plist(`uvicorn src.main:app`)는 5일째 실패 중. 실제 운영 서버는 수동 실행 `python run.py` (PID 38975 → 49009 재시작 반복). K-1 종료 후 launchd 정리 작업 분리 필요.
+  - **추가 발견 (해결됨, ac15117)**: launchd plist 5일째 unload + 수동 `run.py` 운영 모드(reload=True) 문제 → `run_prod.py` 분리(reload=False) + plist를 `python3 run_prod.py` 로 갱신 + launchctl bootstrap. KeepAlive 검증 완료(kill → 자동 재기동). 개발/운영 동시 실행 금지(8000 포트 충돌).
   - 테스트 425 pass + K-4 추가 10건 = **435 pass / 4 fail (baseline 정확 일치, 회귀 0)**. 다음 우선순위: K-7 입력 길이 + K-8 이미지 한도 (첫 어뷰저 비용 차단).
 - **베타 초대 메시지 작성 완료 (2026-05-04)** — E3 이메일 본문 보강 (`src/plan_notify.py` `send_beta_invite_email`): 1차 베타 5인 한정 + 조건 박스(15일/25편/제한적 무료) + 운영팀 발신 + cligent.ai@gmail.com 피드백 채널. 카톡 발송용 본문은 `docs/beta_invite_kakao.md`에 별도 저장 (메일 미확인 케이스 대비 본문에 모든 핵심 정보 포함, "한의원 정보 입력(최초 1회)" 명시). 메모리: `project_beta1_policy_and_invite.md` 갱신.
 - **백그라운드/절전 시 SSE 보호 4 layer (2026-05-04)** — 모바일 백그라운드/화면 자동 절전으로 SSE 끊김 + 본문 손실 방어. 4중 안전망:
@@ -354,15 +354,35 @@ providers: ["riss","kci","google_scholar","pubmed"]
 # 첫 설치
 python3 -m pip install -r requirements.txt
 
-# 서버 시작
+# 개발 서버 (reload=True, 코드 변경 자동 반영)
 python3 run.py        # → http://localhost:8000
 
 # 테스트
 python3 -m pytest tests/ -v
 ```
 
-- `~/Library/LaunchAgents/kr.cligent.app.plist` — launchd KeepAlive (재부팅 후 uvicorn 자동 재시작)
-- 포트 충돌 시: `launchctl unload ~/Library/LaunchAgents/kr.cligent.app.plist`
+### 운영 서버 (launchd, ac15117 이후)
+
+- 진입점: `run_prod.py` (reload=False, log_level=info)
+- 등록: `~/Library/LaunchAgents/kr.cligent.app.plist` (RunAtLoad + KeepAlive + ThrottleInterval=10)
+- launchd 가 부팅 시 자동 시작 + 크래시 시 자동 재시작
+- **개발/운영 동시 실행 금지** — 8000 포트 충돌. 개발 시 launchd 정지 필요
+
+```bash
+# 운영 재시작 (코드 배포 후)
+launchctl kickstart -k gui/$UID/kr.cligent.app
+
+# 운영 정지 (개발 중 충돌 회피)
+launchctl bootout gui/$UID/kr.cligent.app
+
+# 운영 재시작 (정지 후 다시 켜기)
+launchctl bootstrap gui/$UID ~/Library/LaunchAgents/kr.cligent.app.plist
+
+# 상태 확인
+launchctl print gui/$UID/kr.cligent.app | grep -E "state|pid|last exit"
+launchctl list | grep cligent
+```
+
 - `.env` 첫 줄 탭 문자 주의 — 환경변수 미인식 원인. `load_dotenv(ROOT / ".env", override=True)`
 
 ## 프로덕션 배포 체크리스트
