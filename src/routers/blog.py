@@ -1033,6 +1033,66 @@ async def api_image_session_cancel(
     return JSONResponse({"ok": True, "session_id": session_id})
 
 
+# ─────────────────────────────────────────────────────────────
+# 갤러리 좋아요 (베타 KPI Commit 6c, 2026-05-04)
+# 모듈별 만족도 측정용 D1 시그널. (session_id, image_index) UPSERT.
+# ─────────────────────────────────────────────────────────────
+
+
+@router.post("/api/blog/image/like")
+async def api_blog_image_like(
+    payload: dict,
+    user: dict = Depends(get_current_user),
+):
+    """갤러리 이미지 좋아요 토글.
+
+    body: {session_id: uuid4, image_index: 0~4, liked: bool}
+    응답: {session_id, image_index, liked, module, liked_at, updated_at}
+    """
+    from gallery_likes import set_like
+
+    session_id = _vuuid(payload.get("session_id"), "session_id")
+    image_index = _vi(payload.get("image_index"), "image_index",
+                      min_val=0, max_val=4, optional=False)
+    liked = payload.get("liked")
+    if not isinstance(liked, bool):
+        raise HTTPException(status_code=400, detail="입력 형식이 올바르지 않습니다.")
+
+    try:
+        result = set_like(
+            session_id=session_id,
+            image_index=image_index,
+            clinic_id=user["clinic_id"],
+            user_id=user.get("id"),
+            liked=liked,
+        )
+    except LookupError:
+        raise HTTPException(status_code=404, detail="이미지 세션을 찾을 수 없습니다.")
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="다른 한의원의 세션입니다.")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="입력 형식이 올바르지 않습니다.")
+    return JSONResponse(result)
+
+
+@router.get("/api/blog/image/likes")
+async def api_blog_image_likes(
+    session_id: str,
+    user: dict = Depends(get_current_user),
+):
+    """갤러리 이미지 좋아요 5장 상태 조회 (페이지 로드/세션 복원용)."""
+    from gallery_likes import get_session_likes
+
+    sid = _vuuid(session_id, "session_id")
+    try:
+        likes = get_session_likes(sid, user["clinic_id"])
+    except LookupError:
+        raise HTTPException(status_code=404, detail="이미지 세션을 찾을 수 없습니다.")
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="다른 한의원의 세션입니다.")
+    return JSONResponse({"session_id": sid, "likes": likes})
+
+
 @router.post("/api/blog-chat/{chat_session_id}/cancel-image")
 async def api_blog_chat_cancel_image(
     chat_session_id: str,
