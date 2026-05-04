@@ -290,3 +290,38 @@ async def api_announcement_mark_read(ann_id: int, user: dict = Depends(get_curre
             (user["id"], ann_id),
         )
     return JSONResponse({"ok": True})
+
+
+# ─────────────────────────────────────────────────────────────────
+# 텔레메트리 — KPI 이벤트 기록 (Commit 4 / 2026-05-04)
+# ─────────────────────────────────────────────────────────────────
+
+@router.post("/api/telemetry/event")
+async def api_telemetry_event(
+    request: Request,
+    user: dict = Depends(get_current_user),
+):
+    """클라이언트가 stuck/cancel 등 KPI 이벤트를 fire-and-forget 으로 보고.
+
+    payload 의 clinic_id 는 무시 (보안). 인증된 user.clinic_id 만 사용.
+    실패해도 200 반환 — 텔레메트리는 본 흐름 차단 금지.
+    """
+    from telemetry import VALID_TELEMETRY_KINDS, record_event
+
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+
+    kind = payload.get("kind") if isinstance(payload, dict) else None
+    if kind not in VALID_TELEMETRY_KINDS:
+        raise HTTPException(status_code=400, detail="kind 가 유효하지 않습니다.")
+
+    record_event(
+        kind=kind,
+        clinic_id=user["clinic_id"],
+        session_id=payload.get("session_id"),
+        stage=payload.get("stage"),
+        context=payload.get("context") if isinstance(payload.get("context"), dict) else None,
+    )
+    return JSONResponse({"ok": True})

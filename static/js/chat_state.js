@@ -59,6 +59,25 @@
     if (el) el.textContent = state.stage_text;
   }
 
+  // ── 텔레메트리 fire-and-forget (Commit 4 / 2026-05-04) ─────────
+  // KPI 어드민용 stuck/cancel 이벤트 보고. 실패해도 본 흐름 영향 없음.
+  function _fireTelemetry(kind, stage, ctx) {
+    try {
+      fetch('/api/telemetry/event', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          kind: kind,
+          session_id: state.session_id || null,
+          stage: stage || null,
+          context: ctx || {},
+        }),
+        keepalive: true, // 페이지 unload 직전에도 전송
+      }).catch(() => {});
+    } catch (_) {}
+  }
+
   // ── 이미지 생성 취소 버튼 (2026-05-02 강화 v2) ──────────────────
   // 트리거: stage_change → 'image' 즉시 표시. image_session_started frame은 backup.
   // cancel: image_session_id가 있으면 직접 cancel API, 없으면 chat session 기반 pending cancel.
@@ -84,6 +103,10 @@
       options: [], meta: {},
     });
     setStageText('취소 중');
+    // 텔레메트리 — fire-and-forget (Commit 4 / 2026-05-04)
+    _fireTelemetry('cancel', 'image', {
+      image_session_id: state.image_session_id || null,
+    });
     try {
       const imgSid = state.image_session_id;
       const chatSid = state.session_id;
@@ -1317,6 +1340,10 @@
 
   // 폴링이 stuck을 확정한 직후 — 회전 멈추고 사용자에게 명확한 종료 신호 + 새 글 쓰기.
   function _markGenerationStuck() {
+    // 텔레메트리 — fire-and-forget (Commit 4 / 2026-05-04)
+    _fireTelemetry('stuck', state.stage || null, {
+      image_session_id: state.image_session_id || null,
+    });
     stopStatePolling();
     _releaseWakeLock();
     finalizeStreamingMessage();
