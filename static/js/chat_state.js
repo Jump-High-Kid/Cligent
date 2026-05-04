@@ -495,6 +495,35 @@
     });
     footer.appendChild(zipBtn);
     bubbleEl.appendChild(footer);
+
+    // 좋아요 상태 동기화 (베타 KPI 6d) — 페이지 로드/세션 복원/visibility merge 직후
+    // 갤러리 새로 그려진 직후 비동기로 서버 상태 가져와 카드별 aria-pressed 갱신.
+    // 실패 시 silent — 베타 KPI 시그널은 best-effort.
+    if (meta && meta.image_session_id) {
+      syncGalleryLikes(gallery, meta.image_session_id);
+    }
+  }
+
+  async function syncGalleryLikes(galleryEl, sessionId) {
+    try {
+      const res = await fetch(
+        `/api/blog/image/likes?session_id=${encodeURIComponent(sessionId)}`,
+        { credentials: 'include' },
+      );
+      if (!res.ok) return;
+      const body = await res.json();
+      const likes = Array.isArray(body && body.likes) ? body.likes : [];
+      likes.forEach((like) => {
+        const card = galleryEl.children[like.image_index];
+        if (!card) return;
+        const btn = card.querySelector('.image-card-like');
+        if (!btn) return;
+        btn.setAttribute('aria-pressed', like.liked ? 'true' : 'false');
+        btn.title = like.liked ? '좋아요 취소' : '좋아요';
+      });
+    } catch (_e) {
+      // silent
+    }
   }
 
   // 완료 안내 메시지에 3 버튼 부착: 본문 복사 · 이미지 전체 다운로드 · 발행 확인 등록
@@ -583,6 +612,43 @@
     num.className = 'image-card-num';
     num.textContent = String(idx + 1);
     card.appendChild(num);
+
+    // 좋아요 버튼 (베타 KPI 6d) — 모듈별 만족도 시그널.
+    // image_session_id 가 없는 구버전 메시지(과거 이력)는 버튼 자체를 그리지 않음.
+    if (meta && meta.image_session_id) {
+      const likeBtn = document.createElement('button');
+      likeBtn.type = 'button';
+      likeBtn.className = 'image-card-like';
+      likeBtn.setAttribute('aria-pressed', 'false');
+      likeBtn.setAttribute('aria-label', `${idx + 1}번 이미지 좋아요`);
+      likeBtn.title = '좋아요';
+      likeBtn.innerHTML = '<span class="material-symbols-outlined">favorite</span>';
+      likeBtn.addEventListener('click', async () => {
+        const next = likeBtn.getAttribute('aria-pressed') !== 'true';
+        likeBtn.disabled = true;
+        try {
+          const res = await fetch('/api/blog/image/like', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              session_id: meta.image_session_id,
+              image_index: idx,
+              liked: next,
+            }),
+          });
+          if (!res.ok) throw new Error('like failed');
+          const body = await res.json();
+          likeBtn.setAttribute('aria-pressed', body.liked ? 'true' : 'false');
+          likeBtn.title = body.liked ? '좋아요 취소' : '좋아요';
+        } catch (_e) {
+          // 실패 시 토글 복원 (silent — 모듈별 만족도 시그널은 best-effort)
+        } finally {
+          likeBtn.disabled = false;
+        }
+      });
+      card.appendChild(likeBtn);
+    }
 
     const img = document.createElement('img');
     img.alt = `${filenameBase} ${idx + 1}번`;
