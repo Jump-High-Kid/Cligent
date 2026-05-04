@@ -31,7 +31,7 @@
   <div class="flex items-center justify-between mb-6">
     <div>
       <h1 class="text-2xl font-bold text-stone-900">베타 KPI 대시보드</h1>
-      <p class="text-xs text-stone-500 mt-1">최근 <span id="window-days">14</span>일 — 비용·챗 길이·모듈 만족도</p>
+      <p class="text-xs text-stone-500 mt-1">최근 <span id="window-days">14</span>일 — 운영 지표 / <a href="#cost-analysis" class="underline">비용·수익 분석</a> 30일</p>
     </div>
     <button onclick="loadKpi()" class="inline-flex items-center gap-1 px-3 py-1.5 bg-stone-100 hover:bg-stone-200 rounded-lg text-sm text-stone-700">
       <span class="material-symbols-outlined text-[16px]">refresh</span>새로고침
@@ -88,6 +88,89 @@
     <h2 class="font-semibold text-stone-900 mb-4">클리닉별 활동 (비용 ↓)</h2>
     <div id="clinic-table-container">
       <p class="text-sm text-stone-400 text-center py-6">불러오는 중…</p>
+    </div>
+  </section>
+
+  <!-- ─── 비용·수익 분석 (Commit 8c, 2026-05-04) ─────────────── -->
+  <!-- 베타1 종료 후 cost_revenue_analysis 재분석 시 SQL 직접 안 돌리고 끝. -->
+  <section id="cost-analysis" class="bg-white border border-stone-200 rounded-2xl p-5 sm:p-6 mt-8">
+    <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+      <div>
+        <h2 class="font-semibold text-stone-900">비용·수익 분석</h2>
+        <p class="text-xs text-stone-500 mt-1">최근 <span id="cost-days">30</span>일 — 매출 단가는 정식 출시 기준 (베타1 무료)</p>
+      </div>
+      <div class="text-xs text-stone-600 flex items-center gap-2">
+        <span class="material-symbols-outlined text-[14px]">currency_exchange</span>
+        1 USD = ₩<span id="cost-rate" class="font-semibold">—</span>
+        <span class="text-stone-400">·</span>
+        <span id="cost-rate-source">—</span>
+      </div>
+    </div>
+
+    <!-- C2 정책 알림 배지 (조건 충족 시만 노출) -->
+    <div id="cost-alerts" class="mb-4 space-y-2"></div>
+
+    <!-- A1·A2 — 편당 변동비 + 마진율 (2 컬럼) -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+      <div class="bg-stone-50 border border-stone-200 rounded-xl p-4">
+        <h3 class="text-sm font-semibold text-stone-800 mb-3">A1 편당 평균 변동비</h3>
+        <p class="text-xs text-stone-500 mb-3">분모: <span id="cost-blog-count">—</span>편 (cost_logs DISTINCT blog_session_id)</p>
+        <div id="cost-per-blog-table" class="text-sm"></div>
+      </div>
+      <div class="bg-stone-50 border border-stone-200 rounded-xl p-4">
+        <h3 class="text-sm font-semibold text-stone-800 mb-3">A2 매출 vs 변동비 (편당)</h3>
+        <div id="cost-margin-table" class="text-sm space-y-3"></div>
+      </div>
+    </div>
+
+    <!-- B1·B2·B3 — 분포 + 사용량 + 이미지 호출 (3 컬럼) -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+      <div class="bg-stone-50 border border-stone-200 rounded-xl p-4">
+        <h3 class="text-sm font-semibold text-stone-800 mb-3">B1 플랜 분포</h3>
+        <div id="plan-distribution" class="text-sm"></div>
+      </div>
+      <div class="bg-stone-50 border border-stone-200 rounded-xl p-4">
+        <h3 class="text-sm font-semibold text-stone-800 mb-3">B2 1인 월 평균</h3>
+        <div id="avg-usage" class="text-sm"></div>
+      </div>
+      <div class="bg-stone-50 border border-stone-200 rounded-xl p-4">
+        <h3 class="text-sm font-semibold text-stone-800 mb-3">B3 편당 이미지 호출 평균</h3>
+        <p class="text-xs text-stone-500 mb-2">Pro 적자 판정 핵심</p>
+        <div id="image-calls" class="text-sm"></div>
+      </div>
+    </div>
+
+    <!-- B4 — Pro/Standard 적자 위험 클리닉 -->
+    <div class="bg-stone-50 border border-stone-200 rounded-xl p-4 mb-4">
+      <h3 class="text-sm font-semibold text-stone-800 mb-1">B4 적자 위험 클리닉 (변동비 &gt; 매출)</h3>
+      <p class="text-xs text-stone-500 mb-3">trial/free 는 매출 0 이라 패널에서 제외 (paid 만)</p>
+      <div id="loss-risk-table"></div>
+    </div>
+
+    <!-- A3 — OpenAI 청구서 reconciliation -->
+    <div class="bg-stone-50 border border-stone-200 rounded-xl p-4 mb-4">
+      <h3 class="text-sm font-semibold text-stone-800 mb-1">A3 OpenAI 청구서 vs 로깅</h3>
+      <p class="text-xs text-stone-500 mb-3">월 1회 OpenAI 콘솔에서 확인 후 입력. our_logged_usd 는 cost_logs SUM 자동 계산.</p>
+      <form id="recon-form" class="flex flex-wrap items-end gap-2 mb-3">
+        <div>
+          <label class="block text-xs text-stone-500 mb-1">대상 월</label>
+          <input type="month" id="recon-ym" class="border border-stone-300 rounded-md px-2 py-1.5 text-sm bg-white" required/>
+        </div>
+        <div>
+          <label class="block text-xs text-stone-500 mb-1">청구액 (USD)</label>
+          <input type="number" id="recon-usd" step="0.01" min="0" class="border border-stone-300 rounded-md px-2 py-1.5 text-sm bg-white w-28" required/>
+        </div>
+        <button type="submit" class="px-3 py-1.5 bg-emerald-900 hover:bg-emerald-800 text-white rounded-md text-sm">기록</button>
+        <span id="recon-msg" class="text-xs"></span>
+      </form>
+      <div id="recon-table"></div>
+    </div>
+
+    <!-- C1 — 30인 추정 -->
+    <div class="bg-stone-50 border border-stone-200 rounded-xl p-4">
+      <h3 class="text-sm font-semibold text-stone-800 mb-1">C1 30인 시 연 사업소득 추정</h3>
+      <p class="text-xs text-stone-500 mb-3">B1 가중치 × B2 사용량 × A2 마진 × 30인 × 12개월</p>
+      <div id="estimate-30users" class="text-sm"></div>
     </div>
   </section>
 </main>
@@ -310,6 +393,305 @@
     }
   }
   loadKpi();
+
+  // ── 비용·수익 분석 (Commit 8c) ──────────────────────────────
+  const fmtKrw = n => '₩' + Math.round(Number(n)||0).toLocaleString('ko-KR');
+  const fmtUsd6 = n => '$' + (Number(n)||0).toFixed(4);
+
+  // 마진 status 배지 색상
+  const STATUS_BADGE = {
+    ok:       { bg: 'bg-emerald-50',  text: 'text-emerald-800',  label: '정상' },
+    warn:     { bg: 'bg-amber-50',    text: 'text-amber-800',    label: '주의' },
+    critical: { bg: 'bg-red-50',      text: 'text-red-800',      label: '위험' },
+  };
+
+  // progress bar (0~100%)
+  function progBar(pct, color) {
+    color = color || '#065f46';
+    const w = Math.max(0, Math.min(100, Number(pct)||0));
+    return `<div class="bg-stone-200 rounded-full h-2 overflow-hidden">
+      <div class="h-full rounded-full" style="width:${w}%;background:${color}"></div>
+    </div>`;
+  }
+
+  async function loadCostAnalysis() {
+    try {
+      const res = await fetch('/api/admin/kpi/cost?days=30');
+      if (res.status === 401 || res.status === 403) { return; }
+      const d = await res.json();
+
+      // 환율 표시
+      const rate = d.rate || {};
+      document.getElementById('cost-days').textContent = d.days;
+      document.getElementById('cost-rate').textContent = Math.round(rate.rate||0).toLocaleString('ko-KR');
+      const srcLabel = { koreaexim: '수출입은행', cache: '캐시', fallback: '기본값' };
+      document.getElementById('cost-rate-source').textContent =
+        (srcLabel[rate.source] || rate.source || '') + (rate.date ? ` (${rate.date})` : '');
+
+      // C2 알림
+      renderAlerts(d.alerts || []);
+
+      // A1 편당 변동비
+      renderCostPerBlog(d.cost_per_blog || {}, rate.rate || 1400);
+
+      // A2 마진
+      renderMargin(d.margin || {});
+
+      // B1 플랜 분포
+      renderPlanDistribution(d.plan_distribution || {});
+
+      // B2 1인 월 평균
+      renderAvgUsage(d.avg_usage || {});
+
+      // B3 이미지 호출
+      renderImageCalls(d.image_calls || {});
+
+      // B4 적자 위험
+      renderLossRisk(d.loss_risk || []);
+
+      // A3 청구서 reconciliation
+      renderReconTable(d.billing_recon || []);
+
+      // C1 30인 추정
+      renderEstimate30(d.estimate_30users || {});
+    } catch (e) {
+      console.warn('cost analysis 로드 실패', e);
+    }
+  }
+
+  function renderAlerts(alerts) {
+    const el = document.getElementById('cost-alerts');
+    if (!alerts.length) { el.innerHTML = ''; return; }
+    el.innerHTML = alerts.map(a => {
+      const sev = STATUS_BADGE[a.severity] || STATUS_BADGE.warn;
+      const icon = a.severity === 'critical' ? 'error' : 'warning';
+      return `<div class="flex items-start gap-2 ${sev.bg} ${sev.text} rounded-lg px-3 py-2">
+        <span class="material-symbols-outlined text-[18px] flex-shrink-0">${icon}</span>
+        <span class="text-sm">${esc(a.message)}</span>
+      </div>`;
+    }).join('');
+  }
+
+  function renderCostPerBlog(cost, rate) {
+    document.getElementById('cost-blog-count').textContent = cost.blog_count || 0;
+    const a = cost.avg_usd || {};
+    const rows = [
+      { k: '텍스트 (Sonnet+Haiku)', usd: a.text },
+      { k: '이미지 초기 5장',         usd: a.image_init },
+      { k: '이미지 재생성',           usd: a.image_regen },
+      { k: '이미지 수정',             usd: a.image_edit },
+    ];
+    let html = '<table class="w-full"><tbody>';
+    rows.forEach(r => {
+      const krw = (Number(r.usd)||0) * rate;
+      html += `<tr class="border-b border-stone-200 last:border-0">
+        <td class="py-1.5 text-stone-700">${esc(r.k)}</td>
+        <td class="py-1.5 text-right text-stone-500 text-xs">${fmtUsd6(r.usd)}</td>
+        <td class="py-1.5 text-right font-semibold">${fmtKrw(krw)}</td>
+      </tr>`;
+    });
+    const totUsd = Number(a.total) || 0;
+    const totKrw = totUsd * rate;
+    html += `<tr class="border-t-2 border-stone-300 bg-white">
+      <td class="py-2 font-bold text-stone-900">합계</td>
+      <td class="py-2 text-right text-stone-500 text-xs">${fmtUsd6(totUsd)}</td>
+      <td class="py-2 text-right font-bold text-emerald-900">${fmtKrw(totKrw)}</td>
+    </tr></tbody></table>`;
+    document.getElementById('cost-per-blog-table').innerHTML = html;
+  }
+
+  function renderMargin(margin) {
+    const el = document.getElementById('cost-margin-table');
+    if (!margin.standard || !margin.pro) { el.innerHTML = '<p class="text-stone-400 text-xs">데이터 없음</p>'; return; }
+    let html = '';
+    [['standard', 'Standard'], ['pro', 'Pro']].forEach(([key, label]) => {
+      const m = margin[key];
+      const sev = STATUS_BADGE[m.status] || STATUS_BADGE.ok;
+      const pct = m.margin_pct;
+      const barColor = m.status === 'critical' ? '#dc2626' : m.status === 'warn' ? '#d97706' : '#065f46';
+      html += `<div>
+        <div class="flex items-center justify-between mb-1">
+          <strong class="text-stone-900">${label}</strong>
+          <span class="text-xs px-2 py-0.5 rounded ${sev.bg} ${sev.text}">마진 ${pct.toFixed(1)}% · ${sev.label}</span>
+        </div>
+        <div class="text-xs text-stone-500 mb-1.5">매출 ${fmtKrw(m.revenue_krw)} − 변동비 ${fmtKrw(m.cost_krw)} = <span class="${m.margin_krw >= 0 ? 'text-emerald-700' : 'text-red-700'} font-semibold">${fmtKrw(m.margin_krw)}</span></div>
+        ${progBar(Math.max(0, pct), barColor)}
+      </div>`;
+    });
+    el.innerHTML = html;
+  }
+
+  function renderPlanDistribution(pd) {
+    const el = document.getElementById('plan-distribution');
+    if (!pd.total) { el.innerHTML = '<p class="text-stone-400 text-xs">데이터 없음</p>'; return; }
+    el.innerHTML = `
+      <div class="space-y-2">
+        <div class="flex justify-between"><span>Standard</span><strong>${pd.standard}명</strong></div>
+        <div class="flex justify-between"><span>Pro</span><strong>${pd.pro}명</strong></div>
+        <div class="flex justify-between text-stone-500"><span>Trial</span><span>${pd.trial}명</span></div>
+        <div class="flex justify-between text-stone-500"><span>Free</span><span>${pd.free}명</span></div>
+        <div class="border-t border-stone-200 pt-2 flex justify-between"><span class="text-stone-500">전체</span><strong>${pd.total}명</strong></div>
+      </div>
+      ${pd.standard_pct + pd.pro_pct > 0 ? `<p class="text-xs text-stone-500 mt-3">유료 비율 — Standard ${pd.standard_pct}% / Pro ${pd.pro_pct}%</p>` : ''}
+    `;
+  }
+
+  function renderAvgUsage(u) {
+    const el = document.getElementById('avg-usage');
+    if (!u.user_count) { el.innerHTML = '<p class="text-stone-400 text-xs">활성 사용자 없음</p>'; return; }
+    el.innerHTML = `
+      <div class="space-y-2.5">
+        <div>
+          <div class="flex justify-between mb-1"><span>블로그 ${u.avg_blogs_per_user_month}편/월</span><span class="text-stone-500 text-xs">/${u.user_count}명</span></div>
+          <div class="text-xs text-stone-500 mb-1">Standard 30편 ${u.blog_usage_pct_standard}% / Pro 80편 ${u.blog_usage_pct_pro}%</div>
+          ${progBar(u.blog_usage_pct_standard, '#065f46')}
+        </div>
+        <div class="border-t border-stone-200 pt-2">
+          <div class="flex justify-between"><span>이미지 세션</span><strong>${u.avg_image_sessions_per_user_month}건/월</strong></div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderImageCalls(c) {
+    const el = document.getElementById('image-calls');
+    if (!c.blog_count) { el.innerHTML = '<p class="text-stone-400 text-xs">데이터 없음</p>'; return; }
+    el.innerHTML = `
+      <table class="w-full">
+        <tbody>
+          <tr class="border-b border-stone-200">
+            <td class="py-1.5">초기 5장</td>
+            <td class="py-1.5 text-right font-semibold">${c.init.toFixed(2)}회</td>
+          </tr>
+          <tr class="border-b border-stone-200">
+            <td class="py-1.5">재생성</td>
+            <td class="py-1.5 text-right font-semibold">${c.regen.toFixed(2)}회</td>
+          </tr>
+          <tr>
+            <td class="py-1.5">수정 (edit)</td>
+            <td class="py-1.5 text-right font-semibold ${c.edit >= 3 ? 'text-red-700' : c.edit >= 2 ? 'text-amber-700' : 'text-emerald-900'}">${c.edit.toFixed(2)}회</td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="text-xs text-stone-500 mt-2">${c.blog_count}편 기준 평균</p>
+    `;
+  }
+
+  function renderLossRisk(rows) {
+    const el = document.getElementById('loss-risk-table');
+    if (!rows.length) {
+      el.innerHTML = '<p class="text-sm text-emerald-700 py-2"><span class="material-symbols-outlined text-[16px] align-middle mr-1">check_circle</span>적자 클리닉 없음</p>';
+      return;
+    }
+    let html = `<table class="w-full text-sm">
+      <thead>
+        <tr class="text-xs text-stone-500 border-b border-stone-200">
+          <th class="text-left py-2 font-medium">#</th>
+          <th class="text-left py-2 font-medium">클리닉</th>
+          <th class="text-left py-2 font-medium">플랜</th>
+          <th class="text-right py-2 font-medium">편 수</th>
+          <th class="text-right py-2 font-medium">매출</th>
+          <th class="text-right py-2 font-medium">변동비</th>
+          <th class="text-right py-2 font-medium">손실</th>
+        </tr>
+      </thead><tbody>`;
+    rows.forEach((r, i) => {
+      html += `<tr class="border-b border-stone-100">
+        <td class="py-2 text-stone-400">${i+1}</td>
+        <td class="py-2"><strong>${esc(r.clinic_name)}</strong> <span class="text-stone-400 text-xs">#${r.clinic_id}</span></td>
+        <td class="py-2 text-xs uppercase ${r.plan === 'pro' ? 'text-purple-700' : 'text-blue-700'}">${r.plan}</td>
+        <td class="py-2 text-right">${r.blogs}</td>
+        <td class="py-2 text-right">${fmtKrw(r.revenue_krw)}</td>
+        <td class="py-2 text-right">${fmtKrw(r.cost_krw)}</td>
+        <td class="py-2 text-right font-bold text-red-700">−${fmtKrw(r.loss_krw)}</td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    el.innerHTML = html;
+  }
+
+  function renderReconTable(rows) {
+    const el = document.getElementById('recon-table');
+    if (!rows.length) {
+      el.innerHTML = '<p class="text-stone-400 text-sm py-2">아직 입력된 청구서가 없습니다.</p>';
+      return;
+    }
+    let html = `<table class="w-full text-sm">
+      <thead><tr class="text-xs text-stone-500 border-b border-stone-200">
+        <th class="text-left py-2 font-medium">월</th>
+        <th class="text-right py-2 font-medium">OpenAI 청구</th>
+        <th class="text-right py-2 font-medium">로깅 합계</th>
+        <th class="text-right py-2 font-medium">차이</th>
+        <th class="text-right py-2 font-medium">차이 %</th>
+      </tr></thead><tbody>`;
+    rows.forEach(r => {
+      const diffPct = r.diff_pct == null ? '—' :
+        (r.diff_pct > 0 ? '+' : '') + r.diff_pct.toFixed(2) + '%';
+      const cls = r.diff_pct == null ? 'text-stone-400' :
+        Math.abs(r.diff_pct) > 10 ? 'text-amber-700 font-semibold' : 'text-stone-700';
+      html += `<tr class="border-b border-stone-100">
+        <td class="py-2 font-mono">${esc(r.year_month)}</td>
+        <td class="py-2 text-right">${fmtUsd(r.openai_invoice_usd)}</td>
+        <td class="py-2 text-right">${fmtUsd(r.our_logged_usd)}</td>
+        <td class="py-2 text-right">${fmtUsd(r.diff_usd)}</td>
+        <td class="py-2 text-right ${cls}">${diffPct}</td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    el.innerHTML = html;
+  }
+
+  function renderEstimate30(e) {
+    const el = document.getElementById('estimate-30users');
+    if (!e.annual_revenue_30users_krw && !e.blogs_per_month) {
+      el.innerHTML = '<p class="text-stone-400 text-xs">실측 데이터 부족 — 베타1 종료 후 재계산</p>';
+      return;
+    }
+    const w = e.weights || {};
+    el.innerHTML = `
+      <div class="space-y-2">
+        <div class="flex justify-between"><span>1인 월 마진</span><strong>${fmtKrw(e.monthly_margin_per_user_krw)}</strong></div>
+        <div class="flex justify-between"><span>1인 월 평균 블로그</span><strong>${e.blogs_per_month}편</strong></div>
+        <div class="flex justify-between text-xs text-stone-500"><span>가중치</span><span>Standard ${(w.standard*100).toFixed(0)}% / Pro ${(w.pro*100).toFixed(0)}%</span></div>
+        <div class="border-t border-stone-200 pt-2 flex justify-between text-base">
+          <span class="text-stone-700">30인 시 연 사업소득</span>
+          <strong class="text-emerald-900">${fmtKrw(e.annual_revenue_30users_krw)}</strong>
+        </div>
+      </div>
+    `;
+  }
+
+  // billing-recon 폼 제출
+  document.getElementById('recon-form').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const ym = document.getElementById('recon-ym').value;
+    const usd = document.getElementById('recon-usd').value;
+    const msg = document.getElementById('recon-msg');
+    msg.textContent = '저장 중…';
+    msg.className = 'text-xs text-stone-500';
+    try {
+      const res = await fetch('/api/admin/kpi/cost/billing-recon', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ year_month: ym, openai_invoice_usd: parseFloat(usd) }),
+      });
+      if (!res.ok) {
+        msg.textContent = '저장 실패 (' + res.status + ')';
+        msg.className = 'text-xs text-red-600';
+        return;
+      }
+      const d = await res.json();
+      renderReconTable(d.recon || []);
+      msg.textContent = '저장됨';
+      msg.className = 'text-xs text-emerald-700';
+      document.getElementById('recon-usd').value = '';
+    } catch (e) {
+      msg.textContent = '저장 실패';
+      msg.className = 'text-xs text-red-600';
+    }
+  });
+
+  loadCostAnalysis();
 </script>
 </body>
 </html>
