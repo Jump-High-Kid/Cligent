@@ -37,6 +37,8 @@ from auth_manager import (
     authenticate_user,
     change_password,
     complete_onboarding,
+    count_failed_logins_by_email,
+    count_failed_logins_by_ip,
     create_access_token,
     create_invite,
     create_reinvite,
@@ -70,6 +72,12 @@ _IP_APPLY_LIMIT = 3
 # Forgot password 이메일별 60초 제한
 _FORGOT_PW_RATE_LIMIT_SEC = 60
 _forgot_pw_last_request: Dict[str, float] = {}
+
+# 로그인 무차별 대입 차단 (K-4) — 15분 창
+# IP 당 10회 + 이메일당 5회. 어느 쪽이든 임계 도달 시 429 차단.
+LOGIN_RATE_WINDOW_MIN = 15
+LOGIN_RATE_IP_LIMIT = 10
+LOGIN_RATE_EMAIL_LIMIT = 5
 
 
 def _check_ip_apply_limit(ip: str) -> bool:
@@ -198,13 +206,29 @@ async def sitemap_xml() -> Response:
 
 @router.post("/api/auth/login")
 async def api_login(request: Request):
-    """로그인 — httpOnly JWT 쿠키 발급. 시도/결과 모두 login_history 기록."""
+    """로그인 — httpOnly JWT 쿠키 발급. 시도/결과 모두 login_history 기록.
+
+    무차별 대입 차단(K-4): 같은 IP 또는 이메일이 15분 내 임계치(10/5) 도달 시 429.
+    동일 메시지로 enumeration 방어. fail-open 헬퍼라 DB 장애 시엔 정상 진행.
+    """
     body = await request.json()
     email = body.get("email", "").strip()
     password = body.get("password", "")
 
     ip = get_real_ip(request)
     user_agent = request.headers.get("user-agent")
+
+    # K-4 무차별 대입 차단 — 인증 시도 전에 빠른 차단
+    if ip and count_failed_logins_by_ip(ip, LOGIN_RATE_WINDOW_MIN) >= LOGIN_RATE_IP_LIMIT:
+        return JSONResponse(
+            {"detail": "잠시 후 다시 시도해 주세요."},
+            status_code=429,
+        )
+    if email and count_failed_logins_by_email(email, LOGIN_RATE_WINDOW_MIN) >= LOGIN_RATE_EMAIL_LIMIT:
+        return JSONResponse(
+            {"detail": "잠시 후 다시 시도해 주세요."},
+            status_code=429,
+        )
 
     user, reason = authenticate_user(email, password)
 

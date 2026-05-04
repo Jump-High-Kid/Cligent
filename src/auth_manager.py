@@ -198,6 +198,49 @@ def record_login_attempt(
         pass
 
 
+def count_failed_logins_by_ip(ip: str, window_minutes: int = 15) -> int:
+    """최근 window_minutes 분 내 같은 IP 의 실패 로그인 수.
+
+    K-4 무차별 대입 차단용. idx_login_history_ip_at 인덱스 적중.
+    예외 시 0 반환 (fail-open) — 차단 로직이 DB 장애로 정상 사용자를 막지 않게.
+    """
+    if not ip:
+        return 0
+    try:
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS c FROM login_history "
+                "WHERE ip = ? AND success = 0 "
+                "AND datetime(created_at) > datetime('now', ?)",
+                (ip, f"-{int(window_minutes)} minutes"),
+            ).fetchone()
+            return int(row["c"]) if row else 0
+    except Exception:
+        return 0
+
+
+def count_failed_logins_by_email(email: str, window_minutes: int = 15) -> int:
+    """최근 window_minutes 분 내 같은 이메일의 실패 로그인 수.
+
+    K-4 무차별 대입 차단용. email 인덱스 부재 시 풀 스캔 — 베타 데이터량
+    (일 수십~수백 행) 에서는 무시 가능. 데이터 증가 시 인덱스 추가 검토.
+    예외 시 0 반환 (fail-open).
+    """
+    if not email:
+        return 0
+    try:
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS c FROM login_history "
+                "WHERE email = ? AND success = 0 "
+                "AND datetime(created_at) > datetime('now', ?)",
+                (email, f"-{int(window_minutes)} minutes"),
+            ).fetchone()
+            return int(row["c"]) if row else 0
+    except Exception:
+        return 0
+
+
 # ── 초대 토큰 ─────────────────────────────────────────────────────
 
 def create_invite(clinic_id: int, email: str, role: str, created_by: int) -> str:
