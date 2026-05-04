@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="ko" class="cligent-booting">
+<head>
+<link rel="preload" as="font" type="font/woff2" href="/static/fonts/PretendardVariable.woff2" crossorigin>
+<link rel="preload" as="font" type="font/woff2" href="/static/fonts/material-symbols-outlined.woff2" crossorigin>
+<link href="/static/fonts.css" rel="stylesheet"/>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Cligent — 이미지 생성 테스트</title>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+  tailwind.config = { theme: { extend: { fontFamily: { sans: ['Pretendard', 'sans-serif'] } } } };
+</script>
+<style>
+  body { font-family: 'Pretendard', sans-serif; background: #fafaf9; }
+  .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24; }
+  .pill-radio input { display: none; }
+  .pill-radio span {
+    display: inline-block; padding: 6px 12px; border: 1px solid #d6d3d1; border-radius: 999px;
+    font-size: 13px; cursor: pointer; background: white; color: #44403c;
+  }
+  .pill-radio input:checked + span {
+    background: #064e3b; color: white; border-color: #064e3b;
+  }
+  .pill-radio input:disabled + span {
+    opacity: 0.4; cursor: not-allowed;
+  }
+  textarea, input[type=text] { font-family: 'Pretendard', sans-serif; }
+  .preview-grid img { width: 100%; height: auto; display: block; border-radius: 12px; }
+  ::selection { background: #fde68a; }
+</style>
+<script>document.addEventListener('DOMContentLoaded',function(){requestAnimationFrame(function(){document.documentElement.classList.add('cligent-ready');});});</script>
+<noscript><style>html.cligent-booting{visibility:visible !important;}</style></noscript>
+</head>
+<body class="text-stone-800">
+
+<main class="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
+  <div class="flex items-center gap-2 mb-1">
+    <a href="/admin" class="text-stone-400 hover:text-emerald-700 text-sm flex items-center gap-1">
+      <span class="material-symbols-outlined text-sm">arrow_back</span> 관리자
+    </a>
+  </div>
+  <div class="flex items-center gap-2 mb-2">
+    <span class="material-symbols-outlined text-emerald-900">image_search</span>
+    <h1 class="text-2xl sm:text-3xl font-bold text-stone-900">이미지 생성 테스트</h1>
+  </div>
+  <p class="text-sm text-stone-500 mb-6">
+    블로그 글 생성 없이 이미지만 단독 생성. 해부학 정확도·자유 프롬프트·모듈 분기 검증용. 베타 한도 미반영.
+  </p>
+
+  <!-- 모드 선택 -->
+  <section class="bg-white border border-stone-200 rounded-2xl p-5 mb-4">
+    <h2 class="font-semibold text-stone-900 mb-3 flex items-center gap-2">
+      <span class="material-symbols-outlined text-emerald-700 text-base">tune</span>
+      1. 모드 선택
+    </h2>
+    <div class="space-y-2">
+      <label class="flex items-start gap-3 p-3 rounded-lg hover:bg-stone-50 cursor-pointer">
+        <input type="radio" name="mode" value="full" checked class="mt-1"/>
+        <div>
+          <div class="font-medium text-stone-800">A. 전체 글 → 파이프라인</div>
+          <div class="text-xs text-stone-500">기존 챗 흐름과 동일. Stage 1 분석 → 모듈 분기 → 5 prompt 생성</div>
+        </div>
+      </label>
+      <label class="flex items-start gap-3 p-3 rounded-lg hover:bg-stone-50 cursor-pointer">
+        <input type="radio" name="mode" value="excerpt" class="mt-1"/>
+        <div>
+          <div class="font-medium text-stone-800">B. 본문 구간 드래그 → 파이프라인 (해부학 부위 강제)</div>
+          <div class="text-xs text-stone-500">글 일부만 잘라 입력 + anatomical_region 드롭다운으로 부위 강제</div>
+        </div>
+      </label>
+      <label class="flex items-start gap-3 p-3 rounded-lg hover:bg-stone-50 cursor-pointer">
+        <input type="radio" name="mode" value="raw" class="mt-1"/>
+        <div>
+          <div class="font-medium text-stone-800">C. 자유 raw 프롬프트 → OpenAI 직행</div>
+          <div class="text-xs text-stone-500">Stage 1·2 우회. 침 시술·환자 복장 등 자유 실험</div>
+        </div>
+      </label>
+    </div>
+  </section>
+
+  <!-- 글 선택 (A·B 공통) -->
+  <section id="post-section" class="bg-white border border-stone-200 rounded-2xl p-5 mb-4">
+    <h2 class="font-semibold text-stone-900 mb-3 flex items-center gap-2">
+      <span class="material-symbols-outlined text-emerald-700 text-base">article</span>
+      2. 글 선택
+      <span class="text-xs text-stone-400 font-normal ml-2">자동 제외: 500자 미만, 제목에 test/테스트/asdf 포함</span>
+    </h2>
+    <div class="flex items-center gap-2 mb-3">
+      <select id="post-select" class="flex-1 border border-stone-300 rounded-lg px-3 py-2 text-sm">
+        <option value="">로딩 중...</option>
+      </select>
+      <button id="post-reload" class="px-3 py-2 text-xs border border-stone-300 rounded-lg hover:bg-stone-50">새로고침</button>
+    </div>
+
+    <!-- B 모드 안내 -->
+    <div id="excerpt-hint" class="hidden mb-2 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800">
+      본문 박스에서 원하는 구간을 드래그한 뒤 "선택 영역만 사용" 버튼을 누르세요.
+    </div>
+
+    <textarea id="post-text" rows="10" placeholder="글을 선택하면 본문이 여기에 표시됩니다."
+      class="w-full border border-stone-300 rounded-lg p-3 text-sm leading-relaxed font-mono"></textarea>
+    <div class="flex items-center gap-2 mt-2">
+      <button id="use-selection" class="hidden px-3 py-1.5 text-xs bg-emerald-700 text-white rounded-lg hover:bg-emerald-800">선택 영역만 사용</button>
+      <button id="use-full" class="hidden px-3 py-1.5 text-xs border border-stone-300 rounded-lg hover:bg-stone-50">전체 글로 복원</button>
+      <span id="post-meta" class="text-xs text-stone-400 ml-auto"></span>
+    </div>
+
+    <!-- B 모드: 부위 강제 + 해부학 힌트 -->
+    <div id="region-row" class="hidden mt-3 pt-3 border-t border-stone-100 flex flex-wrap items-center gap-3">
+      <label class="text-sm text-stone-700">부위 강제:</label>
+      <select id="force-region" class="border border-stone-300 rounded-lg px-2 py-1 text-sm">
+        <option value="">(자동 — 분석 결과 사용)</option>
+      </select>
+      <label class="flex items-center gap-1 text-sm text-stone-700 ml-2">
+        <input type="checkbox" id="anatomy-hint" checked class="rounded"/> 해부학 핵심 부분으로 가정
+      </label>
+    </div>
+  </section>
+
+  <!-- raw 프롬프트 (C) -->
+  <section id="raw-section" class="hidden bg-white border border-stone-200 rounded-2xl p-5 mb-4">
+    <h2 class="font-semibold text-stone-900 mb-3 flex items-center gap-2">
+      <span class="material-symbols-outlined text-emerald-700 text-base">edit_note</span>
+      2. 자유 프롬프트
+    </h2>
+    <textarea id="raw-prompt" rows="6" placeholder="영어 프롬프트 권장. 예) photorealistic Korean medicine clinic, female patient lying prone receiving acupuncture on lower back ..."
+      class="w-full border border-stone-300 rounded-lg p-3 text-sm leading-relaxed"></textarea>
+    <label class="flex items-center gap-1 text-sm text-stone-700 mt-2">
+      <input type="checkbox" id="global-directives" checked class="rounded"/>
+      안전 가이드(global directives + safety negatives) 자동 추가
+    </label>
+  </section>
+
+  <!-- 옵션 -->
+  <section class="bg-white border border-stone-200 rounded-2xl p-5 mb-4">
+    <h2 class="font-semibold text-stone-900 mb-3 flex items-center gap-2">
+      <span class="material-symbols-outlined text-emerald-700 text-base">settings</span>
+      3. 옵션
+    </h2>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div>
+        <div class="text-xs text-stone-500 mb-1">이미지 개수</div>
+        <div class="flex gap-1 pill-radio">
+          <label><input type="radio" name="count" value="1" checked/><span>1장</span></label>
+          <label><input type="radio" name="count" value="5"/><span>5장</span></label>
+        </div>
+      </div>
+      <div>
+        <div class="text-xs text-stone-500 mb-1">처리 방식 (5장)</div>
+        <div class="flex gap-1 pill-radio">
+          <label><input type="radio" name="parallel" value="0" checked/><span>순차</span></label>
+          <label><input type="radio" name="parallel" value="1"/><span>병렬</span></label>
+        </div>
+      </div>
+      <div>
+        <div class="text-xs text-stone-500 mb-1">해상도</div>
+        <div class="flex gap-1 pill-radio">
+          <label><input type="radio" name="plan" value="standard" checked/><span>Standard 1024 medium</span></label>
+          <label><input type="radio" name="plan" value="pro"/><span>Pro 1536 high</span></label>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 실행 -->
+  <div class="flex items-center gap-3 mb-6">
+    <button id="run-btn" class="px-5 py-2.5 bg-emerald-900 text-white rounded-lg hover:bg-emerald-800 font-medium flex items-center gap-1">
+      <span class="material-symbols-outlined text-base">play_arrow</span>
+      이미지 생성
+    </button>
+    <span id="status" class="text-sm text-stone-500"></span>
+  </div>
+
+  <!-- 결과 -->
+  <section id="result-section" class="hidden bg-white border border-stone-200 rounded-2xl p-5">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="font-semibold text-stone-900 flex items-center gap-2">
+        <span class="material-symbols-outlined text-emerald-700 text-base">grid_view</span>
+        결과
+      </h2>
+      <div id="meta-bar" class="text-xs text-stone-500"></div>
+    </div>
+    <div id="grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 preview-grid"></div>
+    <details class="mt-4">
+      <summary class="cursor-pointer text-xs text-stone-500 hover:text-stone-700">Stage 1 분석 결과 (JSON)</summary>
+      <pre id="analysis-json" class="mt-2 p-3 bg-stone-50 border border-stone-200 rounded text-[11px] overflow-x-auto"></pre>
+    </details>
+  </section>
+</main>
+
+<script>
+let ANATOMY_PARTS = null;
+
+const el = id => document.getElementById(id);
+const $ = sel => document.querySelector(sel);
+const $$ = sel => document.querySelectorAll(sel);
+
+let currentPosts = [];
+let originalText = "";
+let lastSelection = "";
+
+function getMode(){
+  return document.querySelector('input[name=mode]:checked').value;
+}
+function getCount(){ return parseInt(document.querySelector('input[name=count]:checked').value, 10); }
+function getParallel(){ return document.querySelector('input[name=parallel]:checked').value === '1'; }
+function getPlan(){ return document.querySelector('input[name=plan]:checked').value; }
+
+function syncSections(){
+  const m = getMode();
+  el('post-section').classList.toggle('hidden', m === 'raw');
+  el('raw-section').classList.toggle('hidden', m !== 'raw');
+  el('region-row').classList.toggle('hidden', m !== 'excerpt');
+  el('excerpt-hint').classList.toggle('hidden', m !== 'excerpt');
+  el('use-selection').classList.toggle('hidden', m !== 'excerpt');
+  el('use-full').classList.toggle('hidden', m !== 'excerpt');
+
+  // 1장일 때 병렬 비활성
+  const c = getCount();
+  $$('input[name=parallel]').forEach(r => {
+    r.disabled = (c === 1);
+    if (c === 1) r.checked = (r.value === '0');
+  });
+}
+
+function fillRegionDropdown(){
+  const sel = el('force-region');
+  if (!ANATOMY_PARTS) return;
+  const cats = ANATOMY_PARTS.categories || {};
+  const parts = ANATOMY_PARTS.parts || {};
+  // 카테고리별 그룹
+  const grouped = {};
+  for (const [slug, info] of Object.entries(parts)) {
+    const cat = info.category || 'other';
+    grouped[cat] = grouped[cat] || [];
+    grouped[cat].push({slug, ko: info.ko});
+  }
+  for (const [cat, items] of Object.entries(grouped)) {
+    const og = document.createElement('optgroup');
+    og.label = cats[cat] || cat;
+    items.forEach(it => {
+      const o = document.createElement('option');
+      o.value = it.slug;
+      o.textContent = `${it.ko} (${it.slug})`;
+      og.appendChild(o);
+    });
+    sel.appendChild(og);
+  }
+}
+
+async function loadPosts(){
+  el('post-select').innerHTML = '<option value="">로딩 중...</option>';
+  try {
+    const res = await fetch('/api/admin/image-test/posts');
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    currentPosts = data.items || [];
+    if (currentPosts.length === 0) {
+      el('post-select').innerHTML = '<option value="">사용 가능한 글 없음</option>';
+      return;
+    }
+    el('post-select').innerHTML = '<option value="">— 글 선택 —</option>' +
+      currentPosts.map(p => {
+        const dt = (p.created_at || '').slice(0, 10);
+        const t = p.title || p.keyword;
+        return `<option value="${p.id}">[${dt}] ${t} (${p.char_count}자)</option>`;
+      }).join('');
+  } catch (e) {
+    el('post-select').innerHTML = `<option value="">로딩 실패: ${e.message}</option>`;
+  }
+}
+
+async function loadPostText(id){
+  el('post-text').value = '로딩 중...';
+  try {
+    const res = await fetch('/api/admin/image-test/post/' + id);
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    originalText = data.blog_text || '';
+    el('post-text').value = originalText;
+    const meta = currentPosts.find(p => p.id === id);
+    el('post-meta').textContent = meta ? `${meta.char_count}자 · ${meta.created_at?.slice(0,10) || ''}` : '';
+  } catch (e) {
+    el('post-text').value = '로딩 실패: ' + e.message;
+  }
+}
+
+el('post-select').addEventListener('change', e => {
+  const id = parseInt(e.target.value, 10);
+  if (id) loadPostText(id);
+});
+el('post-reload').addEventListener('click', loadPosts);
+
+el('post-text').addEventListener('mouseup', () => {
+  const ta = el('post-text');
+  const sel = ta.value.substring(ta.selectionStart, ta.selectionEnd);
+  if (sel.trim().length > 0) lastSelection = sel;
+});
+
+el('use-selection').addEventListener('click', () => {
+  if (!lastSelection) {
+    alert('먼저 본문에서 사용할 부분을 드래그로 선택하세요.');
+    return;
+  }
+  el('post-text').value = lastSelection;
+  el('post-meta').textContent = `선택 영역 ${lastSelection.length}자 사용 중`;
+});
+
+el('use-full').addEventListener('click', () => {
+  if (originalText) {
+    el('post-text').value = originalText;
+    lastSelection = "";
+    el('post-meta').textContent = `${originalText.length}자`;
+  }
+});
+
+$$('input[name=mode]').forEach(r => r.addEventListener('change', syncSections));
+$$('input[name=count]').forEach(r => r.addEventListener('change', syncSections));
+
+el('run-btn').addEventListener('click', async () => {
+  const mode = getMode();
+  const count = getCount();
+  const parallel = getParallel();
+  const plan = getPlan();
+
+  const body = { count, parallel, plan };
+
+  if (mode === 'raw') {
+    body.mode = 'raw';
+    body.raw_prompt = el('raw-prompt').value.trim();
+    body.global_directives = el('global-directives').checked;
+    if (!body.raw_prompt) { alert('프롬프트를 입력하세요.'); return; }
+  } else {
+    body.mode = 'pipeline';
+    body.base_text = el('post-text').value.trim();
+    const selectedId = el('post-select').value;
+    const meta = currentPosts.find(p => String(p.id) === String(selectedId));
+    body.keyword = meta ? (meta.keyword || meta.title) : '테스트';
+    if (!body.base_text) { alert('글을 선택하거나 본문을 입력하세요.'); return; }
+    if (mode === 'excerpt') {
+      body.force_region = el('force-region').value || null;
+      body.anatomy_hint = el('anatomy-hint').checked;
+    }
+  }
+
+  el('run-btn').disabled = true;
+  el('run-btn').classList.add('opacity-50');
+  el('status').textContent = '생성 중... (5장 순차는 1~2분 소요)';
+  el('result-section').classList.add('hidden');
+
+  try {
+    const res = await fetch('/api/admin/image-test/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(err);
+    }
+    const data = await res.json();
+    renderResult(data);
+    el('status').textContent = `완료 · ${data.elapsed}초 · ${data.images.length}장`;
+  } catch (e) {
+    el('status').textContent = '실패: ' + e.message;
+  } finally {
+    el('run-btn').disabled = false;
+    el('run-btn').classList.remove('opacity-50');
+  }
+});
+
+function renderResult(data){
+  el('result-section').classList.remove('hidden');
+  const u = data.usage || {};
+  const costEst = data.images.length * (data.plan === 'pro' ? 0.165 : 0.053);
+  el('meta-bar').textContent = `${data.plan} ${data.size} ${data.quality} · 토큰 in:${u.input||0} out:${u.output||0} · 이미지 ${data.images.length}장 · 약 $${costEst.toFixed(3)}`;
+
+  const grid = el('grid');
+  grid.innerHTML = '';
+  data.images.forEach((img, idx) => {
+    const card = document.createElement('div');
+    card.className = 'border border-stone-200 rounded-xl overflow-hidden bg-stone-50';
+    const meta = [];
+    if (img.module != null) meta.push(`module ${img.module}`);
+    if (img.region) meta.push(img.region);
+    const metaStr = meta.length ? ` · ${meta.join(' / ')}` : '';
+    card.innerHTML = `
+      <img src="data:image/png;base64,${img.b64}" alt="result ${idx+1}"/>
+      <div class="p-3">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-medium text-stone-700">#${idx+1}${metaStr}</span>
+          <a download="image-test-${idx+1}.png" href="data:image/png;base64,${img.b64}"
+             class="px-2 py-1 text-xs bg-emerald-700 text-white rounded hover:bg-emerald-800">
+            다운로드
+          </a>
+        </div>
+        <details>
+          <summary class="cursor-pointer text-[11px] text-stone-500 hover:text-stone-700">prompt</summary>
+          <pre class="mt-1 text-[10px] text-stone-600 whitespace-pre-wrap leading-relaxed">${escapeHtml(img.prompt || '')}</pre>
+        </details>
+      </div>`;
+    grid.appendChild(card);
+  });
+
+  el('analysis-json').textContent = data.analysis ? JSON.stringify(data.analysis, null, 2) : '(분석 단계 미실행 — raw 모드)';
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function loadAnatomy(){
+  try {
+    const res = await fetch('/api/admin/image-test/anatomy-slugs');
+    if (res.ok) {
+      ANATOMY_PARTS = await res.json();
+      fillRegionDropdown();
+    }
+  } catch (e) { /* 무시 */ }
+}
+
+loadAnatomy();
+loadPosts();
+syncSections();
+</script>
+</body>
+</html>

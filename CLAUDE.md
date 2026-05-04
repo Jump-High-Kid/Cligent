@@ -83,6 +83,8 @@ beta:
 
 > 상세는 CHANGELOG 항목 참조.
 
+- **어드민 이미지 생성 테스트 툴 (2026-05-04)** — `/admin/image-test` 페이지 + API 4개. 블로그 글 생성 없이 이미지 단독 호출. 모드 3종: ① 전체 글 → 파이프라인, ② 본문 구간 드래그 + anatomical_region 강제, ③ 자유 raw 프롬프트(Stage 1·2 우회). 1/5장 + 순차/병렬 + Standard/Pro 옵션. 글 자동 필터(500자↓·test/asdf 패턴·반복 글자 spam 6회+). 베타 한도 미반영. `image_prompt_generator._generate_prompts` 가 dict 리스트(`{prompt, negative_prompt, title_ko}`) 반환 — `blog_chat_flow.py:1076-1086` 의 dict→str+negative 통합 로직 동일 구현 필수. 메모리: `project_admin_image_test_tool.md`. baseline 523/4 일치.
+
 - **v0.9.0 라우터 분할 완료 (6/6)** — main.py 4,021줄 → **506줄 (-3,515, -87.4%)** + 6 도메인 라우터. 베타 진행+영상/재고 모듈 추가 대비.
   - 라우터(라인): auth 549 / clinic 664 / billing 140 / blog 1,050 (C1 24 라우트 + C2 SSE 3건) / dashboard 281 / admin **1,281** (어드민 9 페이지 + API 21 + 공지 작성 6 + OpenAI 키 3 = 39 라우트).
   - 라우트 등록 순서: `admin.router` 를 `dashboard.router` 보다 먼저 include — `/announcements/new` (admin) 가 `/announcements/{ann_id}` (dashboard, int path) 보다 먼저 매칭.

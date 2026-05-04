@@ -209,6 +209,314 @@ async def admin_applicants_page(request: Request):
     return FileResponse(ROOT / "templates" / "admin_applicants.html")
 
 
+@router.get("/admin/image-test")
+async def admin_image_test_page(request: Request):
+    """어드민 이미지 생성 테스트 페이지. 베타 한도 미반영, 어드민 전용."""
+    _require_admin_or_session(request)
+    return FileResponse(ROOT / "templates" / "admin_image_test.html")
+
+
+# ─────────────────────────────────────────────────────────────────
+# 어드민 API — 이미지 생성 테스트 (해부학·자유 프롬프트 검증용)
+# 베타 한도 미반영. 본인 클리닉(=ADMIN_CLINIC_ID) 글만 노출.
+# ─────────────────────────────────────────────────────────────────
+
+# 의미 없는 테스트 글 자동 제외 패턴
+_TEST_TITLE_PATTERNS = _re.compile(r"(test|테스트|tst|asdf|ㅁㄴㅇ|qwer)", _re.IGNORECASE)
+_MIN_CHARS_FOR_REAL_POST = 500
+
+
+def _is_spam_title(title: str) -> bool:
+    """반복 문자 spam 감지: 같은 글자 6회 이상 또는 단일 글자 비율 70% 초과."""
+    if not title or len(title) < 3:
+        return True
+    # 같은 글자 6회 이상 연속 (예: "가가가가가가...")
+    if _re.search(r"(.)\1{5,}", title):
+        return True
+    # 한 글자가 70% 이상 차지 (반복+공백 등)
+    most_common = max(title.count(c) for c in set(title))
+    if most_common / len(title) > 0.7:
+        return True
+    return False
+
+
+def _resolve_admin_clinic_id(request: Request) -> int:
+    """세션 또는 Bearer 사용자의 clinic_id. Bearer는 ADMIN_CLINIC_ID 사용."""
+    from dependencies import _admin_clinic_id  # type: ignore
+    token = request.cookies.get(COOKIE_NAME)
+    if token:
+        try:
+            payload = decode_token(token)
+            user_id = int(payload.get("sub", 0))
+            with _get_db() as conn:
+                row = conn.execute(
+                    "SELECT clinic_id FROM users WHERE id = ? AND is_active = 1",
+                    (user_id,),
+                ).fetchone()
+            if row:
+                return int(row["clinic_id"])
+        except Exception:
+            pass
+    cid = _admin_clinic_id()
+    if cid is None:
+        raise HTTPException(status_code=400, detail="ADMIN_CLINIC_ID 미설정")
+    return cid
+
+
+@router.get("/api/admin/image-test/anatomy-slugs")
+def api_admin_image_test_slugs(request: Request):
+    """anatomical_region 드롭다운용 30 부위 슬러그 + 한글명."""
+    _require_admin_or_session(request)
+    slugs_path = ROOT / "data" / "anatomy" / "_SLUGS.json"
+    if not slugs_path.exists():
+        return JSONResponse({"categories": {}, "parts": {}})
+    try:
+        return JSONResponse(_json.loads(slugs_path.read_text(encoding="utf-8")))
+    except Exception:
+        return JSONResponse({"categories": {}, "parts": {}})
+
+
+@router.get("/api/admin/image-test/posts")
+def api_admin_image_test_posts(request: Request, page: int = 1, per_page: int = 50):
+    """어드민 본인 클리닉 글 목록 (테스트성 글 자동 제외)."""
+    _require_admin_or_session(request)
+    clinic_id = _resolve_admin_clinic_id(request)
+
+    from blog_history import get_history_list
+    raw = get_history_list(clinic_id, page=page, per_page=per_page)
+    items = []
+    for it in raw.get("items", []):
+        char_count = it.get("char_count", 0)
+        title = it.get("title") or it.get("keyword") or ""
+        keyword = it.get("keyword") or ""
+        if char_count < _MIN_CHARS_FOR_REAL_POST:
+            continue
+        if _TEST_TITLE_PATTERNS.search(title) or _TEST_TITLE_PATTERNS.search(keyword):
+            continue
+        if _is_spam_title(title) or _is_spam_title(keyword):
+            continue
+        if not it.get("has_text"):
+            # 본문 만료된 글은 프롬프트 베이스로 못 씀
+            continue
+        items.append({
+            "id": it["id"],
+            "title": title,
+            "keyword": keyword,
+            "char_count": char_count,
+            "created_at": it.get("created_at"),
+        })
+    return JSONResponse({"items": items})
+
+
+@router.get("/api/admin/image-test/post/{entry_id}")
+def api_admin_image_test_post_detail(entry_id: int, request: Request):
+    """본문 전문 반환 (구간 드래그용)."""
+    _require_admin_or_session(request)
+    clinic_id = _resolve_admin_clinic_id(request)
+
+    from blog_history import get_blog_text
+    text = get_blog_text(entry_id, clinic_id)
+    if text is None:
+        raise HTTPException(status_code=404, detail="본문이 만료됐거나 권한 없음")
+    return JSONResponse({"id": entry_id, "blog_text": text})
+
+
+@router.post("/api/admin/image-test/generate")
+async def api_admin_image_test_generate(request: Request):
+    """이미지 생성 테스트.
+
+    body: {
+        mode: 'pipeline' | 'raw',
+        base_text: str,           # pipeline 모드 본문
+        keyword: str,             # pipeline 모드 키워드 (해부학 힌트 라벨)
+        raw_prompt: str,          # raw 모드 영문 프롬프트
+        force_region: str|None,   # pipeline 모드에서 anatomical_region 강제
+        anatomy_hint: bool,       # base_text 가 해부학 핵심 부분이라 가정
+        count: 1 | 5,
+        parallel: bool,           # 5장에서만 의미
+        plan: 'standard' | 'pro',
+        global_directives: bool,  # raw 모드에서 build_global_directives prepend
+    }
+    응답: {
+        images: [{b64, prompt, module, region}],
+        usage: {input, output, image_count},
+        elapsed: float,
+        analysis: dict | None,
+    }
+    """
+    import time
+    _require_admin_or_session(request)
+
+    body = await request.json()
+    mode = body.get("mode", "pipeline")
+    count = int(body.get("count", 1))
+    if count not in (1, 5):
+        raise HTTPException(status_code=400, detail="count 는 1 또는 5")
+    parallel = bool(body.get("parallel", False))
+    plan = body.get("plan", "standard")
+    if plan not in ("standard", "pro"):
+        plan = "standard"
+
+    from image_generator import (
+        ImageQuotaExceeded, get_plan_dimensions, normalize_plan_id,
+    )
+    from ai_client import call_openai_image_generate, AIClientError
+
+    started = time.time()
+    images_out: list[dict] = []
+    total_usage = {"input": 0, "output": 0, "image_count": 0}
+    analysis_out: Optional[dict] = None
+
+    try:
+        if mode == "raw":
+            raw_prompt = (body.get("raw_prompt") or "").strip()
+            if not raw_prompt:
+                raise HTTPException(status_code=400, detail="raw_prompt 비어 있음")
+            if body.get("global_directives", True):
+                from image_modules import build_global_directives
+                raw_prompt = f"{raw_prompt}\n\n{build_global_directives()}"
+
+            size, quality = get_plan_dimensions(plan)
+
+            if count == 1:
+                resps = call_openai_image_generate(prompt=raw_prompt, size=size, quality=quality, n=1)
+                for r in resps:
+                    images_out.append({"b64": r.content, "prompt": raw_prompt, "module": None, "region": None})
+            else:
+                if parallel:
+                    resps = call_openai_image_generate(prompt=raw_prompt, size=size, quality=quality, n=5)
+                    for r in resps:
+                        images_out.append({"b64": r.content, "prompt": raw_prompt, "module": None, "region": None})
+                else:
+                    for _ in range(5):
+                        rs = call_openai_image_generate(prompt=raw_prompt, size=size, quality=quality, n=1)
+                        if rs:
+                            images_out.append({"b64": rs[0].content, "prompt": raw_prompt, "module": None, "region": None})
+            total_usage["image_count"] = len(images_out)
+
+        else:  # pipeline
+            base_text = (body.get("base_text") or "").strip()
+            keyword = (body.get("keyword") or "테스트").strip()
+            if not base_text:
+                raise HTTPException(status_code=400, detail="base_text 비어 있음")
+
+            anatomy_hint = bool(body.get("anatomy_hint", False))
+            force_region = body.get("force_region") or None
+
+            anth_key = os.getenv("ANTHROPIC_API_KEY", "")
+            if not anth_key:
+                raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY 미설정")
+
+            from image_prompt_generator import _analyze_blog, _generate_prompts
+
+            base_for_analysis = base_text
+            if anatomy_hint:
+                base_for_analysis = (
+                    "(이 본문은 글 전체가 아니라 해부학 설명 핵심 부분만 추출한 것입니다. "
+                    "이 부분의 해부학적 묘사를 이미지 장면으로 변환하세요.)\n\n" + base_text
+                )
+
+            analysis, usage1 = _analyze_blog(keyword, base_for_analysis, anth_key)
+
+            # force_region 적용 — 모든 scene 의 anatomical_region 강제 덮어쓰기
+            if force_region and isinstance(analysis, dict):
+                scenes = analysis.get("scenes") or []
+                for s in scenes:
+                    if isinstance(s, dict):
+                        s["anatomical_region"] = force_region
+
+            # count 만큼 scene 잘라내기 (5 scene 분석 결과에서 앞 N개 사용)
+            if isinstance(analysis, dict):
+                analysis_for_count = dict(analysis)
+                scenes = analysis_for_count.get("scenes") or []
+                analysis_for_count["scenes"] = scenes[:count]
+            else:
+                analysis_for_count = analysis
+
+            prompts_result, usage2 = _generate_prompts(analysis_for_count, anth_key)
+            raw_prompts = prompts_result.get("prompts", []) if isinstance(prompts_result, dict) else []
+            raw_prompts = raw_prompts[:count]
+
+            # blog_chat_flow.py 와 동일 — dict 항목은 prompt + negative_prompt 합치기
+            inject_negatives = os.getenv("IMAGE_INJECT_NEGATIVES", "1").strip() != "0"
+            prompts_list: list[str] = []
+            for p in raw_prompts:
+                if isinstance(p, str):
+                    prompts_list.append(p)
+                elif isinstance(p, dict):
+                    body = (p.get("prompt") or "").strip()
+                    neg = (p.get("negative_prompt") or "").strip()
+                    if inject_negatives and neg:
+                        body = body.rstrip() + f"\n\nNegative aspects to avoid: {neg}"
+                    if body:
+                        prompts_list.append(body)
+
+            if not prompts_list:
+                raise HTTPException(status_code=502, detail="프롬프트 생성 결과 비어 있음")
+
+            total_usage["input"] = usage1.get("input", 0) + usage2.get("input", 0)
+            total_usage["output"] = usage1.get("output", 0) + usage2.get("output", 0)
+            analysis_out = analysis_for_count
+
+            scenes_meta = (analysis_for_count.get("scenes") if isinstance(analysis_for_count, dict) else []) or []
+            size, quality = get_plan_dimensions(plan)
+
+            def _meta_for(idx: int) -> tuple[Optional[int], Optional[str]]:
+                scene = scenes_meta[idx] if idx < len(scenes_meta) and isinstance(scenes_meta[idx], dict) else {}
+                return scene.get("module"), scene.get("anatomical_region")
+
+            if count == 1:
+                p = prompts_list[0]
+                rs = call_openai_image_generate(prompt=p, size=size, quality=quality, n=1)
+                if rs:
+                    m, r = _meta_for(0)
+                    images_out.append({"b64": rs[0].content, "prompt": p, "module": m, "region": r})
+            else:
+                # 5 prompt 다중 호출
+                if parallel:
+                    # 동시 5개 — semaphore 는 ai_client 내부
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as ex:
+                        futures = [
+                            ex.submit(call_openai_image_generate, p, size, quality, 1)
+                            for p in prompts_list
+                        ]
+                        for idx, fut in enumerate(futures):
+                            rs = fut.result()
+                            if rs:
+                                m, r = _meta_for(idx)
+                                images_out.append({"b64": rs[0].content, "prompt": prompts_list[idx], "module": m, "region": r})
+                else:
+                    for idx, p in enumerate(prompts_list):
+                        rs = call_openai_image_generate(prompt=p, size=size, quality=quality, n=1)
+                        if rs:
+                            m, r = _meta_for(idx)
+                            images_out.append({"b64": rs[0].content, "prompt": p, "module": m, "region": r})
+            total_usage["image_count"] = len(images_out)
+
+    except HTTPException:
+        raise
+    except AIClientError as e:
+        raise HTTPException(status_code=502, detail=f"AI 호출 실패: {e}")
+    except ImageQuotaExceeded as e:
+        raise HTTPException(status_code=429, detail=f"한도 초과: {e}")
+    except Exception as e:
+        _error_logger.exception("admin image-test generate 실패")
+        raise HTTPException(status_code=500, detail=f"내부 오류: {type(e).__name__}: {e}")
+
+    elapsed = round(time.time() - started, 2)
+    size_used, quality_used = get_plan_dimensions(plan)
+    return JSONResponse({
+        "images": images_out,
+        "usage": total_usage,
+        "elapsed": elapsed,
+        "plan": normalize_plan_id(plan),
+        "size": size_used,
+        "quality": quality_used,
+        "analysis": analysis_out,
+    })
+
+
 # ─────────────────────────────────────────────────────────────────
 # 어드민 API — 데일리 리포트 / 클리닉 생성
 # ─────────────────────────────────────────────────────────────────
