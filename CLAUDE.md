@@ -97,9 +97,9 @@ beta:
     - flaky 3건: `test_beta_apply::{test_apply_success, test_apply_duplicate_pending, test_apply_rate_limit}` — IP 레이트 리밋(5분/3회) 윈도우 의존. 동일 IP로 5분 내 재실행 시 모두 fail, 시간 지나면 pass.
     - 실행 시간: cold ~113s / warm ~73s (Mac mini 로컬, launchd uvicorn 동시 실행).
     - "410/7"로 보이면 flaky 3건이 막 fail로 떨어진 직후 (정상). "417/4"로 보이면 윈도우 풀린 상태 (정상). 두 상태 모두 회귀 0.
-- **해부학 DB Phase 1 인프라** — 30 부위 자료 수집 인프라 완성, 도메인 작업 1주 일정. 베타 critical path. Cohort 1 노출 게이트 ②번.
+- **해부학 DB — 점진 누적 (베타 1·2 백그라운드, 2026-05-04 게이트 제외)** — 30 부위 자료 수집 인프라 완성. **수동 작업이라 코드로 가속 불가 → Cohort 1 노출 게이트에서 제외**. 베타 1·2 진행 중 시간 날 때 부위 1~2개씩 점진 누적. 베타 1 노출 시점은 "있는 만큼"으로 시작, 베타 2 종료 시점 25~30 부위 도달 목표. weekly 점검은 부위 수 트렌드만 (절대치 아님). Pro 출시는 여전히 Phase 2 (100 부위 + 만족도 80% + 평균 재생성 1.5회 이하) 조건부.
   - **다중 view 지원 (2026-05-01)**: 부위당 자료 1개 → 여러 view 공존. 파일명 `source_{view}.{ext}` + `meta_{view}.json`. validate 진행률은 부위 단위(30 기준) 유지. 어깨 anterior + posterior 2자료 등록(1/30).
-  - **요부 등록 (2026-05-04)**: lateral + anterior + posterior 3 view (ChatGPT/DALL-E 생성, CC0). 합성 1254×1254 이미지 PIL crop 좌/우 절반 분할. 진행률 2/30. 메모리: `project_anatomy_db_multi_view.md`.
+  - **요부 등록 (2026-05-04)**: lateral + anterior + posterior 3 view (ChatGPT/DALL-E 생성, CC0). 합성 1254×1254 이미지 PIL crop 좌/우 절반 분할. 진행률 2/30. 메모리: `project_anatomy_db_multi_view.md`, `project_beta_gate.md`(게이트 제외 결정).
 - **블로그 챗 UI 단일 진입점** — `/blog`가 `templates/blog_chat.html` 챗 UI 사용. 4단계 폼(`index.html`) dead code.
 - **이미지 모듈 시스템 (`src/image_modules.py`)** — 11 모듈 분기, 5장 모두 다른 모듈, negative 본문 통합. gpt-image-2 generations / gpt-image-1.5 edits.
 - **자료 변형 자동화 보류**: ChatGPT 웹 직접 변환이 현 시점 최선. `scripts/edit_anatomy_demo.py` 보존(Phase 2 출발점), `_demo/` 결과물은 `.gitignore`.
@@ -329,7 +329,8 @@ beta:
 ### 해부학·경혈 DB가 사업 성패 lever
 - 비용 1/3 절감 + Pro 가격 정당성 + visual moat
 - 자료 출처: Servier Medical Art (CC-BY 3.0), BodyParts3D, Wikimedia, WHO 표준 경혈
-- Phase 1 (M0~M2) 30 부위 + 240 경혈 좌표 = **원장님 도메인 작업, critical path**
+- Phase 1 (30 부위 + 240 경혈 좌표) = **원장님 수동 작업, 베타 1·2 점진 누적** (Cohort 1 게이트 제외, 2026-05-04). 베타 2 종료 시점 25~30 부위 목표
+- Phase 2 (100 부위) = Pro 출시 전제 조건 (만족도 80% + 평균 재생성 1.5회 이하 동시 충족 시)
 
 ### 미해결 토론
 - **기타2 SEO 중복 콘텐츠 방어**: 같은 주제·부위 반복 → 네이버·구글 demote 위험. `project_seo_duplication_pending.md`

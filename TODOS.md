@@ -97,6 +97,25 @@
 
 ---
 
+### B-ANATOMY. 해부학 이미지 DB — 점진 누적 (베타 1·2 백그라운드)
+**상태 (2026-05-04)**: 진행률 2/30 (어깨 anterior+posterior, 요부 lateral+anterior+posterior).
+**What**: 30 부위 × 다중 view 자료 + 240 경혈 좌표 누적. 부위당 자료 1개 → 여러 view 공존 (`source_{view}.{ext}` + `meta_{view}.json`).
+**Why (게이트 제외 결정 2026-05-04)**: 자료 수집은 원장님 수동 작업 — 출처 확인·라이선스·view 분기·검증 모두 사람이 직접 처리. 코드로 가속 불가능. **Cohort 1 게이트 박아두면 베타 일정이 사람 작업 속도에 종속** → 베타 1·2 진행 중 점진 누적으로 전환.
+**진행 방식**: 시간 날 때 부위 1~2개씩 추가. weekly 점검은 부위 수 트렌드만 (절대치 아님). 베타 1 노출 시점 = "있는 만큼"으로 시작, 베타 2 종료 시점에 25~30 도달 목표.
+**Files (인프라 완료)**:
+- `scripts/init_anatomy_part.py` — 부위 슬롯 생성
+- `scripts/fetch_anatomy.py` — Playwright 다운로드
+- `scripts/validate_anatomy_meta.py` — 메타 검증
+- `data/anatomy/{slug}/meta_{view}.json` + `source_{view}.{확장자}`
+**Critical edges**:
+- 라이선스: Servier Medical Art (CC-BY 3.0), BodyParts3D, Wikimedia, WHO 표준 경혈 — 출처 100% 명시
+- 다중 view: 진행률은 부위 단위(30 기준) 유지. anterior + posterior 둘 등록도 1 부위로 카운트
+- Pro 가격 정당성: Phase 2(100 부위)는 별도 마일스톤 — Pro 출시 조건부 (만족도 80% + 평균 재생성 1.5회 이하 동시 충족 시)
+**Depends on**: 없음. 다른 작업과 병행.
+**메모리**: `project_anatomy_db.md`, `project_anatomy_db_multi_view.md`, `project_beta_gate.md`(게이트 제외 결정).
+
+---
+
 ### B5. 베타 피드백 시스템 강화
 **What**: 구조화 설문 모달(NPS/만족도/우선순위, 블로그 5회 사용 후 1회) + 행동 추적(SHA-256 익명) + 인터뷰 트리거(10건+ 사용자 자동 픽업).
 **Why**: 30인 wave 단계 Phase 2 우선순위 결정 데이터. 사용자 명시 — 추측 빌드 금지, 데이터 기반.
@@ -111,6 +130,80 @@
 **Test**: 데모 계정 5회 사용 → 모달 노출 → 응답 → `data/survey.jsonl` 확인.
 **Effort**: CC ~1시간.
 **Depends on**: B4 완료 후. 5인 베타 모집 직전.
+
+---
+
+## P1.5 — 베타 2 (Cohort 2) 트랙 (2026-05-04 추가)
+
+> **Trigger**: Cohort 1 (5인 베타) 종료 후 25인 모집 직전. 외부 사용자 본격 유입 단계.
+> **Why now (등록만)**: 어뷰징 방어·결제 준비는 외부 의존성·법적 검토 시간 김. 베타 1 종료 직전에 코드만 봐도 늦음 → 일정 역산 위해 미리 항목화.
+> **Why defer (구현)**: 베타 1 critical path(이미지 생성·해부학 DB 30 부위·게이트 4종)를 흔들지 않기 위해.
+
+### C1. 한의원 정보 — 사업자등록증 업로드 UI
+**What**: `templates/settings.html` `data-section="clinic"` (한의원 정보) 내부에 사업자등록증 업로드 카드 추가. 파일 업로드(jpg/png/pdf, ≤5MB) + 사업자등록번호 입력 + 검토 상태 뱃지(미제출 / 검토 중 / ✓ 인증 완료 / ✗ 반려).
+**Why**: Cohort 2 어뷰징 방어 1차 게이트(`project_cligent_pricing_v7.md:107`). 정식 결제 가맹점 등록(D1 portone)에도 요구.
+**Files**:
+- 수정: `templates/settings.html` 한의원 정보 섹션
+- 수정: `src/routers/clinic.py` (`POST /api/settings/clinic/business-registration` 업로드, `GET` 조회)
+- 신규: `static/uploads/business/` (gitignore)
+- 마이그레이션: `clinics` 테이블 — `business_reg_path TEXT`, `business_reg_number TEXT`, `business_reg_status TEXT DEFAULT 'none'`, `business_reg_uploaded_at`, `business_reg_verified_at`, `business_reg_rejection_reason`
+**Critical edges**:
+- 권한: chief_director 전용 (settings 다른 chief 항목과 동일 패턴, ai-lock-banner 참조)
+- 파일 검증: 매직바이트 + content-type 이중 확인 (jpg/png/pdf만)
+- 개인정보: 사업자등록번호 = 개인정보 → 처리방침 위탁업체 항목에 추가 검토
+- 미인증 상태에서 결제 진입 차단 (D1 webhook 활성 시점부터)
+**Effort**: CC ~1.5h.
+**Depends on**: 없음 (베타 1 종료 후 시작).
+
+---
+
+### C2. 어드민 사업자정보 검토 패널
+**What**: `templates/admin_clinics.html` 행 확장에 첨부파일 미리보기(이미지 inline / pdf 새 탭) + Verify·Reject 버튼 + 반려 사유 입력 모달.
+**Why**: 사람이 직접 검토하지 않으면 위조 자동 통과. Cohort 2(25인)는 손으로 처리 가능 규모.
+**Files**:
+- 수정: `templates/admin_clinics.html`
+- 수정: `src/routers/admin.py` (`POST /api/admin/clinics/{id}/business-reg/verify`, `/reject`)
+- 알림: 검토 결과 이메일 자동 발송 (`plan_notify._send_smtp` 재사용)
+**Critical edges**:
+- 첨부 접근 권한: ADMIN_CLINIC_ID + chief_director **또는** ADMIN_SECRET (기존 어드민 가드 패턴 그대로)
+- 반려 사유는 사용자에게 그대로 노출 → 사내 약어·내부 추측 금지 안내
+- 검토 ledger: `business_reg_audit` 테이블 (verified_by, ts, action, reason)
+**Effort**: CC ~1h.
+**Depends on**: C1.
+
+---
+
+### C3. 휴대폰 본인인증 (PASS / KCP / NICE)
+**What**: 회원가입 또는 한의원 등록 직후 본인인증 1회. 결과: `users.phone_verified`, `users.real_name_verified`, `users.ci_hash`(중복 가입 차단).
+**Why**: 동일인 다중 한의원 등록 차단 = trial 어뷰저 1차 방어. 사업자등록증과 명의 일치 확인.
+**Files**:
+- 신규: `src/auth_phone.py` (PASS·KCP·NICE 중 1개 어댑터)
+- 수정: `templates/onboard.html` 또는 `templates/settings.html` (가입 흐름 직후 step)
+- 수정: `users` 테이블 마이그레이션 (`phone_verified`, `ci_hash UNIQUE`, `verified_at`)
+**Critical edges**:
+- CI(연계정보) 해시 — 본인 식별값. 평문 저장 금지, 단방향 해시만.
+- 인증사 계약: PASS는 통신사 직거래, NICE/KCP는 대행. 비용 100~300원/건. **계약 리드타임 2~4주**.
+- 회원가입과 분리: 가입 후 별도 step (인증사 외부 리다이렉트 → 콜백)
+- 본인인증 미완료 = 베타 2 신청 자체 불가 (DB 레벨 차단)
+**Effort**: CC ~2h + 인증사 계약 시간(외부).
+**Depends on**: C1 (사업자등록 명의 대조 위해).
+
+---
+
+### C4. 결제 카드 사전 등록 (portone)
+**What**: 베타 2 신청 시 결제 카드를 미리 등록(과금 X). 베타 2→정식 전환 시 자동 청구.
+**Why**: 신용카드 = 어뷰저 비용 진입장벽 + 정식 전환 마찰 0. portone billing key 발급만.
+**Files**:
+- 신규: `src/payment_portone.py` (billing key 발급/저장/취소)
+- 수정: `templates/settings.html` 또는 신규 `templates/billing.html`
+- 마이그레이션: `subscriptions` 테이블 활성화 (현재 빈 셸) — `billing_key`, `card_last4`, `registered_at`, `next_charge_at`
+**Critical edges**:
+- portone 가맹점 계약 — **사업자등록증 필수**. C1 인증 완료 후 진행.
+- billing key 저장은 portone 측. 우리 DB는 reference만.
+- 베타 2 무료 약속 — 카드 등록 ≠ 즉시 과금. UI에 명확히 표시 + 약관 별도 동의.
+- 정식 출시 30일 전 공지 의무 (terms.html 제8조).
+**Effort**: CC ~3h + portone 계약 외부 시간.
+**Depends on**: C1, C3 (사업자등록 + 명의 인증 둘 다 완료된 한의원만).
 
 ---
 
