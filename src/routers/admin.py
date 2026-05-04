@@ -927,7 +927,7 @@ async def api_admin_clinics(request: Request):
                    c.trial_expires_at, c.api_key_configured, c.first_blog_at,
                    c.is_admin_clinic, c.naver_blog_id,
                    (SELECT COUNT(*) FROM usage_logs u
-                      WHERE u.clinic_id = c.id AND u.feature = 'blog_generate'
+                      WHERE u.clinic_id = c.id AND u.feature = 'blog_generation'
                         AND u.used_at >= datetime('now','start of month')) AS blog_this_month,
                    (SELECT COUNT(*) FROM usage_logs u WHERE u.clinic_id = c.id) AS usage_total,
                    (SELECT MAX(used_at) FROM usage_logs u WHERE u.clinic_id = c.id) AS last_seen,
@@ -972,10 +972,10 @@ async def api_admin_usage(request: Request):
         # 전체 합산
         total_blog = conn.execute(
             "SELECT COUNT(*) AS c FROM usage_logs "
-            "WHERE feature = 'blog_generate' AND used_at >= datetime('now','start of month')"
+            "WHERE feature = 'blog_generation' AND used_at >= datetime('now','start of month')"
         ).fetchone()
         total_blog_all = conn.execute(
-            "SELECT COUNT(*) AS c FROM usage_logs WHERE feature = 'blog_generate'"
+            "SELECT COUNT(*) AS c FROM usage_logs WHERE feature = 'blog_generation'"
         ).fetchone()
         total_copy = conn.execute(
             "SELECT COUNT(*) AS c FROM usage_logs "
@@ -988,7 +988,7 @@ async def api_admin_usage(request: Request):
                    COUNT(u.id) AS blog_this_month
             FROM clinics c
             LEFT JOIN usage_logs u
-              ON u.clinic_id = c.id AND u.feature = 'blog_generate'
+              ON u.clinic_id = c.id AND u.feature = 'blog_generation'
                  AND u.used_at >= datetime('now','start of month')
             GROUP BY c.id
             ORDER BY blog_this_month DESC, c.created_at DESC
