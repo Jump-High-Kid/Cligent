@@ -515,51 +515,45 @@ class TestToBlogArgsMapping:
 class TestStreamingForSeo:
     """SEO 입력 → SSE 본문 streaming → IMAGE 옵션 메시지 종료."""
 
-    def test_generates_expected_frame_sequence(self, monkeypatch):
+    def _seed_until_confirm_image(self, monkeypatch):
+        """공통 setup — CONFIRM_IMAGE stage까지 진행."""
         import blog_chat_flow as flow
         from blog_chat_state import Stage, create_session
 
-        # generate_blog_stream을 fake로 교체 (text 2 chunks + done)
         def fake_stream(*args, **kwargs):
             yield 'data: {"text": "본문 시작 "}\n\n'
             yield 'data: {"status": "본문 작성 중..."}\n\n'
             yield 'data: {"text": "이어지는 내용."}\n\n'
             yield 'data: {"done": true, "usage": {"cost_krw": 12}}\n\n'
 
-        # 본문 생성 모듈을 monkeypatch
         import blog_generator
         monkeypatch.setattr(blog_generator, "generate_blog_stream", fake_stream)
-        # save_blog_entry는 dummy로
         import blog_history
         monkeypatch.setattr(blog_history, "save_blog_entry", lambda *a, **k: 999)
-        # API 키 set
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
 
         state = create_session(clinic_id=1, user_id=10)
-        # 신 흐름 (2026-05-03): TOPIC → SEO → EMPHASIS → LENGTH → CONFIRM_IMAGE → SSE
         flow.process_turn(state, "허리디스크")
-        assert state.stage == Stage.SEO
         flow.process_turn(state, "추나, 디스크")
-        assert state.stage == Stage.EMPHASIS
-        assert state.seo_keywords == ["추나", "디스크"]
         flow.process_turn(state, "건너뛰기")
-        assert state.stage == Stage.LENGTH
         flow.process_turn(state, "2")
         assert state.stage == Stage.CONFIRM_IMAGE
+        return flow, state
 
-        # SSE generator 실행 — CONFIRM_IMAGE에 "아니오" 응답이 SSE 트리거 input
-        gen = flow.process_turn_streaming(state, "아니오")
+    def test_generates_expected_frame_sequence_yes_advances_to_image(self, monkeypatch):
+        """CONFIRM_IMAGE "예" → 본문 SSE → IMAGE 단계 (auto_image=True)."""
+        from blog_chat_state import Stage
+        flow, state = self._seed_until_confirm_image(monkeypatch)
+
+        gen = flow.process_turn_streaming(state, "예")
         frames = []
         import json as _json
         for raw in gen:
             assert raw.startswith("data: ")
             assert raw.endswith("\n\n")
-            payload = _json.loads(raw[len("data: "):].strip())
-            frames.append(payload)
+            frames.append(_json.loads(raw[len("data: "):].strip()))
 
         types = [f["type"] for f in frames]
-        # 기대 순서: user_message → stage_change → stage_text → message_start
-        # → token (≥1) → message_done → next_message → stage_change → done
         assert "user_message" in types
         assert "message_start" in types
         assert "token" in types
@@ -567,16 +561,53 @@ class TestStreamingForSeo:
         assert "next_message" in types
         assert types[-1] == "done"
 
-        # 본문 누적이 message_done.text에 들어갔는지
         msg_done = next(f for f in frames if f["type"] == "message_done")
         assert "본문 시작" in msg_done["message"]["text"]
         assert "이어지는 내용" in msg_done["message"]["text"]
 
-        # state 업데이트 확인
         assert state.stage == Stage.IMAGE
-        assert state.blog_text  # 본문 저장
+        assert state.auto_image is True
+        assert state.blog_text
         assert state.blog_history_id == 999
         assert state.seo_keywords == ["추나", "디스크"]
+
+    def test_no_skips_image_stage_to_feedback(self, monkeypatch):
+        """CONFIRM_IMAGE "아니오" → 본문 SSE 정상 + IMAGE 스킵 + FEEDBACK 직행 (버그 #23).
+
+        OpenAI 이미지 호출이 절대 발생하지 않아야 하므로 IMAGE stage_change·옵션 미발송 검증.
+        """
+        from blog_chat_state import Stage
+        flow, state = self._seed_until_confirm_image(monkeypatch)
+
+        gen = flow.process_turn_streaming(state, "아니오")
+        frames = []
+        import json as _json
+        for raw in gen:
+            frames.append(_json.loads(raw[len("data: "):].strip()))
+
+        # 본문 streaming은 정상
+        assert any(f["type"] == "token" for f in frames)
+        assert any(f["type"] == "message_done" for f in frames)
+        msg_done = next(f for f in frames if f["type"] == "message_done")
+        assert "본문 시작" in msg_done["message"]["text"]
+
+        # IMAGE 단계 진입 안 함
+        stage_changes = [f.get("stage") for f in frames if f["type"] == "stage_change"]
+        assert "image" not in stage_changes
+        assert "feedback" in stage_changes
+
+        # IMAGE 옵션(전체 만들기/이미지 없이 종료) 메시지 미발송
+        for f in frames:
+            if f["type"] == "next_message":
+                opts = (f.get("message") or {}).get("options") or []
+                ids = [o.get("id") for o in opts]
+                assert "all" not in ids
+
+        assert frames[-1]["type"] == "done"
+        assert state.stage == Stage.FEEDBACK
+        assert state.auto_image is False
+        assert state.blog_text
+        assert state.blog_history_id == 999
 
     def test_missing_api_key_yields_error_frame(self, monkeypatch):
         import blog_chat_flow as flow

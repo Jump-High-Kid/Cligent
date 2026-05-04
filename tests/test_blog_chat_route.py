@@ -172,6 +172,63 @@ def test_seo_input_returns_sse_with_token_frames():
     assert types[-1] == "done"
 
 
+def test_confirm_image_no_skips_image_stage(monkeypatch):
+    """CONFIRM_IMAGE 부정 응답 → 본문 SSE 정상 + IMAGE 단계 스킵 → FEEDBACK 직접 전이.
+
+    버그 #23 회귀 방지. "아니오" 응답 시 OpenAI 이미지 호출이 절대 발생하지 않아야 한다.
+    SSE 종료 후 state.stage == FEEDBACK + IMAGE 옵션 메시지 미발송 + auto_image=False 검증.
+    """
+    r1 = client.post("/api/blog-chat/turn", json={"user_input": "허리디스크"})
+    sid = r1.json()["session_id"]
+    client.post("/api/blog-chat/turn",
+                json={"session_id": sid, "user_input": "추나"})
+    client.post("/api/blog-chat/turn",
+                json={"session_id": sid, "user_input": "건너뛰기"})
+    client.post("/api/blog-chat/turn",
+                json={"session_id": sid, "user_input": "2"})
+
+    def fake_gen(*args, **kwargs):
+        yield 'data: {"text": "본문 시작"}\n\n'
+        yield 'data: {"done": true, "usage": {"cost_krw": 5}}\n\n'
+
+    with patch("blog_generator.generate_blog_stream", fake_gen), \
+         patch("blog_history.save_blog_entry", lambda *a, **k: 999), \
+         patch("routers.blog.check_blog_limit"), \
+         patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test"}):
+        res = client.post("/api/blog-chat/turn",
+                          json={"session_id": sid, "user_input": "아니오"})
+    assert res.status_code == 200
+    body = res.content.decode("utf-8")
+
+    # 1) IMAGE stage_change 프레임이 발송되지 않아야 함
+    stage_changes = []
+    next_msg_options = []
+    for line in body.splitlines():
+        if not line.startswith("data: "):
+            continue
+        try:
+            obj = json.loads(line[6:])
+        except Exception:
+            continue
+        if obj.get("type") == "stage_change":
+            stage_changes.append(obj.get("stage"))
+        if obj.get("type") == "next_message":
+            msg = obj.get("message") or {}
+            for o in msg.get("options") or []:
+                next_msg_options.append(o.get("id"))
+    assert "image" not in stage_changes, f"IMAGE 단계로 진입하면 안 됨: {stage_changes}"
+    # 2) IMAGE 옵션(전체 만들기/이미지 없이 종료) 메시지 미발송
+    assert "all" not in next_msg_options
+    # 3) FEEDBACK 단계로 전이
+    assert "feedback" in stage_changes
+
+    # 4) state 검증 — auto_image=False, stage=FEEDBACK
+    from blog_chat_state import get_session, Stage
+    state = get_session(sid, clinic_id=1)
+    assert state.auto_image is False
+    assert state.stage == Stage.FEEDBACK
+
+
 # ── 3) 한도 초과 → 429 ────────────────────────────────────────
 
 

@@ -858,27 +858,43 @@ def _stream_generator_for_seo(state: BlogChatState, user_input: str):
     yield _sse_frame({"type": "message_done",
                       "message": serialize_message(placeholder)})
 
-    # 7) IMAGE 단계 진입.
-    # auto_image=True (사용자가 자동 출력 선택) → 카운트다운 메시지 + client가 3초 후 자동 트리거
-    # auto_image=False → 기존 옵션 메시지 (사용자 선택 대기)
-    transition(state, Stage.IMAGE)
-    if state.auto_image:
-        img_text = (
-            "본문이 완성됐어요. 3초 후 이미지 5장 생성을 자동으로 시작합니다.\n"
-            "(5장 생성은 평균 6분 정도 소요됩니다.)\n"
-            "지금 [전체 만들기]를 누르면 즉시 시작, [이미지 없이 종료]를 누르면 자동 시작이 취소됩니다."
+    # 7) 다음 단계 분기.
+    # auto_image=False → 사용자가 CONFIRM_IMAGE에 "아니오"를 선택한 경우.
+    #   IMAGE 단계 자체를 스킵하고 FEEDBACK으로 직접 전이. OpenAI 이미지 호출 절대 미발생.
+    #   (버그 #23: 부정 응답에도 IMAGE 옵션을 다시 묻던 문제 — 2026-05-04 fix)
+    # auto_image=True → 카운트다운 메시지 + client가 3초 후 자동 트리거
+    if not state.auto_image:
+        transition(state, Stage.FEEDBACK)
+        fb_text = (
+            "본문 완성! 이미지는 만들지 않았어요.\n"
+            "오늘 사용 어떠셨어요? 불편한 점이나 개선 의견을 알려주세요. (생략하시려면 [넘김])"
         )
-        # IMAGE_OPTIONS와 라벨 통일 — match_option 매칭 깨짐 방지 (2026-05-01)
-        img_options = IMAGE_OPTIONS
-        img_meta = {
-            "kind": "auto_image_countdown",
-            "countdown_sec": 3,
-            "auto_action": "전체 만들기",  # client setTimeout이 sendTurn 인자로 사용
-        }
-    else:
-        img_text = "본문이 완성됐어요. 이미지 5장을 만들까요?"
-        img_options = IMAGE_OPTIONS
-        img_meta = {}
+        fb_msg = append_message(state, "assistant", fb_text,
+                                options=FEEDBACK_OPTIONS, meta={})
+        save_session(state)
+        yield _sse_frame({"type": "next_message",
+                          "message": serialize_message(fb_msg)})
+        yield _sse_frame({"type": "stage_change",
+                          "stage": Stage.FEEDBACK.value,
+                          "stage_text": stage_text(Stage.FEEDBACK)})
+        yield _sse_frame({"type": "done",
+                          "blog_history_id": entry_id, "char_count": char_total})
+        return
+
+    # auto_image=True — IMAGE 단계 + 카운트다운
+    transition(state, Stage.IMAGE)
+    img_text = (
+        "본문이 완성됐어요. 3초 후 이미지 5장 생성을 자동으로 시작합니다.\n"
+        "(5장 생성은 평균 6분 정도 소요됩니다.)\n"
+        "지금 [전체 만들기]를 누르면 즉시 시작, [이미지 없이 종료]를 누르면 자동 시작이 취소됩니다."
+    )
+    # IMAGE_OPTIONS와 라벨 통일 — match_option 매칭 깨짐 방지 (2026-05-01)
+    img_options = IMAGE_OPTIONS
+    img_meta = {
+        "kind": "auto_image_countdown",
+        "countdown_sec": 3,
+        "auto_action": "전체 만들기",  # client setTimeout이 sendTurn 인자로 사용
+    }
     img_msg = append_message(state, "assistant", img_text, options=img_options, meta=img_meta)
     save_session(state)
     yield _sse_frame({"type": "next_message",
