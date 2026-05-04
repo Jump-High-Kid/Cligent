@@ -36,6 +36,12 @@ from dependencies import (
     is_admin_clinic as _is_admin_clinic,
 )
 from blog_generator import build_prompt_text, generate_blog_stream
+from input_limits import (
+    validate_int as _vi,
+    validate_str as _vs,
+    validate_str_list as _vsl,
+    validate_uuid as _vuuid,
+)
 from blog_history import get_blog_stats, get_history_list, get_blog_text, save_blog_entry
 from conversation_flow import generate_conversation_flow
 from image_prompt_generator import generate_image_prompts_stream
@@ -82,6 +88,103 @@ def _check_rate_limit(clinic_id: str) -> bool:
         return False
     _rate_buckets[clinic_id].append(now)
     return True
+
+# K-7 보안 감사 (2026-05-04): 블로그 생성 라우트 입력 한도.
+# /generate 와 /build-prompt 가 공유. 어뷰저의 거대 입력으로 Claude API 비용
+# 트리거 차단 + 프롬프트 인젝션 부수 방어.
+def _validate_blog_inputs(body: dict) -> dict:
+    """블로그 본문 생성 입력 검증 — /generate, /build-prompt 공용.
+
+    각 필드의 길이/개수 한도를 부과하고 정규화된 값을 dict 로 반환한다.
+    실패 시 HTTPException(400) — 어떤 필드인지 노출하지 않음 (어뷰저 정보 비노출).
+    """
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="입력 형식이 올바르지 않습니다.")
+
+    # 단일 문자열 필드
+    keyword      = _vs(body.get("keyword"), "blog.keyword", max_len=200)
+    mode         = _vs(body.get("mode"), "blog.mode", max_len=20) or "정보"
+    reader_level = _vs(body.get("reader_level"), "blog.reader_level", max_len=20) or "일반인"
+    clinic_info  = _vs(body.get("clinic_info"), "blog.clinic_info", max_len=2000)
+    format_id_raw = body.get("format_id")
+    format_id    = _vs(format_id_raw, "blog.format_id", max_len=50) if format_id_raw else None
+
+    # 리스트 필드 — seo_keywords 는 문자열로 들어올 수도 있음 (쉼표 구분)
+    seo_raw = body.get("seo_keywords", [])
+    if isinstance(seo_raw, str):
+        # 길이 cap 후 분할 (문자열로 들어오는 경로에서도 길이 제한)
+        seo_str = _vs(seo_raw, "blog.seo_keywords_str", max_len=1000)
+        seo_keywords = [k.strip() for k in seo_str.split(",") if k.strip()]
+        if len(seo_keywords) > 20:
+            raise HTTPException(status_code=400, detail="입력 형식이 올바르지 않습니다.")
+        for kw in seo_keywords:
+            if len(kw) > 50:
+                raise HTTPException(status_code=400, detail="입력 형식이 올바르지 않습니다.")
+    else:
+        seo_keywords = _vsl(seo_raw, "blog.seo_keywords", max_items=20, max_each=50)
+
+    explanation_types = _vsl(
+        body.get("explanation_types"), "blog.explanation_types",
+        max_items=10, max_each=50,
+    )
+
+    # answers — dict 의 모든 value 길이 제한 (모든 값이 user_message 에 concat 됨)
+    answers_raw = body.get("answers") or {}
+    if not isinstance(answers_raw, dict):
+        raise HTTPException(status_code=400, detail="입력 형식이 올바르지 않습니다.")
+    if len(answers_raw) > 20:
+        raise HTTPException(status_code=400, detail="입력 형식이 올바르지 않습니다.")
+    answers: dict = {}
+    for k, v in answers_raw.items():
+        if not isinstance(k, str) or len(k) > 50:
+            raise HTTPException(status_code=400, detail="입력 형식이 올바르지 않습니다.")
+        if v is None:
+            continue
+        if not isinstance(v, str):
+            raise HTTPException(status_code=400, detail="입력 형식이 올바르지 않습니다.")
+        if len(v) > 500:
+            raise HTTPException(status_code=400, detail="입력 형식이 올바르지 않습니다.")
+        answers[k] = v
+
+    # materials — text / webLinks / youtubeLinks 3 필드 dict
+    mat_raw = body.get("materials") or {}
+    if not isinstance(mat_raw, dict):
+        raise HTTPException(status_code=400, detail="입력 형식이 올바르지 않습니다.")
+    materials = {
+        "text": _vs(mat_raw.get("text"), "materials.text", max_len=5000),
+        "webLinks": _vsl(
+            mat_raw.get("webLinks"), "materials.webLinks",
+            max_items=20, max_each=500,
+        ),
+        "youtubeLinks": _vsl(
+            mat_raw.get("youtubeLinks"), "materials.youtubeLinks",
+            max_items=20, max_each=200,
+        ),
+    }
+
+    # char_count {min, max} 또는 None
+    cc_raw = body.get("char_count")
+    char_count = None
+    if cc_raw is not None:
+        if not isinstance(cc_raw, dict):
+            raise HTTPException(status_code=400, detail="입력 형식이 올바르지 않습니다.")
+        cmin = _vi(cc_raw.get("min"), "char_count.min", min_val=100, max_val=9999)
+        cmax = _vi(cc_raw.get("max"), "char_count.max", min_val=100, max_val=9999)
+        char_count = {"min": cmin, "max": cmax}
+
+    return {
+        "keyword": keyword,
+        "answers": answers,
+        "materials": materials,
+        "mode": mode,
+        "reader_level": reader_level,
+        "seo_keywords": seo_keywords,
+        "clinic_info": clinic_info,
+        "format_id": format_id,
+        "explanation_types": explanation_types,
+        "char_count": char_count,
+    }
+
 
 def _ai_error_to_http(exc) -> HTTPException:
     """ai_client.AIClientError → HTTPException 변환."""
@@ -349,30 +452,22 @@ async def build_prompt_endpoint(request: Request, user: dict = Depends(get_curre
     T1(프롬프트 복사) 기능 — plan_guard 한도 차감 없음.
     """
     body = await request.json()
-    keyword      = body.get("keyword", "").strip()
-    answers      = body.get("answers", {})
-    materials    = body.get("materials", {})
-    mode         = body.get("mode", "정보")
-    reader_level = body.get("reader_level", "일반인")
-    seo_keywords = body.get("seo_keywords", [])
-    clinic_info       = body.get("clinic_info", "")
-    format_id         = body.get("format_id", None)
-    explanation_types = body.get("explanation_types", [])
-
-    if not keyword:
+    # K-7 입력 길이 제한 — 어뷰저의 거대 입력으로 Claude API 비용 트리거 차단.
+    fields = _validate_blog_inputs(body)
+    if not fields["keyword"]:
         return {"error": "주제를 입력해주세요."}
 
     try:
         result = build_prompt_text(
-            keyword=keyword,
-            answers=answers,
-            materials=materials,
-            mode=mode,
-            reader_level=reader_level,
-            seo_keywords=seo_keywords,
-            clinic_info=clinic_info,
-            format_id=format_id,
-            explanation_types=explanation_types,
+            keyword=fields["keyword"],
+            answers=fields["answers"],
+            materials=fields["materials"],
+            mode=fields["mode"],
+            reader_level=fields["reader_level"],
+            seo_keywords=fields["seo_keywords"],
+            clinic_info=fields["clinic_info"],
+            format_id=fields["format_id"],
+            explanation_types=fields["explanation_types"],
             clinic_id=user["clinic_id"],
         )
         return {
@@ -429,6 +524,14 @@ async def get_available_agents(current_user: dict = Depends(get_current_user)):
 
 @router.post("/api/agent/chat")
 async def agent_chat(request: Request, current_user: dict = Depends(get_current_user)):
+    # K-7 보안 감사 (2026-05-04): 베타 미사용 라우트 비활성화.
+    # body parse / rate_limit / Anthropic 호출 모두 차단 — 어뷰저의 입력 길이 폭주 +
+    # Claude API 비용 트리거 진입점 봉인. 재도입 시 아래 410 응답 제거 + body
+    # validate_str(message, "message", 2000) 추가.
+    return JSONResponse(
+        {"agent_name": None, "response": "이 기능은 현재 비활성화되어 있습니다.", "error": True},
+        status_code=410,
+    )
     body = await request.json()
     message = body.get("message", "").strip()
     requested_agent = body.get("agent")
@@ -552,8 +655,9 @@ async def api_image_generate_initial(
                "quota": {regen: {...}, edit: {...}}}
     """
     body = await request.json()
-    prompt = (body.get("prompt") or "").strip()
-    keyword = (body.get("keyword") or "").strip()
+    # K-7 입력 길이 제한 — 어뷰저의 거대 prompt 로 OpenAI API 비용 트리거 차단.
+    prompt = _vs(body.get("prompt"), "image.prompt", max_len=2000)
+    keyword = _vs(body.get("keyword"), "image.keyword", max_len=200)
     if not prompt:
         raise HTTPException(status_code=400, detail="이미지 프롬프트가 비어 있습니다.")
 
@@ -869,6 +973,11 @@ async def api_blog_chat_turn(request: Request, user: dict = Depends(get_current_
             {"detail": "입력은 2,000자 이내로 작성해주세요."}, status_code=400
         )
 
+    # K-7 입력 형식 검증 — session_id 가 비어있지 않으면 UUID4 정규식 강제.
+    # 어뷰저가 거대 문자열로 DB lookup 부담 트리거하던 진입점 차단.
+    if session_id:
+        session_id = _vuuid(session_id, "blog_chat.session_id")
+
     # 신규 세션 — UUID4 발급 + 첫 인사
     # user_input이 있으면 그 입력으로 process_turn까지 1회 진행 (사용자 첫 액션 흐름)
     if not session_id:
@@ -1007,27 +1116,18 @@ async def generate(request: Request, user: dict = Depends(get_current_user)):
     check_blog_limit(user["clinic_id"])
 
     body = await request.json()
-    keyword      = body.get("keyword", "").strip()
-    answers      = body.get("answers", {})
-    materials    = body.get("materials", {})
-    mode         = body.get("mode", "정보")
-    reader_level = body.get("reader_level", "일반인")
-    seo_keywords = body.get("seo_keywords", [])   # ["키워드1", "키워드2"]
-    # 쉼표 구분, 공백은 키워드 내부 문자로 보존 (앞뒤만 제거)
-    if isinstance(seo_keywords, str):
-        seo_keywords = [k.strip() for k in seo_keywords.split(",") if k.strip()]
-    else:
-        normalized: list[str] = []
-        for kw in seo_keywords:
-            for part in str(kw).split(","):
-                part = part.strip()
-                if part:
-                    normalized.append(part)
-        seo_keywords = normalized
-    clinic_info       = body.get("clinic_info", "").strip()       # 블로그 생성기 추가 입력
-    explanation_types = body.get("explanation_types", [])          # 선택된 설명 방식 목록
-    char_count        = body.get("char_count", None)               # {"min": N, "max": M} or None
-    format_id         = body.get("format_id", None)                # v0.3 형식 선택 (없으면 자동)
+    # K-7 입력 길이 제한 — 어뷰저의 거대 입력으로 Claude API 비용 트리거 차단.
+    fields       = _validate_blog_inputs(body)
+    keyword      = fields["keyword"]
+    answers      = fields["answers"]
+    materials    = fields["materials"]
+    mode         = fields["mode"]
+    reader_level = fields["reader_level"]
+    seo_keywords = fields["seo_keywords"]
+    clinic_info       = fields["clinic_info"]
+    explanation_types = fields["explanation_types"]
+    char_count        = fields["char_count"]
+    format_id         = fields["format_id"]
 
     if not keyword:
         async def _err():

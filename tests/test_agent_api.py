@@ -22,48 +22,29 @@ def test_get_available_agents():
     assert any(a["name"] == "blog-agent" for a in agents)
 
 
-def test_agent_chat_routing():
-    cookies = get_auth_cookies()
-    with patch("src.main.anthropic.Anthropic") as mock_cls:
-        mock_client = MagicMock()
-        mock_cls.return_value = mock_client
-        mock_msg = MagicMock()
-        mock_msg.content = [MagicMock(text="블로그 아이디어입니다.")]
-        mock_msg.usage.input_tokens = 100
-        mock_msg.usage.output_tokens = 50
-        mock_client.messages.create.return_value = mock_msg
+def test_agent_chat_disabled_returns_410():
+    """K-7 (2026-05-04): /api/agent/chat 라우트 비활성화 — 410 Gone.
 
-        with patch("src.main._create_anthropic_client", return_value=mock_client):
-            res = client.post("/api/agent/chat", json={
-                "message": "블로그 아이디어 알려줘"
-            }, cookies=cookies)
-    assert res.status_code == 200
-    data = res.json()
-    assert data["agent_name"] == "blog-agent"
-    assert "response" in data
-
-
-def test_agent_chat_no_match():
+    베타 미사용 라우트. 어뷰저의 무제한 입력 + Claude API 비용 트리거 진입점 봉인.
+    재도입 시 본 테스트를 라우팅·rate_limit·길이 제한 검증 테스트로 교체."""
     cookies = get_auth_cookies()
     res = client.post("/api/agent/chat", json={
-        "message": "오늘 점심 뭐 먹지"
+        "message": "블로그 아이디어 알려줘"
     }, cookies=cookies)
-    assert res.status_code == 200
+    assert res.status_code == 410
     data = res.json()
-    assert data["agent_name"] is None
-    assert "매칭되는 에이전트가 없습니다" in data["response"]
+    assert data["error"] is True
+    assert "비활성화" in data["response"]
 
 
-def test_agent_chat_path_traversal_rejected():
-    """등록되지 않은 agent 명시 지정 시 에러 응답"""
+def test_agent_chat_disabled_no_body_processing():
+    """비활성 라우트는 거대 입력도 즉시 차단 (body parse 전에 410)."""
     cookies = get_auth_cookies()
     res = client.post("/api/agent/chat", json={
-        "message": "test",
-        "agent": "../../.env"
+        "message": "x" * 100000,
+        "agent": "blog-agent"
     }, cookies=cookies)
-    assert res.status_code in (400, 200)
-    if res.status_code == 200:
-        assert res.json().get("error") is True
+    assert res.status_code == 410
 
 
 def test_rate_limit_61st_request_blocked():
