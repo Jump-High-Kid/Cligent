@@ -229,3 +229,99 @@ class TestGenerateMetadataSafe:
             lambda **kw: AIResponse(content="garbage", usage={}),
         )
         assert generate_metadata_safe("본문") is None
+
+
+# ── cost_logger wire-up (Commit 5a) ──────────────────────
+
+
+class TestCostLoggerWireup:
+    """clinic_id 전달 시 cost_logs 기록 — invocation 인자만 mock 으로 검증."""
+
+    _USAGE = {
+        "input_tokens": 1500,
+        "output_tokens": 200,
+        "cache_read_tokens": 800,
+        "cache_create_tokens": 100,
+    }
+
+    def _ok_with_usage(self, payload):
+        import json as _json
+
+        return AIResponse(
+            content=_json.dumps(payload, ensure_ascii=False),
+            usage=self._USAGE,
+        )
+
+    def test_records_cost_when_clinic_id_given(self, monkeypatch):
+        captured = []
+
+        def fake_record(**kw):
+            captured.append(kw)
+            return True
+
+        monkeypatch.setattr(
+            mg, "call_anthropic_messages",
+            lambda **kw: self._ok_with_usage(_VALID_PAYLOAD),
+        )
+        monkeypatch.setattr(mg, "record_cost", fake_record)
+
+        generate_metadata(
+            "본문 텍스트",
+            keyword="허리디스크",
+            clinic_id=42,
+            blog_session_id="bs-uuid-1",
+        )
+
+        assert len(captured) == 1
+        c = captured[0]
+        assert c["kind"] == "anthropic_meta"
+        assert c["clinic_id"] == 42
+        assert c["model"] == mg.HAIKU_MODEL
+        assert c["tokens_in"] == 1500
+        assert c["tokens_out"] == 200
+        assert c["cache_read"] == 800
+        assert c["cache_create"] == 100
+        assert c["blog_session_id"] == "bs-uuid-1"
+        # cost_usd > 0 (사칙연산 검증은 pricing 테스트에서 별도)
+        assert c["cost_usd"] > 0
+        assert c["metadata"] == {"keyword": "허리디스크"}
+
+    def test_skip_when_clinic_id_missing(self, monkeypatch):
+        captured = []
+
+        def fake_record(**kw):
+            captured.append(kw)
+            return True
+
+        monkeypatch.setattr(
+            mg, "call_anthropic_messages",
+            lambda **kw: self._ok_with_usage(_VALID_PAYLOAD),
+        )
+        monkeypatch.setattr(mg, "record_cost", fake_record)
+
+        generate_metadata("본문", keyword="kw")  # clinic_id 미전달
+
+        assert captured == []  # record_cost 호출 안 됨
+
+    def test_safe_passes_through_clinic_id(self, monkeypatch):
+        captured = []
+
+        monkeypatch.setattr(
+            mg, "call_anthropic_messages",
+            lambda **kw: self._ok_with_usage(_VALID_PAYLOAD),
+        )
+        monkeypatch.setattr(
+            mg, "record_cost",
+            lambda **kw: captured.append(kw) or True,
+        )
+
+        generate_metadata_safe(
+            "본문",
+            keyword="x",
+            clinic_id=7,
+            blog_session_id="bs-2",
+        )
+
+        assert len(captured) == 1
+        assert captured[0]["clinic_id"] == 7
+        assert captured[0]["blog_session_id"] == "bs-2"

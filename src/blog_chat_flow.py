@@ -800,6 +800,7 @@ def _stream_generator_for_seo(state: BlogChatState, user_input: str):
             explanation_types=blog_args["explanation_types"],
             format_id=blog_args["format_id"],
             clinic_id=state.clinic_id,
+            blog_session_id=state.session_id,
         )
         for chunk in gen:
             raw = chunk.removeprefix("data: ").strip()

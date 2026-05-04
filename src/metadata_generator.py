@@ -23,13 +23,18 @@ import json
 import logging
 import re
 from dataclasses import dataclass
+from typing import Optional
 
 from ai_client import AIClientError, call_anthropic_messages
+from cost_logger import record_cost
+from pricing import calculate_anthropic_cost
 
 logger = logging.getLogger(__name__)
 
 
 HAIKU_MODEL = "claude-haiku-4-5-20251001"
+# pricing.py 의 ANTHROPIC_PRICES 키와 매핑 — date suffix 제거한 형태.
+HAIKU_PRICING_KEY = "claude-haiku-4-5"
 
 
 # ── 결과 ─────────────────────────────────────────────────
@@ -108,6 +113,9 @@ def generate_metadata(
     blog_text: str,
     keyword: str = "",
     seo_keywords: list[str] | None = None,
+    *,
+    clinic_id: Optional[int] = None,
+    blog_session_id: Optional[str] = None,
 ) -> BlogMetadata:
     """블로그 본문에서 메타데이터 4종 추출 (Haiku 4.5).
 
@@ -115,6 +123,9 @@ def generate_metadata(
         blog_text: 블로그 본문 마크다운.
         keyword: 블로그 주제 (있으면 user_message에 힌트로 포함).
         seo_keywords: 사용자 지정 SEO 키워드 (있으면 tags에 포함되도록 유도).
+        clinic_id: 비용 추적용 — 전달 시 cost_logs INSERT (Commit 5a).
+                   None 이면 비용 기록 스킵 (테스트·관리 호출 안전).
+        blog_session_id: 본문/메타 1편 묶음 ID. cost_logs.blog_session_id 에 저장.
 
     Returns:
         BlogMetadata.
@@ -154,6 +165,36 @@ def generate_metadata(
         cache_system=True,  # 시스템 프롬프트는 동일 구조 → 캐시 적중
     )
 
+    # 비용 기록 (Commit 5a) — clinic_id 있을 때만. fail-soft, 본 흐름 차단 금지.
+    if clinic_id is not None:
+        usage = response.usage or {}
+        tin = int(usage.get("input_tokens", 0) or 0)
+        tout = int(usage.get("output_tokens", 0) or 0)
+        cr = int(usage.get("cache_read_tokens", 0) or 0)
+        cw = int(usage.get("cache_create_tokens", 0) or 0)
+        try:
+            cost = calculate_anthropic_cost(
+                HAIKU_PRICING_KEY,
+                tokens_in=tin,
+                tokens_out=tout,
+                cache_read=cr,
+                cache_create=cw,
+            )
+        except ValueError:
+            cost = 0.0
+        record_cost(
+            kind="anthropic_meta",
+            clinic_id=clinic_id,
+            cost_usd=cost,
+            model=HAIKU_MODEL,
+            tokens_in=tin,
+            tokens_out=tout,
+            cache_read=cr,
+            cache_create=cw,
+            blog_session_id=blog_session_id,
+            metadata={"keyword": keyword} if keyword else None,
+        )
+
     raw = response.content
     try:
         data = _extract_json(raw)
@@ -181,13 +222,22 @@ def generate_metadata_safe(
     blog_text: str,
     keyword: str = "",
     seo_keywords: list[str] | None = None,
+    *,
+    clinic_id: Optional[int] = None,
+    blog_session_id: Optional[str] = None,
 ) -> BlogMetadata | None:
     """generate_metadata fail-soft 버전. 실패 시 None 반환 (서비스 영향 없음).
 
     main.py의 SSE done 이벤트에 끼워넣을 때는 이 버전을 권장.
     """
     try:
-        return generate_metadata(blog_text, keyword, seo_keywords)
+        return generate_metadata(
+            blog_text,
+            keyword,
+            seo_keywords,
+            clinic_id=clinic_id,
+            blog_session_id=blog_session_id,
+        )
     except (AIClientError, ValueError) as exc:
         logger.warning("metadata_generator: 메타 생성 실패 (fail-soft): %s", exc)
         return None

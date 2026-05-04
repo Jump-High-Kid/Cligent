@@ -12,11 +12,15 @@ from blog_history import get_recent_posts
 from format_selector import select_format, load_format_template
 from hook_selector import select_hook, get_hook_instruction
 from citation_provider import build_citation_block
+from cost_logger import record_cost
+from pricing import calculate_anthropic_cost
 
-# claude-sonnet-4-6 가격 (2025년 기준, 달러 기준)
-PRICE_INPUT_PER_M = 3.0    # $3 / 1M 입력 토큰
-PRICE_OUTPUT_PER_M = 15.0  # $15 / 1M 출력 토큰
-KRW_PER_USD = 1400         # 환율 (대략적인 참고값)
+# pricing.py 의 ANTHROPIC_PRICES 키와 매핑.
+SONNET_MODEL = "claude-sonnet-4-6"
+
+# Anthropic 가격은 src/pricing.py 단일 진실원으로 통일 (Commit 5a, 2026-05-04).
+# KRW 변환은 SSE done 이벤트의 cost_krw 호환을 위해 이 모듈에서 환산.
+KRW_PER_USD = 1400  # 환율 (대략적인 참고값)
 
 # v0.3 충돌 방지 — hook과 format 간 불호환 쌍
 # key: format_id, value: 이 format과 함께 사용하면 안 되는 hook id 집합
@@ -794,6 +798,7 @@ def generate_blog_stream(
     char_count: Optional[dict] = None,
     format_id: Optional[str] = None,
     clinic_id: Optional[int] = None,
+    blog_session_id: Optional[str] = None,
 ) -> Generator[str, None, None]:
     """
     블로그 생성 스트리밍 제너레이터
@@ -804,6 +809,8 @@ def generate_blog_stream(
     - 오류 시: {"error": "..."}
 
     clinic_id: 콘텐츠 개인화(5문항) DB 조회용. None이면 개인화 섹션 생략.
+                Commit 5a — 비용 추적용으로도 사용. 있으면 cost_logs INSERT.
+    blog_session_id: 본문/메타 1편 묶음 ID (blog_chat_state.session_id). cost_logs.blog_session_id 컬럼.
     """
     config = load_config()
     # tone 우선순위 (2026-05-04): chat answers.tone > 5문항 blog_tone > config 기본
@@ -1007,14 +1014,34 @@ def generate_blog_stream(
             except Exception:
                 pass
 
-        # 비용 산정: cache_read는 일반 input의 10%, cache_create는 125%로 과금.
-        effective_input = (
-            input_tokens
-            + int(cache_create_tokens * 1.25)
-            + int(cache_read_tokens * 0.10)
-        )
-        cost_usd = (effective_input * PRICE_INPUT_PER_M + output_tokens * PRICE_OUTPUT_PER_M) / 1_000_000
+        # 비용 산정 — pricing.py 단일 진실원 (Commit 5a, 2026-05-04).
+        # cache_read · cache_create 단가도 pricing.py 가 정확 가격표로 계산.
+        try:
+            cost_usd = calculate_anthropic_cost(
+                SONNET_MODEL,
+                tokens_in=input_tokens,
+                tokens_out=output_tokens,
+                cache_read=cache_read_tokens,
+                cache_create=cache_create_tokens,
+            )
+        except ValueError:
+            cost_usd = 0.0
         cost_krw = int(cost_usd * KRW_PER_USD)
+
+        # Commit 5a — clinic_id 있을 때만 cost_logs INSERT. fail-soft.
+        if clinic_id is not None:
+            record_cost(
+                kind="anthropic_blog",
+                clinic_id=clinic_id,
+                cost_usd=cost_usd,
+                model=SONNET_MODEL,
+                tokens_in=input_tokens,
+                tokens_out=output_tokens,
+                cache_read=cache_read_tokens,
+                cache_create=cache_create_tokens,
+                blog_session_id=blog_session_id,
+                metadata={"keyword": keyword} if keyword else None,
+            )
 
         # 3단계: 시리즈 추천 (실패해도 done은 전송)
         try:
