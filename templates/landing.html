@@ -482,27 +482,30 @@
     display: grid;
     grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
     gap: 28px;
-    margin-top: 24px;
-    align-items: stretch;
+    margin-top: 32px;            /* 24 → 32 sub와 충분히 분리 */
+    align-items: start;          /* stretch → start: 영상 16/9 비율 보존, 카드 자연 높이 */
   }
   /* 영상 placeholder — 16:9 비율, 베타 시점엔 정적 카드 */
   .howto-video {
-    background: var(--surface);
+    background: var(--sage-tint, #f6f8f4);
     border: 1px solid var(--border-soft);
     border-radius: var(--radius);
     box-shadow: var(--shadow-xs);
     overflow: hidden;
     position: relative;
     aspect-ratio: 16 / 9;
+    min-height: 240px;           /* aspect-ratio 미지원 브라우저 fallback */
+    align-self: start;
   }
   .howto-video .video-placeholder {
     position: absolute; inset: 0;
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
     gap: 12px;
-    background: var(--sage-tint, #f6f8f4);
+    background: transparent;
     text-align: center;
     padding: 24px;
+    z-index: 1;
   }
   .howto-video .video-placeholder .play-icon {
     font-size: 64px;
