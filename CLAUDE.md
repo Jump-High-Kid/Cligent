@@ -83,7 +83,16 @@ beta:
 
 ## 진행 중 (2026-05-05)
 
-- **SSE 본문·이미지 부분 보존 (A·B 미커밋, 2026-05-05)** — 베타 시뮬레이션 트랙 A에서 발굴한 16건 위험 중 베타 차단 가능성 가장 높은 2건 fix.
+- **트랙 A 종료 — A·B·C·D·E·F 6건 모두 ✅ (2026-05-05)** — 베타 시뮬레이션 트랙 A 위험 6건 모두 fix·라이브 반영 완료. **베이스라인 694 pass / 4 fail** (689 → 694, E 회귀 +5, 회귀 0).
+  - **E (max_tokens cutoff, 0dc4c2e)**: Anthropic stream `stop_reason="max_tokens"` 감지 → `blog_generator` SSE warning frame + `done.truncated=true` / `blog_chat_flow` placeholder.meta.truncated 마킹 + message_done 직후 stage_text 1회 즉시 안내 / `chat_state.js` 본문 버블 내 emerald-900 left-border 4px 경고 박스 (F5/세션 복원 시에도 안내 복원). 정상 저장 유지(부분 보존 X) — 25편 한도 차감 1건. `make_stream_mock(stop_reason=...)` 인자 확장 + 회귀 5건. 메모리: `project_sse_partial_save_AB.md`.
+  - **다음 단계**: H/I/J 묶음 (옵션 regex / 한도 메시지 / 발행 뱃지) — 사용자 결정 후. 데이터 격리 (`clinics.is_test`) — 베타 KPI Commit 6과 묶어 별도 세션.
+
+- **랜딩페이지 사이클 1·2 완료 (2026-05-05)** — 베타 직전 정합성 + 신규 가치 가시화. 사이클 3(히어로 매트릭스 배경)은 사양 박힘, 추가 합의 4건 대기.
+  - **사이클 1 (0a24bdc)**: BYOAI 잔존 8개 항목 일괄 정리. meta/JSON-LD/hero-meta/비교표 푸트노트/trust-card/beta-section/FAQ 2건. "본인 API 키" 표현 0건.
+  - **사이클 2 (0a157e2 + 05626a7 + 8dc2a2d + b695c75)**: Why Cligent 직후 `<section id="howto">` 신규 (영상 placeholder + 4 가치 카드: 챗·학술 검증·의료법·발행 확인). 후속 9건 — hero 1~2분→8분, problem 카드 2x2 grid + 1200px+ 4열 통일, 마케팅 비용 "편당 5~15만원" + 도구에 포토샵, solution "7~10분", STEP 3 학술 출처 표기 제거, 예시 옵션·출력·소요 갱신, 비교표 5행 갱신(약재·경혈·해부학·다양한 포맷·휴머나이저(예정)·이미지 D/B 확장·학술 자료), howto 영상 placeholder 가독성 + stretch 정렬 fix. trust/roadmap grid 동일 2x2 패턴 통일.
+  - **사이클 3 합의 사양**: Canvas 2D + 순수 JS (외부 라이브러리 0). 한자 70%(氣·血·辨·證·經·絡·脈·陰·陽·肝·心·脾·肺·腎·君·臣·佐·使) + AI 코드 30% 혼합. 화이트 배경 + emerald-700/900 글자. 4 phase 타임라인(매트릭스 비 → 태극 모핑 → 회전 → C+스파클 페이드인). 첫 진입 1회 재생 후 정적. 산출물 `static/js/hero_animation.js` + `static/img/cligent_logo_animated.svg`. 메모리: `project_landing_redesign.md`.
+
+- **SSE 본문·이미지 부분 보존 (A·B, 2026-05-05)** — 베타 시뮬레이션 트랙 A에서 발굴한 16건 위험 중 베타 차단 가능성 가장 높은 2건 fix.
   - **A1 본문 부분 보존**: `_stream_generator_for_seo` (blog_chat_flow.py) 가 모바일 백그라운드/disconnect 시 BrokenPipe로 generator 강제종료 → `save_blog_entry()` 미호출 → 작성된 글 통째로 사라지던 문제. `_persist_partial(state, placeholder, collected, cost_krw, ...)` 헬퍼 신규 (50자 미만 skip, 3중 fail-soft) + `except GeneratorExit` 분기 추가 (yield 못 함 → 부분 보존 후 raise) + `except Exception` / `error in data` 분기에서도 호출. `save_blog_entry` 시그니처에 `is_partial: bool = False` 인자 추가, True 시 stats entry에 `is_partial: true` 필드 (어드민 KPI 분리 집계). placeholder.meta = {char_count, cost_krw, blog_history_id, partial: True} → 클라 새로고침 시 부분 본문 자동 표시. 4 layer SSE 보호의 마지막 안전망.
   - **B 이미지 5장 부분 실패 보존**: `_stream_generator_for_image` 5번 순차 호출 중 한 장이라도 실패하면 전체 중단(완성된 2~3장도 버림) 되던 문제. import와 호출 루프 분리, `results: list[Optional[str]] = [None] * 5` + `failed_indices` 추적, 매 호출 individual try/except (`_AIClientError` kind별 brief: 안전성 필터 차단/요청 한도/응답 시간 초과 + 일반 `Exception` + 빈 응답 모두 `failed_indices` 마킹 + `continue`), 실패 시 `stage_text` 안내 (`이미지 N/5 — 안전성 필터 차단, 건너뜁니다`), 루프 종료 후 성공한 N장만 `images`/`images_prompts`/`images_titles` 인덱스 일관 추출, 0건 성공만 전체 error frame, 부분 실패 시 stage_text 요약 + `gallery_meta`에 `partial`/`success_count`/`failed_count`/`total_attempted` 4 필드 추가, 갤러리·completion 안내 텍스트 부분/전체 분기. cost_logger는 성공분만 record_cost (정책 5b 유지). 클라 코드 변경 0.
   - **변경 파일**: src/blog_history.py / src/blog_chat_flow.py / tests/test_blog_chat_flow.py (+4) / tests/test_blog_chat_route.py (+3).
