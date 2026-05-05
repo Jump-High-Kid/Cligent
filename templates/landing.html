@@ -7,7 +7,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5">
 <title>Cligent — 원장님의 시간을 돌려드립니다</title>
-<meta name="description" content="Cligent는 원장님의 진료 외 반복 업무를 AI로 대신합니다. 한의학에 특화된 블로그 자동 생성, 본인 API 키 사용으로 무제한.">
+<meta name="description" content="Cligent는 원장님의 진료 외 반복 업무를 AI로 대신합니다. 한의학에 특화된 블로그 8분 작성. 학술 자료 자동 검증·의료법 고지문 자동 삽입.">
 <meta name="keywords" content="한의원 블로그, 한의원 마케팅, 한의학 AI, 의료 AI, 블로그 자동 생성, 한의원 SaaS, Cligent">
 <meta name="author" content="Cligent">
 <meta name="robots" content="index, follow">
@@ -68,7 +68,7 @@
         "@type": "Offer",
         "price": "0",
         "priceCurrency": "KRW",
-        "description": "베타 기간 무료 (본인 API 키 사용)"
+        "description": "1차 베타 5인 한정, 누적 25편 모든 기능 무료. 회사 제공 AI 운영."
       }
     }
   ]
@@ -844,7 +844,7 @@
     <a href="#beta" class="btn-primary btn-lg">베타 신청하기</a>
     <a href="#solution" class="btn-ghost btn-lg">어떻게 작동하나요?</a>
   </div>
-  <p class="hero-meta">신청 후 1~3일 내 회신 · 베타 기간 무료 · API 키만 본인 발급</p>
+  <p class="hero-meta">신청 후 1~3일 내 회신 · 1차 베타 5인 한정 · 회사 제공 AI</p>
 </div>
 
 <!-- ── Problem ───────────────────────────────────────────── -->
@@ -976,7 +976,7 @@
     </table>
   </div>
   <p class="hero-meta" style="text-align:center; margin-top:24px;">
-    ※ 1차 베타는 회사가 제공하는 AI로 운영하며 별도 API 키 등록이 필요하지 않습니다. BYOAI(본인 API 키 등록 방식)는 정식 서비스 출시 이후 단계적으로 도입될 예정입니다.
+    ※ 1차 베타는 회사 제공 AI로 운영되어 별도 API 키 등록이 필요하지 않습니다. 본인 AI 키 등록 방식은 정식 서비스 출시 이후 단계적으로 도입됩니다.
   </p>
 </section>
 
@@ -1000,8 +1000,8 @@
     </div>
     <div class="trust-card">
       <div class="icon">🔐</div>
-      <h4>API 키 암호화</h4>
-      <p>본인 API 키는 Fernet AES-256으로 암호화 저장. 평문 노출 없음.</p>
+      <h4>자격 정보 암호화</h4>
+      <p>외부 자격 정보는 Fernet AES-256 + 행별 솔트로 암호화 저장. 평문 노출 0.</p>
     </div>
     <div class="trust-card">
       <div class="icon">🛡</div>
@@ -1048,7 +1048,7 @@
   <h2 class="section-title">베타 테스터로 먼저 만나보세요</h2>
   <p class="section-sub">
     이메일을 입력해 주세요. 1~3일 내 검토 후 초대 링크를 보내드립니다.
-    베타 기간 모든 기능 무료, API 비용만 본인 부담입니다.
+    1차 베타는 5인 한정·누적 25편·모든 기능 무료입니다. 서비스 가입도 비용 부담도 없습니다.
   </p>
   <form class="beta-form" id="betaForm" onsubmit="return submitBeta(event)">
     <div id="msgBox" class="msg"></div>
@@ -1084,10 +1084,10 @@
   <h2 class="section-title">자주 묻는 질문</h2>
   <div class="faq-list">
     <details class="faq">
-      <summary>API 키를 발급받아야 하나요?</summary>
+      <summary>베타에 비용이 있나요?</summary>
       <div class="answer">
-        <strong>1차 베타 동안은 별도 API 키가 필요 없습니다.</strong> 회사가 제공하는 AI로 모든 기능(블로그 본문·이미지·메타데이터)이 무료로 운영됩니다.
-        BYOAI(Bring Your Own AI — 본인 API 키 등록 방식)는 정식 서비스 출시 이후 단계적으로 도입될 예정입니다.
+        <strong>1차 베타는 5인 한정으로 누적 25편까지 본문·이미지·메타데이터·학술 검증·의료법 고지문까지 모두 무료입니다.</strong>
+        회사 제공 AI로 운영되어 별도 API 키 발급도 필요 없습니다.
       </div>
     </details>
     <details class="faq">
@@ -1107,8 +1107,8 @@
     <details class="faq">
       <summary>비용은 어떻게 발생하나요?</summary>
       <div class="answer">
-        베타 기간엔 모든 기능 무료입니다. 정식 출시 가격은 베타 운영 결과에 따라 추후 공지하며,
-        본인 API 키 사용 비용은 Cligent 구독료와 별개로 본인이 직접 결제합니다 (블로그 1편 ≈ 50~150원).
+        1차 베타는 무료입니다. 정식 출시 시 Standard / Pro 두 플랜으로 운영되며, 정확한 가격은 베타 결과를 반영해 30일 전 공지합니다.
+        베타 참가자 우선 혜택은 베타 종료 시 별도 안내드립니다.
       </div>
     </details>
     <details class="faq">
