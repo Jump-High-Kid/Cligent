@@ -873,6 +873,16 @@
     const blogText = msgObj.text || '';
     if (!blogText) return;
 
+    // 잘림 안내 (E, 2026-05-05) — max_tokens cutoff. 발행 전 끝부분 확인 유도.
+    // F5/세션 복원 시에도 placeholder.meta.truncated가 살아있어 동일하게 노출.
+    if (meta.truncated) {
+      const warn = document.createElement('div');
+      warn.className = 'bubble-truncated-warning';
+      warn.setAttribute('role', 'alert');
+      warn.textContent = '⚠ 글이 최대 길이에 도달해 마지막 문장이 잘렸을 수 있어요. 발행 전 끝부분을 확인하거나 글자 수를 줄여 다시 작성해 주세요.';
+      bubbleEl.appendChild(warn);
+    }
+
     const actions = document.createElement('div');
     actions.className = 'bubble-actions';
 

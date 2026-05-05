@@ -761,6 +761,87 @@ class TestStreamingForSeo:
         assert len(save_calls) == 1
         assert not save_calls[0]["kwargs"].get("is_partial")
 
+    # ── E (2026-05-05): max_tokens cutoff 감지 ─────────────────────
+
+    def test_truncated_marks_meta_via_warning_frame(self, monkeypatch):
+        """generator가 warning='truncated' 프레임 발송 시 placeholder.meta.truncated=True."""
+        save_calls: list = []
+
+        def truncated_stream(*args, **kwargs):
+            yield 'data: {"text": "본문이 정상 흐름으로 작성됩니다. "}\n\n'
+            yield 'data: {"text": "끝까지 길게 이어지지만 마지막에서 잘립니다"}\n\n'
+            # max_tokens cutoff — generator가 warning 프레임 별도 발송
+            yield 'data: {"warning": "truncated", "message": "글이 최대 길이에 도달해 마지막 문장이 잘렸을 수 있습니다."}\n\n'
+            yield 'data: {"done": true, "usage": {"cost_krw": 80}, "truncated": true}\n\n'
+
+        flow, state = self._seed_with_capture(monkeypatch, save_calls, truncated_stream)
+
+        gen = flow.process_turn_streaming(state, "예")
+        import json as _json
+        frames = [_json.loads(r[len("data: "):].strip()) for r in gen]
+
+        # 정상 저장(부분 아님) — 본문은 정상 흐름으로 finish
+        assert len(save_calls) == 1
+        assert not save_calls[0]["kwargs"].get("is_partial")
+
+        # placeholder.meta.truncated=True 마킹 (F5/세션 복원 시 안내 노출용)
+        assistant_msgs = [m for m in state.messages if m.role == "assistant"]
+        # 마지막 어시스턴트는 후속 안내(FEEDBACK/IMAGE) — 본문 placeholder는 그 직전
+        body_msg = next(m for m in reversed(assistant_msgs)
+                        if m.meta and "char_count" in (m.meta or {}))
+        assert body_msg.meta.get("truncated") is True
+
+        # SSE에 warning을 stage_text로 노출 + message_done 직후 한 번 더 안내
+        stage_texts = [f for f in frames if f.get("type") == "stage_text"]
+        truncated_texts = [f for f in stage_texts if "잘렸" in (f.get("text") or "")]
+        assert len(truncated_texts) >= 1
+
+    def test_truncated_marks_meta_via_done_frame_only(self, monkeypatch):
+        """warning 프레임이 누락돼도 done frame의 truncated=True 만으로 메타 마킹."""
+        save_calls: list = []
+
+        def done_only_truncated_stream(*args, **kwargs):
+            yield 'data: {"text": "본문 시작 "}\n\n'
+            yield 'data: {"text": "본문 이어지는 내용입니다"}\n\n'
+            yield 'data: {"done": true, "usage": {"cost_krw": 50}, "truncated": true}\n\n'
+
+        flow, state = self._seed_with_capture(monkeypatch, save_calls, done_only_truncated_stream)
+
+        gen = flow.process_turn_streaming(state, "예")
+        import json as _json
+        list(_json.loads(r[len("data: "):].strip()) for r in gen)
+
+        body_msg = next(
+            m for m in reversed([x for x in state.messages if x.role == "assistant"])
+            if m.meta and "char_count" in (m.meta or {})
+        )
+        assert body_msg.meta.get("truncated") is True
+        # 정상 저장
+        assert len(save_calls) == 1
+        assert not save_calls[0]["kwargs"].get("is_partial")
+
+    def test_not_truncated_when_no_signal(self, monkeypatch):
+        """warning·done.truncated 둘 다 없으면 meta.truncated 키 자체 미존재."""
+        save_calls: list = []
+
+        def normal_stream(*args, **kwargs):
+            yield 'data: {"text": "본문 정상 "}\n\n'
+            yield 'data: {"text": "정상 종료입니다"}\n\n'
+            yield 'data: {"done": true, "usage": {"cost_krw": 10}}\n\n'
+
+        flow, state = self._seed_with_capture(monkeypatch, save_calls, normal_stream)
+
+        gen = flow.process_turn_streaming(state, "예")
+        import json as _json
+        list(_json.loads(r[len("data: "):].strip()) for r in gen)
+
+        body_msg = next(
+            m for m in reversed([x for x in state.messages if x.role == "assistant"])
+            if m.meta and "char_count" in (m.meta or {})
+        )
+        # truncated 키 자체가 없거나 falsy
+        assert not body_msg.meta.get("truncated")
+
 
 # ── 1D-4: IMAGE / FEEDBACK / TTL ──────────────────────────────
 

@@ -1001,9 +1001,13 @@ def generate_blog_stream(
             else:
                 fixed_text = original_text
 
-            # 2단계: 토큰 사용량 (실패해도 done은 전송)
+            # 2단계: 토큰 사용량 + stop_reason (실패해도 done은 전송)
             cache_read_tokens = 0
             cache_create_tokens = 0
+            # max_tokens cutoff 감지 — Anthropic SDK가 stop_reason="max_tokens" 반환하면
+            # 본문이 8000 토큰 한도에서 잘린 상태. UI에 안내해 사용자가 짤린 글을 그대로
+            # 발행하지 않도록 함 (2026-05-05, 트랙 A 위험 E).
+            truncated = False
             try:
                 final = stream.get_final_message()
                 input_tokens = final.usage.input_tokens
@@ -1011,8 +1015,15 @@ def generate_blog_stream(
                 # prompt caching 추적 — 캐시 hit 시 input_tokens는 0에 가깝고 cache_read에 잡힘
                 cache_read_tokens = getattr(final.usage, "cache_read_input_tokens", 0) or 0
                 cache_create_tokens = getattr(final.usage, "cache_creation_input_tokens", 0) or 0
+                # stop_reason: "end_turn" 정상 / "max_tokens" 잘림 / "stop_sequence" / None
+                truncated = getattr(final, "stop_reason", None) == "max_tokens"
             except Exception:
                 pass
+
+        # 잘림 안내 SSE — done 프레임 직전에 별도 warning 발송 (UI가 stage_text로 노출).
+        # done 프레임에도 truncated=True를 동봉해 chat_flow가 placeholder.meta에 박는다.
+        if truncated:
+            yield f"data: {json.dumps({'warning': 'truncated', 'message': '글이 최대 길이에 도달해 마지막 문장이 잘렸을 수 있습니다.'}, ensure_ascii=False)}\n\n"
 
         # 비용 산정 — pricing.py 단일 진실원 (Commit 5a, 2026-05-04).
         # cache_read · cache_create 단가도 pricing.py 가 정확 가격표로 계산.
@@ -1059,7 +1070,7 @@ def generate_blog_stream(
             except Exception:
                 faq_schema = None
 
-        yield f"data: {json.dumps({'done': True, 'usage': {'input': input_tokens, 'output': output_tokens, 'cost_krw': cost_krw}, 'series': series, 'seo_keywords': seo_keywords or [], 'faq_schema': faq_schema, 'format_id': diversity.get('format_id'), 'hook_id': diversity.get('hook_id')}, ensure_ascii=False)}\n\n"
+        yield f"data: {json.dumps({'done': True, 'usage': {'input': input_tokens, 'output': output_tokens, 'cost_krw': cost_krw}, 'series': series, 'seo_keywords': seo_keywords or [], 'faq_schema': faq_schema, 'format_id': diversity.get('format_id'), 'hook_id': diversity.get('hook_id'), 'truncated': truncated}, ensure_ascii=False)}\n\n"
 
     except anthropic.AuthenticationError:
         yield _error_event("API 키를 확인해주세요. .env 파일의 ANTHROPIC_API_KEY를 확인하세요.")

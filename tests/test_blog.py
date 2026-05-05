@@ -35,17 +35,25 @@ def override_auth():
 
 # ── 헬퍼 ──────────────────────────────────────────────────────────────────────
 
-def make_stream_mock(text_chunks: list[str], input_tokens: int = 100, output_tokens: int = 200):
+def make_stream_mock(
+    text_chunks: list[str],
+    input_tokens: int = 100,
+    output_tokens: int = 200,
+    stop_reason: str = "end_turn",
+):
     """client.messages.stream() 컨텍스트 매니저 모킹용 헬퍼"""
     mock_stream = MagicMock()
     mock_stream.__enter__ = MagicMock(return_value=mock_stream)
     mock_stream.__exit__ = MagicMock(return_value=False)
     mock_stream.text_stream = iter(text_chunks)
 
-    # 최종 메시지 사용량 모킹
+    # 최종 메시지 사용량 + stop_reason 모킹
     final_msg = MagicMock()
     final_msg.usage.input_tokens = input_tokens
     final_msg.usage.output_tokens = output_tokens
+    final_msg.usage.cache_read_input_tokens = 0
+    final_msg.usage.cache_creation_input_tokens = 0
+    final_msg.stop_reason = stop_reason
     mock_stream.get_final_message = MagicMock(return_value=final_msg)
 
     return mock_stream
@@ -175,6 +183,60 @@ def test_generate_empty_output():
     events = parse_sse(res.content)
     done_events = [e for e in events if e.get("done")]
     assert len(done_events) == 1  # 빈 출력이어도 done 이벤트는 와야 함
+
+
+# ── 테스트 4b: max_tokens cutoff 감지 (E, 2026-05-05) ────────────────────────
+
+def test_generate_detects_max_tokens_cutoff():
+    """stop_reason='max_tokens' → warning 이벤트 + done.truncated=True"""
+    long_text = "가" * 1500
+    chunks = [long_text[i:i+150] for i in range(0, len(long_text), 150)]
+    # 모델이 8000 토큰 한도에 걸려 잘린 상태
+    mock_stream = make_stream_mock(chunks, input_tokens=600, output_tokens=8000,
+                                    stop_reason="max_tokens")
+
+    with patch("blog_generator.anthropic.Anthropic") as mock_client_cls, \
+         patch("routers.blog.check_blog_limit"):
+        mock_client_cls.return_value.messages.stream.return_value = mock_stream
+        with patch("main.os.getenv", return_value="sk-ant-test"):
+            res = client.post(
+                "/generate",
+                json={"keyword": "잘림 테스트 주제", "answers": {}},
+            )
+
+    events = parse_sse(res.content)
+    # warning 프레임 1건 (별도 SSE 이벤트로 발송)
+    warning_events = [e for e in events if e.get("warning") == "truncated"]
+    assert len(warning_events) == 1
+    assert "잘렸" in (warning_events[0].get("message") or "")
+
+    # done 프레임에 truncated=True 동봉 — chat_flow가 placeholder.meta에 반영
+    done_events = [e for e in events if e.get("done")]
+    assert len(done_events) == 1
+    assert done_events[0].get("truncated") is True
+
+
+def test_generate_normal_stop_reason_not_truncated():
+    """stop_reason='end_turn' → truncated=False, warning 없음"""
+    long_text = "정상" * 800
+    chunks = [long_text[i:i+100] for i in range(0, len(long_text), 100)]
+    mock_stream = make_stream_mock(chunks, stop_reason="end_turn")
+
+    with patch("blog_generator.anthropic.Anthropic") as mock_client_cls, \
+         patch("routers.blog.check_blog_limit"):
+        mock_client_cls.return_value.messages.stream.return_value = mock_stream
+        with patch("main.os.getenv", return_value="sk-ant-test"):
+            res = client.post(
+                "/generate",
+                json={"keyword": "정상 주제", "answers": {}},
+            )
+
+    events = parse_sse(res.content)
+    warning_events = [e for e in events if e.get("warning") == "truncated"]
+    assert len(warning_events) == 0
+    done_events = [e for e in events if e.get("done")]
+    assert len(done_events) == 1
+    assert done_events[0].get("truncated") is False
 
 
 # ── 테스트 5: 빈 keyword 입력 검증 ──────────────────────────────────────────

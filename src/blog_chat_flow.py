@@ -852,6 +852,9 @@ def _stream_generator_for_seo(state: BlogChatState, user_input: str):
 
     collected: list[str] = []
     cost_krw = 0
+    # max_tokens cutoff 플래그 (E, 2026-05-05) — generator의 done frame에서 캡처해
+    # placeholder.meta.truncated에 박는다. UI는 안내 문구를 본문 끝에 표시.
+    truncated = False
     try:
         gen = generate_blog_stream(
             keyword=state.topic,
@@ -889,8 +892,16 @@ def _stream_generator_for_seo(state: BlogChatState, user_input: str):
                 yield _sse_frame({"type": "replace", "text": data["replace"]})
             elif "status" in data:
                 yield _sse_frame({"type": "stage_text", "text": data["status"]})
+            elif data.get("warning") == "truncated":
+                # max_tokens cutoff 안내 (UI가 stage_text로 노출, 본문 자체는 정상 흐름)
+                truncated = True
+                msg = data.get("message") or "글이 최대 길이에 도달해 마지막 문장이 잘렸을 수 있습니다."
+                yield _sse_frame({"type": "stage_text", "text": msg})
             elif data.get("done"):
                 cost_krw = (data.get("usage") or {}).get("cost_krw", 0)
+                # generator가 done frame에 truncated를 동봉 — warning frame 못 받은 경우 대비
+                if data.get("truncated"):
+                    truncated = True
     except GeneratorExit:
         # 클라 disconnect (모바일 백그라운드, 네트워크 단절, 페이지 이탈).
         # yield 더 못 함 — 부분 본문만 보존하고 즉시 raise.
@@ -923,16 +934,28 @@ def _stream_generator_for_seo(state: BlogChatState, user_input: str):
     # 6) state 갱신 + placeholder 본문 채우기
     placeholder.text = blog_text
     placeholder.options = []
-    placeholder.meta = {
+    placeholder_meta = {
         "char_count": char_total,
         "cost_krw": cost_krw,
         "blog_history_id": entry_id,
     }
+    if truncated:
+        # E (2026-05-05): max_tokens cutoff 마킹. F5/세션 복원 시 클라가 안내 노출.
+        placeholder_meta["truncated"] = True
+    placeholder.meta = placeholder_meta
     state.blog_text = blog_text
     state.blog_history_id = entry_id
 
     yield _sse_frame({"type": "message_done",
                       "message": serialize_message(placeholder)})
+
+    # 잘림 안내 — message_done 직후 1회 노출 (placeholder.meta.truncated와 별개로
+    # 즉시 stage_text로 사용자 시선 유도). 새로고침 후엔 placeholder.meta로 복원.
+    if truncated:
+        yield _sse_frame({
+            "type": "stage_text",
+            "text": "⚠ 본문이 최대 길이에 도달해 마지막 문장이 잘렸을 수 있어요. 발행 전에 끝부분을 확인하거나, 글자 수를 줄여 다시 작성해 주세요.",
+        })
 
     # 7) 다음 단계 분기.
     # auto_image=False → 사용자가 CONFIRM_IMAGE에 "아니오"를 선택한 경우.
