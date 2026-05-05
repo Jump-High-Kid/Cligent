@@ -709,6 +709,65 @@ def _sse_frame(obj: dict) -> str:
     return f"data: {json.dumps(obj, ensure_ascii=False)}\n\n"
 
 
+# 부분 본문 보존 임계값 — 이보다 짧으면 의미 없는 토막으로 보고 저장 안 함.
+_PARTIAL_MIN_CHARS = 50
+
+
+def _persist_partial(
+    state: BlogChatState,
+    placeholder,  # ChatMessage
+    collected: list[str],
+    cost_krw: int,
+    seo_keywords: list[str] | None,
+    topic: str,
+    clinic_id: int | None,
+) -> None:
+    """SSE 도중 끊긴(disconnect/예외) 부분 본문을 fail-soft로 보존.
+
+    - blog_history에 is_partial=True로 저장 (어드민 KPI에서 분리 집계)
+    - state.placeholder 메시지를 부분 본문으로 갱신 + meta.partial=True 마킹
+    - state.blog_text / blog_history_id 갱신 + save_session
+
+    너무 짧으면(<50자) skip — 의미 없는 토막 저장 방지.
+    모든 단계 fail-soft — 본 함수 실패가 generator 종료 흐름을 막아선 안 됨.
+    """
+    try:
+        from blog_history import save_blog_entry  # local import: 순환 회피
+    except Exception:  # pragma: no cover
+        return
+
+    blog_text = "".join(collected).strip()
+    if len(blog_text) < _PARTIAL_MIN_CHARS:
+        return
+
+    char_total = len(blog_text)
+    entry_id: Optional[int] = None
+    try:
+        entry_id = save_blog_entry(
+            topic, "전문적", char_total, cost_krw,
+            seo_keywords or [], blog_text,
+            clinic_id=clinic_id,
+            is_partial=True,
+        )
+    except Exception:
+        logger.exception("save_blog_entry (partial) failed")
+
+    try:
+        placeholder.text = blog_text
+        placeholder.options = []
+        placeholder.meta = {
+            "char_count": char_total,
+            "cost_krw": cost_krw,
+            "blog_history_id": entry_id,
+            "partial": True,
+        }
+        state.blog_text = blog_text
+        state.blog_history_id = entry_id
+        save_session(state)
+    except Exception:
+        logger.exception("partial placeholder/save_session failed")
+
+
 def _stream_generator_for_seo(state: BlogChatState, user_input: str):
     """SEO 입력 → 본문 streaming → IMAGE 옵션 메시지로 종료.
 
@@ -716,6 +775,11 @@ def _stream_generator_for_seo(state: BlogChatState, user_input: str):
     프레임 type:
       user_message / message_start / token / replace / message_done /
       next_message / stage_change / stage_text / error / done
+
+    부분 본문 보존 (2026-05-05): 클라 disconnect(GeneratorExit)·예외 시
+    `_persist_partial`로 collected 부분 본문을 blog_history(is_partial=True) +
+    state.placeholder(meta.partial=True)에 저장. 사용자가 새로고침해도 부분 본문
+    복원 가능. 4 layer SSE 보호의 마지막 안전망 (background task 분리는 v0.10.0).
     """
     from blog_generator import generate_blog_stream
     from blog_history import save_blog_entry
@@ -811,6 +875,9 @@ def _stream_generator_for_seo(state: BlogChatState, user_input: str):
             except Exception:
                 continue
             if "error" in data:
+                # 모델 에러 — collected가 부분이라도 보존 후 사용자 안내
+                _persist_partial(state, placeholder, collected, cost_krw,
+                                 state.seo_keywords, state.topic, state.clinic_id)
                 yield _sse_frame({"type": "error", "message": data["error"]})
                 yield _sse_frame({"type": "done"})
                 return
@@ -824,8 +891,16 @@ def _stream_generator_for_seo(state: BlogChatState, user_input: str):
                 yield _sse_frame({"type": "stage_text", "text": data["status"]})
             elif data.get("done"):
                 cost_krw = (data.get("usage") or {}).get("cost_krw", 0)
-    except Exception as exc:
+    except GeneratorExit:
+        # 클라 disconnect (모바일 백그라운드, 네트워크 단절, 페이지 이탈).
+        # yield 더 못 함 — 부분 본문만 보존하고 즉시 raise.
+        _persist_partial(state, placeholder, collected, cost_krw,
+                         state.seo_keywords, state.topic, state.clinic_id)
+        raise
+    except Exception:
         logger.exception("blog streaming failed")
+        _persist_partial(state, placeholder, collected, cost_krw,
+                         state.seo_keywords, state.topic, state.clinic_id)
         yield _sse_frame({"type": "error",
                           "message": "본문 생성 중 오류가 발생했어요. 다시 시도해주세요."})
         yield _sse_frame({"type": "done"})
@@ -1162,104 +1237,141 @@ def _stream_generator_for_image(state: BlogChatState, user_input: str):
         from cost_logger import record_cost
         from pricing import calculate_openai_image_cost
         size, quality = get_plan_dimensions(plan_id)
-        images: list[str] = []
-        for idx, p in enumerate(prompt_list):
-            # 매 루프 시작 시 cancel flag 체크 (2026-05-02)
-            if is_image_session_cancelled(image_session_id):
-                _clear_cancel_flag(image_session_id)
-                yield _sse_frame({"type": "image_cancelled",
-                                  "message": f"{idx}/5장에서 사용자가 취소했어요."})
-                yield _sse_frame({"type": "done"})
-                return
-            remaining_sec = (5 - idx) * SECONDS_PER_IMAGE
-            if remaining_sec >= 60:
-                remaining_label = f"약 {remaining_sec // 60}분 남음"
-            else:
-                remaining_label = f"약 {remaining_sec}초 남음"
-            title = title_list[idx] or f"{idx + 1}번 장면"
-            stage_msg = (
-                f"이미지 {idx + 1}/5 — {title} 그리는 중... "
-                f"({remaining_label})"
-            )
-            yield _sse_frame({"type": "stage_text", "text": stage_msg})
+    except Exception:
+        logger.exception("image module import failed (call site)")
+        yield _sse_frame({"type": "error", "message": "이미지 모듈을 불러오지 못했어요."})
+        yield _sse_frame({"type": "done"})
+        return
+
+    # 부분 실패 보존 (2026-05-05): 5번 호출 중 일부 실패해도 성공한 장은 갤러리에 표시.
+    # 모두 실패한 경우만 전체 에러. 카드별 prompt/title은 인덱스 일관성을 위해 성공분만 추출.
+    results: list[Optional[str]] = [None] * len(prompt_list)
+    failed_indices: list[int] = []
+
+    for idx, p in enumerate(prompt_list):
+        # 매 루프 시작 시 cancel flag 체크 (2026-05-02)
+        if is_image_session_cancelled(image_session_id):
+            _clear_cancel_flag(image_session_id)
+            yield _sse_frame({"type": "image_cancelled",
+                              "message": f"{idx}/5장에서 사용자가 취소했어요."})
+            yield _sse_frame({"type": "done"})
+            return
+        remaining_sec = (5 - idx) * SECONDS_PER_IMAGE
+        if remaining_sec >= 60:
+            remaining_label = f"약 {remaining_sec // 60}분 남음"
+        else:
+            remaining_label = f"약 {remaining_sec}초 남음"
+        title = title_list[idx] or f"{idx + 1}번 장면"
+        stage_msg = (
+            f"이미지 {idx + 1}/5 — {title} 그리는 중... "
+            f"({remaining_label})"
+        )
+        yield _sse_frame({"type": "stage_text", "text": stage_msg})
+
+        try:
             responses = call_openai_image_generate(
                 prompt=p, size=size, quality=quality, n=1,
             )
-            if not responses:
-                _clear_cancel_flag(image_session_id)
-                yield _sse_frame({"type": "error",
-                                  "message": "OpenAI에서 이미지를 받지 못했어요."})
-                yield _sse_frame({"type": "done"})
-                return
-            images.append(responses[0].content)
-            # Commit 5b — 호출 1회 = 1 row (5번 호출 → 5 rows, blog_session_id 로 묶임).
-            try:
-                _cost = calculate_openai_image_cost(
-                    "gpt-image-2", size, quality, count=1, outcome="success",
-                )
-                record_cost(
-                    kind="openai_image_init", clinic_id=state.clinic_id,
-                    cost_usd=_cost, model="gpt-image-2",
-                    image_session_id=image_session_id,
-                    blog_session_id=state.session_id,
-                    metadata={
-                        "outcome": "success",
-                        "scene_index": idx,
-                        "title": title_list[idx] if idx < len(title_list) else "",
-                        "plan_id": plan_id,
-                    },
-                )
-            except Exception:
-                pass
-            # OpenAI 응답 후에도 한 번 더 체크 — 마지막 장 직전에 취소되었을 때
-            if is_image_session_cancelled(image_session_id) and idx < len(prompt_list) - 1:
-                _clear_cancel_flag(image_session_id)
-                yield _sse_frame({"type": "image_cancelled",
-                                  "message": f"{idx + 1}/5장 완료 후 취소됐어요. 완료된 장은 폐기됩니다."})
-                yield _sse_frame({"type": "done"})
-                return
-        # 정상 완료 — flag 정리
-        _clear_cancel_flag(image_session_id)
+        except _AIClientError as exc:
+            raw_msg = getattr(exc, "message", str(exc))
+            logger.warning("image %d failed (%s)", idx + 1, raw_msg)
+            failed_indices.append(idx)
+            low = raw_msg.lower()
+            if "moderation" in low or "safety_violations" in low or "safety system" in low:
+                brief = "안전성 필터 차단"
+            elif getattr(exc, "kind", None) == "rate_limit":
+                brief = "OpenAI 요청 한도"
+            elif getattr(exc, "kind", None) == "timeout":
+                brief = "응답 시간 초과"
+            else:
+                brief = "OpenAI 오류"
+            yield _sse_frame({"type": "stage_text",
+                              "text": f"이미지 {idx + 1}/5 — {brief}, 건너뜁니다."})
+            continue
+        except Exception:
+            logger.exception("image %d crashed", idx + 1)
+            failed_indices.append(idx)
+            yield _sse_frame({"type": "stage_text",
+                              "text": f"이미지 {idx + 1}/5 — 오류, 건너뜁니다."})
+            continue
 
-        # ImageSet 호환 객체 (gallery_meta가 result.* 필드 사용)
-        from image_generator import ImageSet, normalize_plan_id
-        result = ImageSet(
-            images=images,
-            plan_id=normalize_plan_id(plan_id),
-            size=size,
-            quality=quality,
-            mode="initial",
-        )
-    except _AIClientError as exc:
-        raw_msg = getattr(exc, "message", str(exc))
-        logger.warning("image generation failed (%s)", raw_msg)
-        # moderation_blocked 케이스 — gpt-image-2가 한의학 주제(인체 부위 묘사)를
-        # sexual/violent로 오판해 차단. raw OpenAI 에러 대신 사용자가 이해할 수 있는
-        # 안내로 변환. (베타 보고 2026-05-04 — Stage 1+2 프롬프트 가이드 강화는 별도)
-        low = raw_msg.lower()
-        if "moderation" in low or "safety_violations" in low or "safety system" in low:
-            friendly = (
-                "OpenAI 안전성 필터가 이미지 생성을 차단했어요. "
-                "침 시술·인체 부위(골반·산부인과·전립선·갱년기 등) 이미지는 "
-                "AI가 의료 맥락임에도 종종 오판해 차단합니다. "
-                "한 번 더 시도해 주시거나(같은 주제도 재시도 시 통과되는 경우 많음), "
-                "본문만 사용하고 이미지는 다른 도구로 만들어 주세요."
+        if not responses:
+            failed_indices.append(idx)
+            yield _sse_frame({"type": "stage_text",
+                              "text": f"이미지 {idx + 1}/5 — 응답 없음, 건너뜁니다."})
+            continue
+
+        results[idx] = responses[0].content
+        # Commit 5b — 호출 1회 = 1 row (성공분만 기록).
+        try:
+            _cost = calculate_openai_image_cost(
+                "gpt-image-2", size, quality, count=1, outcome="success",
             )
-        else:
-            friendly = f"이미지 생성에 실패했어요: {raw_msg}"
-        yield _sse_frame({"type": "error", "message": friendly})
+            record_cost(
+                kind="openai_image_init", clinic_id=state.clinic_id,
+                cost_usd=_cost, model="gpt-image-2",
+                image_session_id=image_session_id,
+                blog_session_id=state.session_id,
+                metadata={
+                    "outcome": "success",
+                    "scene_index": idx,
+                    "title": title_list[idx] if idx < len(title_list) else "",
+                    "plan_id": plan_id,
+                },
+            )
+        except Exception:
+            pass
+
+        # OpenAI 응답 후에도 한 번 더 체크 — 마지막 장 직전에 취소되었을 때
+        if is_image_session_cancelled(image_session_id) and idx < len(prompt_list) - 1:
+            _clear_cancel_flag(image_session_id)
+            yield _sse_frame({"type": "image_cancelled",
+                              "message": f"{idx + 1}/5장 완료 후 취소됐어요. 완료된 장은 폐기됩니다."})
+            yield _sse_frame({"type": "done"})
+            return
+
+    # 루프 종료 — flag 정리
+    _clear_cancel_flag(image_session_id)
+
+    # 성공한 장만 추출 (인덱스 일관성 — prompt/title도 같이 매핑)
+    images = [b for b in results if b is not None]
+    images_prompts = [prompt_list[i] for i, b in enumerate(results) if b is not None]
+    images_titles = [title_list[i] for i, b in enumerate(results) if b is not None]
+    success_count = len(images)
+    failed_count = len(failed_indices)
+
+    # 0건 성공 시만 전체 실패로 처리 — 한의학 주제는 safety filter 재시도로 통과 가능
+    if not images:
+        yield _sse_frame({"type": "error",
+                          "message": "이미지 5장 모두 생성에 실패했어요. "
+                                     "한의학 주제(침 시술·인체 부위)는 OpenAI 안전성 필터가 "
+                                     "오판하는 경우가 많아 다시 시도하면 통과되곤 합니다."})
         yield _sse_frame({"type": "done"})
         return
-    except Exception:
-        logger.exception("image generation crashed")
-        yield _sse_frame({"type": "error", "message": "이미지 생성 중 오류가 발생했어요."})
-        yield _sse_frame({"type": "done"})
-        return
+
+    # 부분 실패 시 사용자 안내 (stage_text)
+    if failed_count:
+        yield _sse_frame({"type": "stage_text",
+                          "text": f"{success_count}/5장 완성, {failed_count}장 누락 — "
+                                  "갤러리에서 [↺] 재생성으로 보완할 수 있어요."})
+
+    from image_generator import ImageSet, normalize_plan_id
+    result = ImageSet(
+        images=images,
+        plan_id=normalize_plan_id(plan_id),
+        size=size,
+        quality=quality,
+        mode="initial",
+    )
 
     quota = get_quota_status(plan_id, regen_used=0, edit_used=0)
 
-    # ── 4. 갤러리 메시지 (b64 5장 + meta) ───────────────────
-    yield _sse_frame({"type": "stage_text", "text": "5장 완성됐어요."})
+    # ── 4. 갤러리 메시지 (b64 + meta) ──────────────────────
+    if failed_count:
+        yield _sse_frame({"type": "stage_text",
+                          "text": f"{success_count}장 완성됐어요."})
+    else:
+        yield _sse_frame({"type": "stage_text", "text": "5장 완성됐어요."})
 
     # 한의원 로고 합성 (콘텐츠 개인화 — 베타 게이트 ④)
     from logo_compositor import apply_logo_to_b64_images
@@ -1271,16 +1383,29 @@ def _stream_generator_for_image(state: BlogChatState, user_input: str):
         "plan_id": result.plan_id,
         "size": result.size,
         "quality": result.quality,
-        "images": composed_images,         # b64 5장 (로고 합성 후)
-        "prompts": prompt_list,            # 카드별 [↺] 재생성용 (각 카드의 모듈 prompt)
-        "primary_prompt": primary_prompt,  # 호환성 — 구버전 클라이언트 fallback
+        "images": composed_images,         # b64 N장 (로고 합성 후, 성공분만)
+        "prompts": images_prompts,         # 카드별 [↺] 재생성용 — 성공분과 인덱스 일관
+        "primary_prompt": images_prompts[0] if images_prompts else primary_prompt,
         "quota": quota,
         "partial_frames": image_partial_frames(),
         "filename_base": (state.topic or "image").strip(),
+        "partial": bool(failed_count),
+        "success_count": success_count,
+        "failed_count": failed_count,
+        "total_attempted": len(prompt_list),
     }
+    if failed_count:
+        gallery_text = (
+            f"이미지 {success_count}장이 준비됐어요. {failed_count}장은 OpenAI 응답 실패로 누락됐습니다. "
+            "다른 장은 [수정]·[재생성]으로 보완하실 수 있어요."
+        )
+    else:
+        gallery_text = (
+            "이미지 5장이 준비됐어요. 마음에 드는 장은 다운로드, "
+            "아쉬운 장은 [수정]·[재생성] 해보세요."
+        )
     gallery_msg = append_message(
-        state, "assistant",
-        "이미지 5장이 준비됐어요. 마음에 드는 장은 다운로드, 아쉬운 장은 [수정]·[재생성] 해보세요.",
+        state, "assistant", gallery_text,
         options=[],
         meta=gallery_meta,
     )
@@ -1289,11 +1414,18 @@ def _stream_generator_for_image(state: BlogChatState, user_input: str):
                       "message": serialize_message(gallery_msg)})
 
     # ── 4-b. 완료 안내 + 3 버튼 (본문 복사·전체 다운로드·발행 확인) ──
-    completion_text = (
-        "블로그 글과 이미지가 모두 출력되었습니다. "
-        "이미지를 확인해보시고 만족스럽지 못한 이미지는 수정 또는 재생성 해주세요. "
-        "수정이 재생성보다 이미지를 빨리 만듭니다."
-    )
+    if failed_count:
+        completion_text = (
+            f"블로그 글과 이미지 {success_count}장이 출력되었습니다. "
+            f"누락된 {failed_count}장은 [↺] 재생성으로 채우거나, "
+            "본문만 사용하셔도 좋습니다. 수정이 재생성보다 빠릅니다."
+        )
+    else:
+        completion_text = (
+            "블로그 글과 이미지가 모두 출력되었습니다. "
+            "이미지를 확인해보시고 만족스럽지 못한 이미지는 수정 또는 재생성 해주세요. "
+            "수정이 재생성보다 이미지를 빨리 만듭니다."
+        )
     completion_meta = {
         "kind": "completion_summary",
         "blog_history_id": getattr(state, "blog_history_id", None),

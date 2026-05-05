@@ -81,6 +81,15 @@ beta:
 
 **회귀 테스트**: 418 pass / 4 fail (baseline 정확 일치, 신규 회귀 0)
 
+## 진행 중 (2026-05-05)
+
+- **SSE 본문·이미지 부분 보존 (A·B 미커밋, 2026-05-05)** — 베타 시뮬레이션 트랙 A에서 발굴한 16건 위험 중 베타 차단 가능성 가장 높은 2건 fix.
+  - **A1 본문 부분 보존**: `_stream_generator_for_seo` (blog_chat_flow.py) 가 모바일 백그라운드/disconnect 시 BrokenPipe로 generator 강제종료 → `save_blog_entry()` 미호출 → 작성된 글 통째로 사라지던 문제. `_persist_partial(state, placeholder, collected, cost_krw, ...)` 헬퍼 신규 (50자 미만 skip, 3중 fail-soft) + `except GeneratorExit` 분기 추가 (yield 못 함 → 부분 보존 후 raise) + `except Exception` / `error in data` 분기에서도 호출. `save_blog_entry` 시그니처에 `is_partial: bool = False` 인자 추가, True 시 stats entry에 `is_partial: true` 필드 (어드민 KPI 분리 집계). placeholder.meta = {char_count, cost_krw, blog_history_id, partial: True} → 클라 새로고침 시 부분 본문 자동 표시. 4 layer SSE 보호의 마지막 안전망.
+  - **B 이미지 5장 부분 실패 보존**: `_stream_generator_for_image` 5번 순차 호출 중 한 장이라도 실패하면 전체 중단(완성된 2~3장도 버림) 되던 문제. import와 호출 루프 분리, `results: list[Optional[str]] = [None] * 5` + `failed_indices` 추적, 매 호출 individual try/except (`_AIClientError` kind별 brief: 안전성 필터 차단/요청 한도/응답 시간 초과 + 일반 `Exception` + 빈 응답 모두 `failed_indices` 마킹 + `continue`), 실패 시 `stage_text` 안내 (`이미지 N/5 — 안전성 필터 차단, 건너뜁니다`), 루프 종료 후 성공한 N장만 `images`/`images_prompts`/`images_titles` 인덱스 일관 추출, 0건 성공만 전체 error frame, 부분 실패 시 stage_text 요약 + `gallery_meta`에 `partial`/`success_count`/`failed_count`/`total_attempted` 4 필드 추가, 갤러리·completion 안내 텍스트 부분/전체 분기. cost_logger는 성공분만 record_cost (정책 5b 유지). 클라 코드 변경 0.
+  - **변경 파일**: src/blog_history.py / src/blog_chat_flow.py / tests/test_blog_chat_flow.py (+4) / tests/test_blog_chat_route.py (+3).
+  - **baseline**: 675/4 → **682/4** (신규 7건, 회귀 0). 알려진 fail 4건 정확 일치.
+  - **다음**: C(초대 토큰 race UNIQUE 제약) / D(Naver API 미설정 안내) / E(max_tokens cutoff 감지) / F(빈 사용량 카드 카피). 데이터 격리(`clinics.is_test`)는 KPI Commit 6과 묶어 별도 세션. 메모리: `project_sse_partial_save_AB.md`.
+
 ## 진행 중 (2026-05-04)
 
 > 상세는 CHANGELOG 항목 참조.

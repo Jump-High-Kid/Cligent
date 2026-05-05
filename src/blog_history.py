@@ -27,16 +27,18 @@ def save_blog_entry(
     seo_keywords: Optional[List[str]] = None,
     blog_text: str = "",
     clinic_id: Optional[int] = None,
+    is_partial: bool = False,
 ) -> int:
     """블로그 생성 완료 시 통계와 전문을 분리 저장. 생성된 entry_id 반환.
-    clinic_id가 None이면 어드민 통합 조회에서 '미상'으로 표시(하위 호환)."""
+    clinic_id가 None이면 어드민 통합 조회에서 '미상'으로 표시(하위 호환).
+    is_partial=True는 SSE 도중 끊긴 부분 본문임을 표시 — 어드민 KPI에서 분리 집계."""
     now = datetime.now()
     entry_id = _next_id()
 
     # 영구 통계 저장
     stats = _load_json(STATS_PATH, default=[])
     title = _extract_title(blog_text) if blog_text else keyword
-    stats.append({
+    entry = {
         "id": entry_id,
         "clinic_id": clinic_id,
         "keyword": keyword,
@@ -47,7 +49,10 @@ def save_blog_entry(
         "seo_keywords": seo_keywords or [],
         "naver_url": "",
         "created_at": now.isoformat(),
-    })
+    }
+    if is_partial:
+        entry["is_partial"] = True
+    stats.append(entry)
     _save_json(STATS_PATH, stats)
 
     # 30일 만료 전문 저장 (blog_text 있을 때만)

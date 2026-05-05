@@ -628,6 +628,139 @@ class TestStreamingForSeo:
         assert any(f["type"] == "error" for f in frames)
         assert frames[-1]["type"] == "done"
 
+    # ── 부분 본문 보존 (SSE 도중 disconnect/예외) ──────────────────
+
+    def _seed_with_capture(self, monkeypatch, save_calls, fake_stream):
+        """save_blog_entry 호출 인자를 캡쳐할 수 있는 _seed 변형."""
+        import blog_chat_flow as flow
+        from blog_chat_state import Stage, create_session
+
+        import blog_generator
+        monkeypatch.setattr(blog_generator, "generate_blog_stream", fake_stream)
+
+        import blog_history
+
+        def capture(*args, **kwargs):
+            save_calls.append({"args": args, "kwargs": kwargs})
+            return 999
+
+        monkeypatch.setattr(blog_history, "save_blog_entry", capture)
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+
+        state = create_session(clinic_id=1, user_id=10)
+        flow.process_turn(state, "허리디스크")
+        flow.process_turn(state, "추나, 디스크")
+        flow.process_turn(state, "건너뛰기")
+        flow.process_turn(state, "2")
+        assert state.stage == Stage.CONFIRM_IMAGE
+        return flow, state
+
+    def test_partial_save_on_exception(self, monkeypatch):
+        """본문 streaming 중 예외 → blog_history is_partial=True + state placeholder.meta.partial."""
+        save_calls: list = []
+
+        def crashing_stream(*args, **kwargs):
+            # 충분히 긴 본문 (>50자) 누적 후 예외
+            yield ('data: {"text": "한의학에서는 침과 한약으로 다양한 증상을 치료합니다. '
+                   '환자의 체질을 진단하여 맞춤 치료를 제공합니다."}\n\n')
+            yield 'data: {"text": " 추가 본문 작성 중"}\n\n'
+            raise RuntimeError("simulated SSE crash")
+
+        flow, state = self._seed_with_capture(monkeypatch, save_calls, crashing_stream)
+
+        gen = flow.process_turn_streaming(state, "예")
+        import json as _json
+        frames = [_json.loads(r[len("data: "):].strip()) for r in gen]
+
+        # error + done frame 정상 발송
+        assert any(f["type"] == "error" for f in frames)
+        assert frames[-1]["type"] == "done"
+
+        # save_blog_entry가 is_partial=True로 호출됨
+        partial_calls = [c for c in save_calls if c["kwargs"].get("is_partial")]
+        assert len(partial_calls) == 1
+        # 부분 본문이 args/kwargs에 포함됨
+        call = partial_calls[0]
+        # save_blog_entry(keyword, tone, char_count, cost_krw, seo_keywords, blog_text, ...)
+        blog_text_arg = call["args"][5] if len(call["args"]) > 5 else call["kwargs"].get("blog_text", "")
+        assert "한의학" in blog_text_arg
+        assert "추가 본문" in blog_text_arg
+
+        # state placeholder + blog_text 갱신
+        assert state.blog_text and "한의학" in state.blog_text
+        assert state.blog_history_id == 999
+        # 마지막 assistant 메시지에 partial=True
+        assistant_msgs = [m for m in state.messages if m.role == "assistant"]
+        assert assistant_msgs[-1].meta.get("partial") is True
+
+    def test_partial_save_on_client_disconnect(self, monkeypatch):
+        """클라 disconnect (gen.close → GeneratorExit) → 부분 본문 보존."""
+        save_calls: list = []
+
+        def slow_stream(*args, **kwargs):
+            yield ('data: {"text": "본문이 충분히 길게 작성된 상태입니다. '
+                   '한의학적 관점에서 요추 디스크는 신허(腎虛)와 어혈(瘀血)이 주된 원인이 됩니다."}\n\n')
+            yield 'data: {"text": " 더 긴 추가 텍스트 입니다."}\n\n'
+            # 외부에서 gen.close() 부르면 다음 yield에서 GeneratorExit 발생
+            while True:
+                yield 'data: {"text": ""}\n\n'
+
+        flow, state = self._seed_with_capture(monkeypatch, save_calls, slow_stream)
+
+        gen = flow.process_turn_streaming(state, "예")
+        consumed = 0
+        for _raw in gen:
+            consumed += 1
+            if consumed >= 5:  # message_start + token 몇 개 받고 disconnect
+                break
+        gen.close()  # GeneratorExit 발생 → _persist_partial 호출
+
+        # is_partial=True로 1번 저장
+        partial_calls = [c for c in save_calls if c["kwargs"].get("is_partial")]
+        assert len(partial_calls) == 1
+
+        # state 보존
+        assert state.blog_text and "신허" in state.blog_text
+        assert state.blog_history_id == 999
+        assistant_msgs = [m for m in state.messages if m.role == "assistant"]
+        assert assistant_msgs[-1].meta.get("partial") is True
+
+    def test_no_partial_save_when_collected_too_short(self, monkeypatch):
+        """누적 본문 50자 미만이면 의미 없는 토막으로 보고 저장 skip."""
+        save_calls: list = []
+
+        def early_crash(*args, **kwargs):
+            yield 'data: {"text": "짧은 본문"}\n\n'  # <50자
+            raise RuntimeError("crash")
+
+        flow, state = self._seed_with_capture(monkeypatch, save_calls, early_crash)
+
+        gen = flow.process_turn_streaming(state, "예")
+        import json as _json
+        list(_json.loads(r[len("data: "):].strip()) for r in gen)
+
+        # is_partial 호출 0건
+        assert not any(c["kwargs"].get("is_partial") for c in save_calls)
+
+    def test_normal_completion_is_not_partial(self, monkeypatch):
+        """정상 종료 시 is_partial=True 미설정 (default False)."""
+        save_calls: list = []
+
+        def fake_stream(*args, **kwargs):
+            yield 'data: {"text": "본문 시작 "}\n\n'
+            yield 'data: {"text": "이어지는 내용."}\n\n'
+            yield 'data: {"done": true, "usage": {"cost_krw": 12}}\n\n'
+
+        flow, state = self._seed_with_capture(monkeypatch, save_calls, fake_stream)
+
+        gen = flow.process_turn_streaming(state, "예")
+        import json as _json
+        list(_json.loads(r[len("data: "):].strip()) for r in gen)
+
+        # save_blog_entry 1회 호출, is_partial 없음
+        assert len(save_calls) == 1
+        assert not save_calls[0]["kwargs"].get("is_partial")
+
 
 # ── 1D-4: IMAGE / FEEDBACK / TTL ──────────────────────────────
 

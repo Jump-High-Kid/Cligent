@@ -604,6 +604,199 @@ def test_image_all_option_without_api_key_yields_error(monkeypatch):
     assert types[-1] == "done"
 
 
+# ── 5b) 5장 부분 실패 보존 (2026-05-05) ──────────────────────
+
+
+def _seed_image_stage_for_partial_test(monkeypatch):
+    """IMAGE stage까지 시드 + 공통 mock (Anthropic prompt + plan + image_session)."""
+    from blog_chat_state import (
+        Stage, append_message, create_session, save_session, transition,
+    )
+    state = create_session(clinic_id=1, user_id=1)
+    state.topic = "요추디스크"
+    state.blog_text = "본문 더미"
+    transition(state, Stage.SEO)
+    transition(state, Stage.EMPHASIS)
+    transition(state, Stage.LENGTH)
+    transition(state, Stage.CONFIRM_IMAGE)
+    transition(state, Stage.GENERATING)
+    transition(state, Stage.IMAGE)
+    append_message(state, "assistant", "이미지 5장을 만들까요?",
+                   options=[{"id": "all", "label": "전체 만들기"}])
+    save_session(state)
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
+
+    import image_prompt_generator
+    def fake_prompt_stream(*a, **kw):
+        yield 'data: {"status":"generating","message":"생성"}\n\n'
+        yield 'data: {"done":true,"prompts":["P1","P2","P3","P4","P5"]}\n\n'
+    monkeypatch.setattr(
+        image_prompt_generator, "generate_image_prompts_stream", fake_prompt_stream,
+    )
+
+    import plan_guard
+    monkeypatch.setattr(
+        plan_guard, "get_effective_plan", lambda cid: {"plan_id": "standard"},
+    )
+    import image_session_manager
+    monkeypatch.setattr(
+        image_session_manager, "create_session", lambda **kw: "fake-img-sid",
+    )
+    import image_generator
+    monkeypatch.setattr(
+        image_generator, "get_quota_status",
+        lambda *a, **kw: {"regen": {"used": 0, "limit": 1},
+                          "edit":  {"used": 0, "limit": 2}},
+    )
+    return state
+
+
+def _post_image_turn(state):
+    return client.post("/api/blog-chat/turn",
+                       json={"session_id": state.session_id,
+                             "user_input": "전체 만들기"})
+
+
+def _parse_sse(body: str):
+    out = []
+    for line in body.splitlines():
+        if not line.startswith("data: "):
+            continue
+        try:
+            out.append(json.loads(line[6:]))
+        except Exception:
+            pass
+    return out
+
+
+def test_image_partial_failure_yields_partial_gallery(monkeypatch):
+    """5장 중 idx 1·3 AIClientError throw → 3장 갤러리 + partial=True + 누락 안내."""
+    state = _seed_image_stage_for_partial_test(monkeypatch)
+
+    import ai_client
+    from ai_client import AIResponse, AIClientError
+
+    call_count = {"n": 0}
+
+    def flaky_call(prompt, size, quality, n):
+        call_count["n"] += 1
+        # 호출 1·3·5 성공, 호출 2·4 실패 (idx 1, 3 → AIClientError)
+        if call_count["n"] in (2, 4):
+            raise AIClientError("server", "OpenAI 500")
+        return [AIResponse(content=f"b64-{call_count['n']}", usage={})]
+
+    monkeypatch.setattr(ai_client, "call_openai_image_generate", flaky_call)
+    import blog_chat_flow as _bcf
+    monkeypatch.setattr(_bcf, "_AIClientError", AIClientError, raising=False)
+
+    res = _post_image_turn(state)
+    assert res.status_code == 200
+    frames = _parse_sse(res.content.decode("utf-8"))
+
+    # 5번 모두 시도 (실패해도 다음으로 진행)
+    assert call_count["n"] == 5
+
+    # 갤러리 메시지 1건 (3장만)
+    galleries = [
+        f["message"] for f in frames
+        if f.get("type") == "next_message"
+        and (f.get("message") or {}).get("meta", {}).get("kind") == "image_gallery"
+    ]
+    assert len(galleries) == 1
+    g = galleries[0]
+    assert g["meta"]["partial"] is True
+    assert g["meta"]["success_count"] == 3
+    assert g["meta"]["failed_count"] == 2
+    assert g["meta"]["total_attempted"] == 5
+    assert len(g["meta"]["images"]) == 3
+    assert len(g["meta"]["prompts"]) == 3  # 인덱스 일관 — 성공분만
+
+    # 갤러리 안내 텍스트에 "3장" + "2장" 포함
+    assert "3장" in g["text"] and "2장" in g["text"]
+
+    # 부분 실패 안내 stage_text
+    stage_texts = [f.get("text", "") for f in frames if f.get("type") == "stage_text"]
+    assert any("건너뜁니다" in t for t in stage_texts)
+    assert any("3/5장 완성" in t for t in stage_texts)
+
+    # FEEDBACK 단계로 정상 전이 + done
+    stage_changes = [f.get("stage") for f in frames if f.get("type") == "stage_change"]
+    assert "feedback" in stage_changes
+    assert frames[-1]["type"] == "done"
+
+
+def test_image_all_failures_yields_error(monkeypatch):
+    """5장 모두 AIClientError → 갤러리 미생성 + error frame + done."""
+    state = _seed_image_stage_for_partial_test(monkeypatch)
+
+    import ai_client
+    from ai_client import AIClientError
+
+    def always_fail(prompt, size, quality, n):
+        raise AIClientError("server", "OpenAI 500")
+
+    monkeypatch.setattr(ai_client, "call_openai_image_generate", always_fail)
+    import blog_chat_flow as _bcf
+    monkeypatch.setattr(_bcf, "_AIClientError", AIClientError, raising=False)
+
+    res = _post_image_turn(state)
+    assert res.status_code == 200
+    frames = _parse_sse(res.content.decode("utf-8"))
+
+    # 갤러리 미생성
+    galleries = [
+        f for f in frames
+        if f.get("type") == "next_message"
+        and (f.get("message") or {}).get("meta", {}).get("kind") == "image_gallery"
+    ]
+    assert len(galleries) == 0
+
+    # error frame + done
+    types = [f.get("type") for f in frames]
+    assert "error" in types
+    assert types[-1] == "done"
+
+
+def test_image_empty_response_treated_as_failed(monkeypatch):
+    """OpenAI 응답 빈 list → 해당 idx failed로 처리. 다른 장은 정상 진행."""
+    state = _seed_image_stage_for_partial_test(monkeypatch)
+
+    import ai_client
+    from ai_client import AIResponse
+
+    call_count = {"n": 0}
+
+    def empty_at_3(prompt, size, quality, n):
+        call_count["n"] += 1
+        if call_count["n"] == 3:
+            return []  # 빈 응답 — failed로
+        return [AIResponse(content=f"b64-{call_count['n']}", usage={})]
+
+    monkeypatch.setattr(ai_client, "call_openai_image_generate", empty_at_3)
+    import blog_chat_flow as _bcf
+    from ai_client import AIClientError
+    monkeypatch.setattr(_bcf, "_AIClientError", AIClientError, raising=False)
+
+    res = _post_image_turn(state)
+    frames = _parse_sse(res.content.decode("utf-8"))
+
+    galleries = [
+        f["message"] for f in frames
+        if f.get("type") == "next_message"
+        and (f.get("message") or {}).get("meta", {}).get("kind") == "image_gallery"
+    ]
+    assert len(galleries) == 1
+    g = galleries[0]
+    assert g["meta"]["success_count"] == 4
+    assert g["meta"]["failed_count"] == 1
+    assert len(g["meta"]["images"]) == 4
+
+    # 빈 응답 안내
+    stage_texts = [f.get("text", "") for f in frames if f.get("type") == "stage_text"]
+    assert any("응답 없음" in t for t in stage_texts)
+
+
 # ── 6) image_partial_frames env gate ──────────────────────────
 
 
