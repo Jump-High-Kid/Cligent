@@ -288,6 +288,142 @@
     margin-top: 12px;
   }
 
+  /* ── Hero 시연 영상 박스 ──────────────────────────── */
+  .hero-demo {
+    max-width: 920px;
+    margin: 0 auto 56px;
+  }
+  .hero-demo-frame {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    background: linear-gradient(135deg, var(--sage-tint) 0%, var(--accent-soft) 100%);
+    border-radius: 20px;
+    overflow: hidden;
+    border: 1px solid var(--border-soft);
+    box-shadow: var(--shadow-lg);
+  }
+  .hero-demo-frame video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .hero-demo-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    color: var(--accent);
+  }
+  .hero-demo-placeholder .material-symbols-rounded {
+    font-size: 72px;
+    font-variation-settings: 'FILL' 1;
+    opacity: 0.85;
+  }
+  .hero-demo-placeholder-text {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-mid);
+    letter-spacing: -0.005em;
+  }
+  .hero-demo-clock {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 13px;
+    background: rgba(15, 23, 19, 0.82);
+    color: #f5f5f4;
+    border-radius: 999px;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    z-index: 2;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  .hero-demo-clock .material-symbols-rounded {
+    font-size: 15px;
+    font-variation-settings: 'FILL' 1;
+  }
+  .hero-demo-clock-current { color: #fbbf24; }
+  .hero-demo-clock-total { opacity: 0.55; }
+  .hero-demo-caption {
+    position: absolute;
+    left: 14px;
+    bottom: 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 12px;
+    background: rgba(15, 23, 19, 0.78);
+    color: #f5f5f4;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    z-index: 2;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  .hero-demo-caption::before {
+    content: "";
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: #ef4444;
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.8);
+    animation: hero-demo-pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes hero-demo-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.35; transform: scale(0.8); }
+  }
+  .hero-demo-cta {
+    position: absolute;
+    right: 14px;
+    bottom: 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 14px 8px 16px;
+    background: var(--accent);
+    color: #f5f5f4 !important;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: none;
+    z-index: 2;
+    transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+    box-shadow: 0 2px 12px rgba(6, 78, 59, 0.35);
+  }
+  .hero-demo-cta:hover {
+    transform: translateY(-1px);
+    background: var(--accent-hover);
+    box-shadow: 0 4px 16px rgba(6, 78, 59, 0.5);
+  }
+  .hero-demo-cta .material-symbols-rounded {
+    font-size: 16px;
+    font-variation-settings: 'FILL' 0;
+  }
+  @media (max-width: 600px) {
+    .hero-demo { margin-bottom: 40px; }
+    .hero-demo-frame { border-radius: 14px; }
+    .hero-demo-clock { top: 10px; left: 10px; font-size: 11px; padding: 5px 10px; gap: 5px; }
+    .hero-demo-clock .material-symbols-rounded { font-size: 13px; }
+    .hero-demo-caption { font-size: 11px; padding: 5px 10px; left: 10px; bottom: 10px; gap: 5px; }
+    .hero-demo-cta { right: 10px; bottom: 10px; font-size: 12px; padding: 6px 12px; }
+    .hero-demo-cta .material-symbols-rounded { font-size: 14px; }
+    .hero-demo-placeholder .material-symbols-rounded { font-size: 56px; }
+  }
+
   /* ── Section base ─────────────────────────────────────── */
   section {
     max-width: 1100px;
@@ -477,69 +613,33 @@
     font-weight: 800;
   }
 
-  /* ── Howto (이렇게 작동합니다) ───────────────────────────── */
-  .howto-wrap {
-    display: grid;
-    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
-    gap: 28px;
-    margin-top: 32px;
-    align-items: stretch;        /* 두 컬럼 하단 정렬을 위해 stretch */
-  }
-  /* 영상 placeholder — placeholder 단계라 카드 stack 높이로 stretch.
-     실제 video 자산 투입 시 <video object-fit:cover>로 자연스럽게 채움. */
-  .howto-video {
-    background: var(--sage-tint, #f6f8f4);
-    border: 1px solid var(--border-soft);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-xs);
-    overflow: hidden;
-    position: relative;
-    min-height: 320px;
-  }
-  .howto-video .video-placeholder {
-    position: absolute; inset: 0;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    gap: 12px;
-    background: transparent;
-    text-align: center;
-    padding: 24px;
-    z-index: 1;
-  }
-  .howto-video .video-placeholder .play-icon {
-    font-size: 64px;
-    color: var(--accent);
-    line-height: 1;
-    filter: drop-shadow(0 2px 6px rgba(15, 23, 19, 0.08));
-  }
-  .howto-video .video-placeholder p {
-    margin: 0;
-    font-size: 15px;
-    font-weight: 700;
-    color: var(--text-strong, #1a1a17);
-    letter-spacing: -0.01em;
-  }
-  .howto-video .video-placeholder .video-meta {
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--text-mid);
-    letter-spacing: -0.01em;
-  }
+  /* ── Howto (이렇게 작동합니다) — 영상은 hero로 이동, 4 가치 카드만 ───── */
   .howto-cards {
     display: grid;
-    grid-template-rows: repeat(4, 1fr);   /* 4 카드 균등 분배 — 영상 높이에 맞춤 */
-    gap: 12px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    margin: 32px auto 0;
+    max-width: 880px;
+  }
+  @media (max-width: 600px) {
+    .howto-cards { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (min-width: 1200px) {
+    .howto-cards {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      max-width: 1200px;
+    }
   }
   .howto-card {
     background: var(--surface);
     border: 1px solid var(--border-soft);
     border-radius: var(--radius);
-    padding: 18px 20px;
+    padding: 22px 22px;
     box-shadow: var(--shadow-xs);
     transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
     display: flex;
     gap: 14px;
-    align-items: center;                  /* 카드 row 높이 늘어나도 내용 수직 중앙 */
+    align-items: flex-start;
   }
   .howto-card:hover {
     transform: translateY(-2px);
@@ -548,8 +648,8 @@
   }
   .howto-card .icon {
     flex-shrink: 0;
-    width: 38px;
-    height: 38px;
+    width: 40px;
+    height: 40px;
     border-radius: 10px;
     background: var(--accent-soft);
     color: var(--accent);
@@ -557,19 +657,10 @@
     align-items: center;
     justify-content: center;
   }
-  .howto-card .icon .material-symbols-outlined {
-    font-size: 22px;
-  }
+  .howto-card .icon .material-symbols-outlined { font-size: 22px; }
   .howto-card .body { min-width: 0; }
-  .howto-card h4 { font-size: 15px; margin-bottom: 4px; font-weight: 700; }
+  .howto-card h4 { font-size: 15px; margin-bottom: 6px; font-weight: 700; letter-spacing: -0.01em; }
   .howto-card p { font-size: 13px; color: var(--text-mid); line-height: 1.55; }
-
-  @media (max-width: 768px) {
-    .howto-wrap {
-      grid-template-columns: minmax(0, 1fr);
-      gap: 16px;
-    }
-  }
 
   /* ── Trust ─────────────────────────────────────────────── */
   .trust-grid {
@@ -956,6 +1047,39 @@
 
 <!-- ── Hero ──────────────────────────────────────────────── -->
 <div class="hero">
+  <!-- 시연 영상 박스 (영상 자료는 추후 mp4·webm 교체) -->
+  <div class="hero-demo">
+    <div class="hero-demo-frame">
+      <!-- 영상 자료 들어오면 아래 placeholder 제거하고 video 요소 활성화
+      <video
+        id="hero-demo-video"
+        poster="/static/video/cligent_demo_poster.jpg"
+        autoplay muted loop playsinline preload="metadata"
+        data-clock-target-seconds="480">
+        <source src="/static/video/cligent_demo.webm" type="video/webm">
+        <source src="/static/video/cligent_demo.mp4" type="video/mp4">
+      </video>
+      -->
+      <div class="hero-demo-placeholder" aria-hidden="true">
+        <span class="material-symbols-rounded">play_circle</span>
+        <span class="hero-demo-placeholder-text">베타 출시와 함께 공개</span>
+      </div>
+
+      <div class="hero-demo-clock" aria-label="실제 작성 시간 카운트다운">
+        <span class="material-symbols-rounded">schedule</span>
+        <span class="hero-demo-clock-current" id="hero-demo-clock-current">00:00</span>
+        <span class="hero-demo-clock-total">/ 08:00</span>
+      </div>
+
+      <div class="hero-demo-caption">실제 작동 영상</div>
+
+      <a class="hero-demo-cta" id="hero-demo-cta" href="#" target="_blank" rel="noopener" aria-label="이 영상에서 작성된 실제 글 보기">
+        글 보기
+        <span class="material-symbols-rounded">arrow_outward</span>
+      </a>
+    </div>
+  </div>
+
   <h1>
     원장님의 <span class="accent">시간</span>을 돌려드립니다
   </h1>
@@ -1109,44 +1233,35 @@
   <span class="section-label">이렇게 작동합니다</span>
   <h2 class="section-title">한 흐름에서 본문·이미지·발행 확인까지</h2>
   <p class="section-sub">
-    실제 작동 모습을 영상으로 확인하고, Cligent의 핵심 가치를 한눈에 보세요.
+    챗 한 번으로 본문 작성부터 이미지 생성, 발행 확인까지. 핵심 가치 네 가지.
   </p>
-  <div class="howto-wrap">
-    <div class="howto-video" aria-label="Cligent 작동 영상">
-      <div class="video-placeholder">
-        <span class="material-symbols-outlined play-icon" aria-hidden="true">play_circle</span>
-        <p>실제 작동 모습 (45초)</p>
-        <p class="video-meta">베타 출시와 함께 공개</p>
+  <div class="howto-cards">
+    <div class="howto-card">
+      <div class="icon"><span class="material-symbols-outlined" aria-hidden="true">chat</span></div>
+      <div class="body">
+        <h4>챗으로 끝</h4>
+        <p>클릭 몇 번만으로 완성도 높은 글과 이미지 완성.</p>
       </div>
     </div>
-    <div class="howto-cards">
-      <div class="howto-card">
-        <div class="icon"><span class="material-symbols-outlined" aria-hidden="true">chat</span></div>
-        <div class="body">
-          <h4>챗으로 끝</h4>
-          <p>클릭 몇 번만으로 완성도 높은 글과 이미지 완성.</p>
-        </div>
+    <div class="howto-card">
+      <div class="icon"><span class="material-symbols-outlined" aria-hidden="true">school</span></div>
+      <div class="body">
+        <h4>가짜 논문 자동 차단</h4>
+        <p>실시간 학술지 검색을 통해 근거 있는 글과 참고 문헌 생성.</p>
       </div>
-      <div class="howto-card">
-        <div class="icon"><span class="material-symbols-outlined" aria-hidden="true">school</span></div>
-        <div class="body">
-          <h4>가짜 논문 자동 차단</h4>
-          <p>실시간 학술지 검색을 통해 근거 있는 글과 참고 문헌 생성.</p>
-        </div>
+    </div>
+    <div class="howto-card">
+      <div class="icon"><span class="material-symbols-outlined" aria-hidden="true">verified</span></div>
+      <div class="body">
+        <h4>의료법 자동 준수</h4>
+        <p>의료법 56·57조, 시행령 23·24조 고지문 자동 삽입. 발행 후 신고 위험 0.</p>
       </div>
-      <div class="howto-card">
-        <div class="icon"><span class="material-symbols-outlined" aria-hidden="true">verified</span></div>
-        <div class="body">
-          <h4>의료법 자동 준수</h4>
-          <p>의료법 56·57조, 시행령 23·24조 고지문 자동 삽입. 발행 후 신고 위험 0.</p>
-        </div>
-      </div>
-      <div class="howto-card">
-        <div class="icon"><span class="material-symbols-outlined" aria-hidden="true">task_alt</span></div>
-        <div class="body">
-          <h4>발행 누락 자동 감지</h4>
-          <p>네이버 발행 자동 확인. 글이 누락됐을 때 즉시 알림.</p>
-        </div>
+    </div>
+    <div class="howto-card">
+      <div class="icon"><span class="material-symbols-outlined" aria-hidden="true">task_alt</span></div>
+      <div class="body">
+        <h4>발행 누락 자동 감지</h4>
+        <p>네이버 발행 자동 확인. 글이 누락됐을 때 즉시 알림.</p>
       </div>
     </div>
   </div>
@@ -1380,6 +1495,28 @@
     }
     return false;
   }
+</script>
+
+<!-- Hero 시연 영상 시계 (영상 progress → 8분 카운트다운 매핑) -->
+<script>
+(() => {
+  'use strict';
+  const video = document.getElementById('hero-demo-video');
+  const target = document.getElementById('hero-demo-clock-current');
+  if (!video || !target) return;  // placeholder 모드면 silent skip
+  const TOTAL = parseInt(video.dataset.clockTargetSeconds || '480', 10);
+  const fmt = s => {
+    const m = Math.floor(s / 60), ss = Math.floor(s % 60);
+    return String(m).padStart(2, '0') + ':' + String(ss).padStart(2, '0');
+  };
+  const update = () => {
+    if (!video.duration || !isFinite(video.duration)) return;
+    target.textContent = fmt((video.currentTime / video.duration) * TOTAL);
+  };
+  video.addEventListener('timeupdate', update);
+  video.addEventListener('loadedmetadata', update);
+  video.addEventListener('seeked', update);
+})();
 </script>
 
 </body>
