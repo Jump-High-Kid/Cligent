@@ -482,10 +482,11 @@
     display: grid;
     grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
     gap: 28px;
-    margin-top: 32px;            /* 24 → 32 sub와 충분히 분리 */
-    align-items: start;          /* stretch → start: 영상 16/9 비율 보존, 카드 자연 높이 */
+    margin-top: 32px;
+    align-items: stretch;        /* 두 컬럼 하단 정렬을 위해 stretch */
   }
-  /* 영상 placeholder — 16:9 비율, 베타 시점엔 정적 카드 */
+  /* 영상 placeholder — placeholder 단계라 카드 stack 높이로 stretch.
+     실제 video 자산 투입 시 <video object-fit:cover>로 자연스럽게 채움. */
   .howto-video {
     background: var(--sage-tint, #f6f8f4);
     border: 1px solid var(--border-soft);
@@ -493,9 +494,7 @@
     box-shadow: var(--shadow-xs);
     overflow: hidden;
     position: relative;
-    aspect-ratio: 16 / 9;
-    min-height: 240px;           /* aspect-ratio 미지원 브라우저 fallback */
-    align-self: start;
+    min-height: 320px;
   }
   .howto-video .video-placeholder {
     position: absolute; inset: 0;
@@ -528,8 +527,8 @@
   }
   .howto-cards {
     display: grid;
+    grid-template-rows: repeat(4, 1fr);   /* 4 카드 균등 분배 — 영상 높이에 맞춤 */
     gap: 12px;
-    align-content: stretch;
   }
   .howto-card {
     background: var(--surface);
@@ -540,7 +539,7 @@
     transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
     display: flex;
     gap: 14px;
-    align-items: flex-start;
+    align-items: center;                  /* 카드 row 높이 늘어나도 내용 수직 중앙 */
   }
   .howto-card:hover {
     transform: translateY(-2px);
