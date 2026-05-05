@@ -15,7 +15,7 @@
 
 <!-- Open Graph (페이스북·카카오톡·라인 공유 미리보기) -->
 <meta property="og:title" content="Cligent — 원장님의 시간을 돌려드립니다">
-<meta property="og:description" content="한의학에 특화된 Medical AI Agent. 블로그 1편을 1~2분에. 진료 외 반복 업무는 Cligent가 대신합니다.">
+<meta property="og:description" content="한의학에 특화된 Medical AI Agent. 블로그 1편을 8분 안에. 진료 외 반복 업무는 Cligent가 대신합니다.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://cligent.kr/">
 <meta property="og:site_name" content="Cligent">
@@ -331,8 +331,18 @@
   /* ── Problem ──────────────────────────────────────────── */
   .problem-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    /* 모바일 1열 → 태블릿/데스크톱 2열(2x2) → 와이드 4열 한 줄. 3+1 깨짐 방지. */
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 20px;
+    max-width: 880px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  @media (max-width: 600px) {
+    .problem-grid { grid-template-columns: 1fr; }
+  }
+  @media (min-width: 1200px) {
+    .problem-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); max-width: 1200px; }
   }
   .problem-card {
     background: var(--surface);
@@ -489,29 +499,29 @@
     position: absolute; inset: 0;
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
-    gap: 10px;
-    background:
-      radial-gradient(circle at 50% 45%, var(--accent-soft) 0%, transparent 60%),
-      var(--sage-tint, #f6f8f4);
-    color: var(--accent);
+    gap: 12px;
+    background: var(--sage-tint, #f6f8f4);
     text-align: center;
     padding: 24px;
   }
   .howto-video .video-placeholder .play-icon {
-    font-size: 56px;
+    font-size: 64px;
     color: var(--accent);
     line-height: 1;
+    filter: drop-shadow(0 2px 6px rgba(15, 23, 19, 0.08));
   }
   .howto-video .video-placeholder p {
     margin: 0;
-    font-size: 14.5px;
-    font-weight: 600;
-    color: var(--text-mid);
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-strong, #1a1a17);
+    letter-spacing: -0.01em;
   }
   .howto-video .video-placeholder .video-meta {
-    font-size: 12.5px;
+    font-size: 13px;
     font-weight: 500;
-    color: var(--muted);
+    color: var(--text-mid);
+    letter-spacing: -0.01em;
   }
   .howto-cards {
     display: grid;
@@ -562,9 +572,19 @@
   /* ── Trust ─────────────────────────────────────────────── */
   .trust-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    /* 모바일 1열 → 태블릿/데스크톱 2x2 → 와이드 4열 한 줄. 3+1 깨짐 방지. */
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 16px;
     margin-top: 24px;
+    max-width: 880px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  @media (max-width: 600px) {
+    .trust-grid { grid-template-columns: 1fr; }
+  }
+  @media (min-width: 1200px) {
+    .trust-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); max-width: 1200px; }
   }
   .trust-card {
     background: var(--surface);
@@ -598,9 +618,19 @@
   /* ── Roadmap ───────────────────────────────────────────── */
   .roadmap-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    /* 모바일 1열 → 태블릿/데스크톱 2x2 → 와이드 4열 한 줄. 3+1 깨짐 방지. */
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 16px;
     margin-top: 24px;
+    max-width: 880px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  @media (max-width: 600px) {
+    .roadmap-grid { grid-template-columns: 1fr; }
+  }
+  @media (min-width: 1200px) {
+    .roadmap-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); max-width: 1200px; }
   }
   .roadmap-card {
     background: var(--surface);
@@ -930,7 +960,7 @@
   <p class="hero-sub">
     진료 외 시간을 마케팅에 다 쓰고 계신가요?<br>
     한의학에 특화된 <strong>Medical AI Agent, Cligent</strong>가
-    블로그 1편을 1~2분에 끝내드립니다.
+    블로그 1편을 8분 안에 끝내드립니다.
   </p>
   <div class="hero-cta">
     <a href="#beta" class="btn-primary btn-lg">베타 신청하기</a>
@@ -959,14 +989,14 @@
       <p>네이버 C-Rank는 꾸준한 발행을 보상합니다. 멈추는 순간 검색 순위가 떨어집니다.</p>
     </div>
     <div class="problem-card">
-      <div class="num">월 200~1000만원</div>
+      <div class="num">편당 5~15만원</div>
       <h3>마케팅 대행 비용</h3>
-      <p>그런데 한의학을 깊이 모르는 글이 올라옵니다. 변증·체질·약재가 빠진 일반 건강 글.</p>
+      <p>그런데 한의학을 깊이 모르는 글이 올라옵니다. 병명, 해부, 한의학을 잘 모르는 일반 건강 글.</p>
     </div>
     <div class="problem-card">
       <div class="num">도구 4~5개</div>
       <h3>파편화된 워크플로</h3>
-      <p>ChatGPT·미드저니·네이버 블로그 — 결과물 하나에 도구를 계속 오갑니다.</p>
+      <p>ChatGPT·미드저니·포토샵·네이버 블로그 — 결과물 하나에 도구를 계속 오갑니다.</p>
     </div>
   </div>
 </section>
@@ -974,7 +1004,7 @@
 <!-- ── Solution ───────────────────────────────────────────── -->
 <section id="solution">
   <span class="section-label">솔루션</span>
-  <h2 class="section-title">주제 한 줄로 시작, 1~2분 안에 완성</h2>
+  <h2 class="section-title">주제 한 줄로 시작, 7~10분 안에 완성</h2>
   <p class="section-sub">
     한의학에 특화된 프롬프트 + 학술 자료 실시간 검색.
     글부터 이미지까지 한 흐름에서 끝납니다.
@@ -994,7 +1024,7 @@
       <div class="demo-step">
         <div class="step-num">STEP 3</div>
         <h4>AI가 글 생성</h4>
-        <p>jkom·PubMed·KCI 학술 자료 실시간 검색 → 가짜 인용 없는 본문 + 네이버 SEO 최적화.</p>
+        <p>학술 자료 실시간 검색 → 가짜 인용 없는 본문 + 네이버 SEO 최적화.</p>
       </div>
       <div class="demo-step">
         <div class="step-num">STEP 4</div>
@@ -1004,10 +1034,10 @@
     </div>
     <div class="demo-mock">
       <div><span class="label">입력:</span> 허리 통증 침치료</div>
-      <div><span class="label">옵션:</span> 2,000자 / 친근한 톤 / 사상체질 / 패턴 ‘체계적 분석’</div>
-      <div><span class="label">학술 검색:</span> jkom 3건 + PubMed 2건 → 시스템 프롬프트에 주입</div>
-      <div><span class="label">출력:</span> 제목 → 훅 → 본론(원인·변증·처방) → 사례 → FAQ → 저자 byline → 참고 문헌</div>
-      <div><span class="label">소요:</span> 약 1~2분</div>
+      <div><span class="label">옵션:</span> 2,000자 / 친근한 톤 / 해부학 / 패턴 ‘체계적 분석’</div>
+      <div><span class="label">학술 검색:</span> 학술 자료 실시간 검색 → 시스템 프롬프트에 주입</div>
+      <div><span class="label">출력:</span> 제목 → 도입부 → 본론 → 사례 → FAQ → 저자 byline → 참고 문헌 → 이미지 생성</div>
+      <div><span class="label">소요:</span> 글 약 1~2분, 이미지 약 6~8분</div>
     </div>
   </div>
 </section>
@@ -1032,27 +1062,27 @@
         <tr>
           <td>한의학 이해도</td>
           <td>일반 건강 키워드 수준</td>
-          <td class="col-cligent">변증(辨證)·체질·약재·경혈 30개 내장</td>
+          <td class="col-cligent">약재, 경혈, 해부학 일러스트 내장</td>
         </tr>
         <tr>
           <td>블로그 프롬프트</td>
           <td>단일 템플릿</td>
-          <td class="col-cligent">포맷 6종 × 훅 5종 패턴 엔진 (중복 방지)</td>
+          <td class="col-cligent">다양한 포맷과 소재 결합으로 다양한 글 생성</td>
         </tr>
         <tr>
           <td>휴머나이저 시스템</td>
           <td>AI 느낌이 그대로 드러나는 글</td>
-          <td class="col-cligent">원장님의 글 패턴을 학습해, 원장님이 쓴 것 같은 글로</td>
+          <td class="col-cligent">원장님의 글 패턴을 학습해, 원장님이 쓴 것 같은 글로 (예정)</td>
         </tr>
         <tr>
           <td>이미지 프롬프트</td>
           <td>일반 의료 이미지</td>
-          <td class="col-cligent">한국 한의원 정체성 + WHO 경혈 위치 정확</td>
+          <td class="col-cligent">보다 정확한 이미지, 이미지 D/B 확장 예정, 한국 최적화 이미지</td>
         </tr>
         <tr>
           <td>참고 문헌</td>
           <td>가상 인용 위험</td>
-          <td class="col-cligent">jkom·PubMed·KCI 학술 자료 실시간 검색</td>
+          <td class="col-cligent">학술 자료 실시간 검색</td>
         </tr>
         <tr>
           <td>이용량 · 비용</td>
