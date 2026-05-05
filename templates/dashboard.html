@@ -778,6 +778,23 @@
   }
 
   async function registerPublishCheck(entryId) {
+    // D(2026-05-05): 클릭 전 사전 체크 — 미설정 사유별 안내 분기
+    try {
+      const ready = await fetch('/api/blog/naver-readiness').then(r => r.ok ? r.json() : null);
+      if (ready && !ready.ready) {
+        if (!ready.api_configured) {
+          alert('네이버 검색 API 키가 등록되지 않아 발행 확인 자동화를 사용할 수 없습니다.\n\nCligent 운영팀(cligent.ai@gmail.com)에 문의해 주세요.');
+          return;
+        }
+        if (!ready.blog_id_configured) {
+          if (confirm('네이버 블로그 아이디가 등록되지 않았습니다.\n[설정 > 한의원 프로필]에서 등록하시겠어요?')) {
+            (window.top || window).location.href = '/settings';
+          }
+          return;
+        }
+      }
+    } catch (_) { /* readiness 실패 시 기존 흐름으로 진행 (서버 400 안전망) */ }
+
     if (!confirm('네이버 발행 확인을 등록할까요? 검색 색인까지 보통 1~24시간(신규 블로그 1~3일) 소요됩니다.')) return;
     try {
       const res = await fetch(`/api/blog/history/${entryId}/publish-check`, { method: 'POST' });

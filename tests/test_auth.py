@@ -135,6 +135,53 @@ class TestInvite:
         t2 = create_invite(1, "same@test.com", "team_member", 1)
         assert t1 == t2  # 미사용 토큰 재사용
 
+    def test_concurrent_invite_yields_single_active_token(self, mem_db):
+        """C(2026-05-05) — partial unique index가 race를 차단해
+        (clinic_id, email)에 활성 토큰이 1개만 존재해야 한다.
+
+        SELECT→INSERT race 시뮬레이션: 2회 연속 호출. 두 번째 호출이
+        IntegrityError를 잡고 첫 토큰을 그대로 반환하거나(정상 fallback),
+        DB에는 활성 row가 정확히 1건만 있어야 한다.
+        """
+        from auth_manager import create_invite
+
+        t1 = create_invite(1, "race@test.com", "team_member", 1)
+        t2 = create_invite(1, "race@test.com", "team_member", 1)
+        # 같은 토큰 재사용 (재전송 의미 보존)
+        assert t1 == t2
+
+        with mem_db.get_db() as conn:
+            cnt = conn.execute(
+                "SELECT COUNT(*) AS c FROM invites "
+                "WHERE clinic_id = 1 AND email = 'race@test.com' AND used_at IS NULL"
+            ).fetchone()["c"]
+        assert cnt == 1, f"활성 초대가 1개여야 하는데 {cnt}개"
+
+    def test_reinvite_invalidates_previous_active(self, mem_db):
+        """C(2026-05-05) — create_reinvite는 기존 미사용 토큰을 used 처리하고
+        새 토큰을 발급한다. partial unique index 충돌 없이 성공해야 한다.
+        """
+        from auth_manager import create_invite, create_reinvite, verify_invite
+
+        old = create_invite(1, "rotate@test.com", "team_member", 1)
+        new = create_reinvite(1, "rotate@test.com", "team_member", 1)
+        assert old != new
+
+        # 옛 토큰은 만료(used_at 박힘) → verify None
+        assert verify_invite(old) is None
+        # 새 토큰은 유효
+        invite = verify_invite(new)
+        assert invite is not None
+        assert invite["email"] == "rotate@test.com"
+
+        # DB에 활성 row 1건만 존재
+        with mem_db.get_db() as conn:
+            cnt = conn.execute(
+                "SELECT COUNT(*) AS c FROM invites "
+                "WHERE clinic_id = 1 AND email = 'rotate@test.com' AND used_at IS NULL"
+            ).fetchone()["c"]
+        assert cnt == 1
+
     def test_duplicate_user_raises(self, mem_db):
         from auth_manager import create_invite
         with pytest.raises(ValueError, match="이미 등록된"):

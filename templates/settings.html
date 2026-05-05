@@ -1760,13 +1760,18 @@ async function loadPlanUsage() {
     // 베타 누적 사용량 (config.yaml beta.blog_limit_total 기반, 항상 노출)
     const betaPct = Math.min(100, d.beta_pct ?? 0);
     const betaCls = betaPct >= 100 ? 'danger' : betaPct >= 80 ? 'warn' : '';
+    // F(2026-05-05): 가입 직후(0편) 빈 진행바 옆 가이드 카피 — 첫 글 작성 유도
+    const isEmpty = (d.beta_used ?? 0) === 0;
+    const emptyHint = isEmpty
+      ? `· <a href="/blog" target="_top" style="color: var(--emerald-700); text-decoration: underline;">첫 블로그 글을 작성해 보세요</a>`
+      : `· 한도·정책 안내는 <a href="/help" target="_blank" style="color: var(--emerald-700); text-decoration: underline;">도움말 › 사용량/플랜</a>`;
     const betaBlock = (d.beta_limit && d.beta_limit > 0) ? `
       <div style="margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--stone-100);">
         <div style="font-size: 13px; font-weight: 600; color: var(--stone-700); margin-bottom: 8px;">베타 누적 사용량</div>
         <div class="usage-bar"><div class="usage-bar-fill ${betaCls}" style="width: ${betaPct}%"></div></div>
         <div style="font-size: 12px; color: var(--stone-500); margin-top: 6px;">
           ${d.beta_used} / ${d.beta_limit} 편 (${betaPct.toFixed(0)}%)
-          · 한도·정책 안내는 <a href="/help" target="_blank" style="color: var(--emerald-700); text-decoration: underline;">도움말 › 사용량/플랜</a>
+          ${emptyHint}
         </div>
       </div>
     ` : '';

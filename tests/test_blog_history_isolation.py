@@ -138,3 +138,27 @@ def test_route_publish_check_cross_clinic_returns_404(client_clinic1):
     # 네이버 키 미설정 환경에서는 400, 설정된 환경에서는 404 — 어느 쪽도
     # entry 노출은 없음. 핵심: 200 이 절대 아님.
     assert res.status_code in (400, 404)
+
+
+# ─── D(2026-05-05): naver-readiness 분기 ────────────────────────────────
+
+def test_naver_readiness_api_unset(client_clinic1):
+    """API 키 미설정 → api_configured=false, ready=false."""
+    with patch("naver_checker.is_naver_configured", return_value=False):
+        res = client_clinic1.get("/api/blog/naver-readiness")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["api_configured"] is False
+    assert body["ready"] is False
+
+
+def test_naver_readiness_api_set_blog_id_unset(client_clinic1):
+    """API는 OK인데 본인 클리닉 naver_blog_id 미등록 → blog_id_configured=false."""
+    with patch("naver_checker.is_naver_configured", return_value=True):
+        res = client_clinic1.get("/api/blog/naver-readiness")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["api_configured"] is True
+    # 라이브 DB의 clinic 1에 naver_blog_id 가 비어있을 수 있음 — 핵심은 ready 게이트
+    if not body["blog_id_configured"]:
+        assert body["ready"] is False

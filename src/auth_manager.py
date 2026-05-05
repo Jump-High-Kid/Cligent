@@ -10,6 +10,7 @@ auth_manager.py — JWT 인증, bcrypt 해시, 초대 토큰 관리
 
 import os
 import secrets
+import sqlite3
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -285,11 +286,35 @@ def create_invite(clinic_id: int, email: str, role: str, created_by: int) -> str
             raise ValueError("사용자 슬롯이 가득 찼습니다. 관리자에게 슬롯 추가를 요청하세요.")
 
         token = secrets.token_urlsafe(32)
-        conn.execute(
-            "INSERT INTO invites (clinic_id, email, role, token, expires_at, created_by) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (clinic_id, email, role, token, expires_at, created_by),
-        )
+        try:
+            conn.execute(
+                "INSERT INTO invites (clinic_id, email, role, token, expires_at, created_by) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (clinic_id, email, role, token, expires_at, created_by),
+            )
+        except sqlite3.IntegrityError:
+            # C(2026-05-05): partial unique index 충돌 — 동시 호출이 먼저 INSERT 함.
+            # 같은 트랜잭션에서 다시 SELECT 해 그 토큰을 반환 (재전송 의미 보존).
+            existing = conn.execute(
+                "SELECT token FROM invites "
+                "WHERE clinic_id = ? AND email = ? AND used_at IS NULL "
+                "AND datetime(expires_at) > datetime('now')",
+                (clinic_id, email),
+            ).fetchone()
+            if existing:
+                return existing["token"]
+            # partial index가 잡았는데 SELECT 결과 없음 = 만료된 미사용 row 충돌.
+            # 그 row를 used 처리 후 신규 INSERT 1회 retry (안전장치).
+            conn.execute(
+                "UPDATE invites SET used_at = datetime('now') "
+                "WHERE clinic_id = ? AND email = ? AND used_at IS NULL",
+                (clinic_id, email),
+            )
+            conn.execute(
+                "INSERT INTO invites (clinic_id, email, role, token, expires_at, created_by) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (clinic_id, email, role, token, expires_at, created_by),
+            )
 
     return token
 
@@ -306,9 +331,12 @@ def create_reinvite(clinic_id: int, email: str, role: str, created_by: int) -> s
     ).isoformat()
 
     with get_db() as conn:
-        # 기존 미사용 토큰은 만료 처리 (새 링크 발급)
+        # 기존 미사용 토큰은 used 처리 (새 링크 발급, partial unique index 회피)
+        # C(2026-05-05): expires_at만 갱신하면 used_at IS NULL 이라 partial index 충돌.
+        # used_at = now 로 박아 이력은 보존하면서 unique 슬롯 비움.
         conn.execute(
-            "UPDATE invites SET expires_at = datetime('now') "
+            "UPDATE invites SET used_at = datetime('now'), "
+            "expires_at = datetime('now') "
             "WHERE clinic_id = ? AND email = ? AND used_at IS NULL",
             (clinic_id, email),
         )

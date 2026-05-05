@@ -62,6 +62,12 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_invites_token  ON invites(token);
             CREATE INDEX IF NOT EXISTS idx_invites_clinic ON invites(clinic_id);
 
+            -- C(2026-05-05): (clinic_id, email) 미사용 초대는 1개만 — race 차단
+            -- 동시 create_invite 호출 시 두 번째 INSERT가 IntegrityError로 실패.
+            -- 사용 끝난 row(used_at IS NOT NULL)는 이력으로 누적 가능.
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_invites_unique_active
+                ON invites(clinic_id, email) WHERE used_at IS NULL;
+
             -- 플랜 정의 테이블
             CREATE TABLE IF NOT EXISTS plans (
                 id                  TEXT    PRIMARY KEY,

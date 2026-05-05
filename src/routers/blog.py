@@ -347,6 +347,29 @@ async def publish_check(entry_id: int, user: dict = Depends(get_current_user)):
     )
     return JSONResponse({"status": "ok", "pending": pending})
 
+@router.get("/api/blog/naver-readiness")
+async def blog_naver_readiness(user: dict = Depends(get_current_user)):
+    """발행 확인 등록 가능 여부 사전 체크 (D, 2026-05-05).
+
+    네이버 API 키(서비스 차원) + 본인 클리닉 naver_blog_id 두 조건을 분리해
+    클라가 클릭 전에 분기별 안내를 띄울 수 있도록 한다.
+    """
+    from naver_checker import is_naver_configured
+
+    api_configured = bool(is_naver_configured())
+    with __import__('db_manager').get_db() as conn:
+        row = conn.execute(
+            "SELECT naver_blog_id FROM clinics WHERE id = ?",
+            (user["clinic_id"],),
+        ).fetchone()
+    blog_id_configured = bool((row["naver_blog_id"] or "").strip()) if row else False
+    return JSONResponse({
+        "api_configured": api_configured,
+        "blog_id_configured": blog_id_configured,
+        "ready": api_configured and blog_id_configured,
+    })
+
+
 @router.get("/api/blog/notifications")
 async def blog_notifications(user: dict = Depends(get_current_user)):
     """대시보드 알림 조회 — found + expired 미확인 항목"""
