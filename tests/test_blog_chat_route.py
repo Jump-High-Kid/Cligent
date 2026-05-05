@@ -811,3 +811,42 @@ def test_image_partial_frames_m1_active(monkeypatch):
     monkeypatch.setenv("BLOG_CHAT_IMAGE_PARTIAL_FRAMES", "3")
     from blog_chat_flow import image_partial_frames
     assert image_partial_frames() == 3
+
+
+# ── 7) /api/blog-chat/{sid}/cancel-image (2026-05-05 ImportError 회귀 방지) ──
+#
+# 2026-05-04 02:20 운영에서 ImportError: cannot import name 'load_session'
+# from 'blog_chat_state' 발생 (라우터 분할 시 dead 이름 미동기화).
+# fix: get_session(sid, clinic_id) 단일 진실원으로 교체.
+
+
+def test_cancel_image_returns_404_for_missing_session():
+    """존재하지 않는 chat_session_id → 404."""
+    res = client.post("/api/blog-chat/00000000-0000-0000-0000-000000000000/cancel-image")
+    assert res.status_code == 404
+    assert "찾을 수 없습니다" in res.json().get("detail", "")
+
+
+def test_cancel_image_returns_403_for_other_clinic():
+    """다른 한의원 세션 → 403 (PermissionError → HTTPException 매핑)."""
+    from blog_chat_state import create_session
+    # clinic_id=2 의 세션 생성 (FAKE_USER.clinic_id=1 과 다름)
+    other = create_session(clinic_id=2, user_id=99)
+
+    res = client.post(f"/api/blog-chat/{other.session_id}/cancel-image")
+    assert res.status_code == 403
+    assert "다른 한의원" in res.json().get("detail", "")
+
+
+def test_cancel_image_pending_when_no_image_session():
+    """정상 세션 + image_session_id 미생성 → 200, mode='pending'."""
+    from blog_chat_state import create_session
+
+    s = create_session(clinic_id=1, user_id=1)  # FAKE_USER.clinic_id=1
+
+    res = client.post(f"/api/blog-chat/{s.session_id}/cancel-image")
+    assert res.status_code == 200
+    body = res.json()
+    assert body.get("ok") is True
+    assert body.get("mode") == "pending"
+    assert body.get("image_session_id") is None

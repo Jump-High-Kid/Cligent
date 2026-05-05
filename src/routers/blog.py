@@ -1105,13 +1105,15 @@ async def api_blog_chat_cancel_image(
     실제 cancel set에 추가한다. 아직 image_session이 생성되기 전이면
     'pending' cancel mark로 저장 → 생성 직후 즉시 취소 처리.
     """
-    from blog_chat_state import load_session
+    from blog_chat_state import get_session
     from blog_chat_flow import cancel_image_session
 
-    state = load_session(chat_session_id)
-    if state is None:
+    # 단일 진실원 lookup — LRU+DB 복구 + clinic_id 검증을 한 번에 수행
+    try:
+        state = get_session(chat_session_id, user["clinic_id"])
+    except LookupError:
         raise HTTPException(status_code=404, detail="블로그 챗 세션을 찾을 수 없습니다.")
-    if state.clinic_id != user["clinic_id"]:
+    except PermissionError:
         raise HTTPException(status_code=403, detail="다른 한의원의 세션입니다.")
 
     image_sid = state.image_session_id or ""
