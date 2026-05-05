@@ -467,6 +467,98 @@
     font-weight: 800;
   }
 
+  /* ── Howto (이렇게 작동합니다) ───────────────────────────── */
+  .howto-wrap {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    gap: 28px;
+    margin-top: 24px;
+    align-items: stretch;
+  }
+  /* 영상 placeholder — 16:9 비율, 베타 시점엔 정적 카드 */
+  .howto-video {
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-xs);
+    overflow: hidden;
+    position: relative;
+    aspect-ratio: 16 / 9;
+  }
+  .howto-video .video-placeholder {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 10px;
+    background:
+      radial-gradient(circle at 50% 45%, var(--accent-soft) 0%, transparent 60%),
+      var(--sage-tint, #f6f8f4);
+    color: var(--accent);
+    text-align: center;
+    padding: 24px;
+  }
+  .howto-video .video-placeholder .play-icon {
+    font-size: 56px;
+    color: var(--accent);
+    line-height: 1;
+  }
+  .howto-video .video-placeholder p {
+    margin: 0;
+    font-size: 14.5px;
+    font-weight: 600;
+    color: var(--text-mid);
+  }
+  .howto-video .video-placeholder .video-meta {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--muted);
+  }
+  .howto-cards {
+    display: grid;
+    gap: 12px;
+    align-content: stretch;
+  }
+  .howto-card {
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    box-shadow: var(--shadow-xs);
+    transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+  }
+  .howto-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--sage);
+  }
+  .howto-card .icon {
+    flex-shrink: 0;
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .howto-card .icon .material-symbols-outlined {
+    font-size: 22px;
+  }
+  .howto-card .body { min-width: 0; }
+  .howto-card h4 { font-size: 15px; margin-bottom: 4px; font-weight: 700; }
+  .howto-card p { font-size: 13px; color: var(--text-mid); line-height: 1.55; }
+
+  @media (max-width: 768px) {
+    .howto-wrap {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 16px;
+    }
+  }
+
   /* ── Trust ─────────────────────────────────────────────── */
   .trust-grid {
     display: grid;
@@ -906,8 +998,8 @@
       </div>
       <div class="demo-step">
         <div class="step-num">STEP 4</div>
-        <h4>이미지 프롬프트</h4>
-        <p>본문에 어울리는 5개 자동 생성. Midjourney·ChatGPT·Gemini 클릭 한 번에 이동.</p>
+        <h4>이미지 5장 자동 생성</h4>
+        <p>본문 흐름에 맞춘 5장. 11 모듈로 다양화(인물·해부·시술·체질·도구), 한 화면에서 즉시 확인.</p>
       </div>
     </div>
     <div class="demo-mock">
@@ -978,6 +1070,54 @@
   <p class="hero-meta" style="text-align:center; margin-top:24px;">
     ※ 1차 베타는 회사 제공 AI로 운영되어 별도 API 키 등록이 필요하지 않습니다. 본인 AI 키 등록 방식은 정식 서비스 출시 이후 단계적으로 도입됩니다.
   </p>
+</section>
+
+<!-- ── Howto (이렇게 작동합니다) ──────────────────────────── -->
+<section id="howto">
+  <span class="section-label">이렇게 작동합니다</span>
+  <h2 class="section-title">한 흐름에서 본문·이미지·발행 확인까지</h2>
+  <p class="section-sub">
+    실제 작동 모습을 영상으로 확인하고, Cligent의 핵심 가치를 한눈에 보세요.
+  </p>
+  <div class="howto-wrap">
+    <div class="howto-video" aria-label="Cligent 작동 영상">
+      <div class="video-placeholder">
+        <span class="material-symbols-outlined play-icon" aria-hidden="true">play_circle</span>
+        <p>실제 작동 모습 (45초)</p>
+        <p class="video-meta">베타 출시와 함께 공개</p>
+      </div>
+    </div>
+    <div class="howto-cards">
+      <div class="howto-card">
+        <div class="icon"><span class="material-symbols-outlined" aria-hidden="true">chat</span></div>
+        <div class="body">
+          <h4>챗으로 끝</h4>
+          <p>클릭 몇 번만으로 완성도 높은 글과 이미지 완성.</p>
+        </div>
+      </div>
+      <div class="howto-card">
+        <div class="icon"><span class="material-symbols-outlined" aria-hidden="true">school</span></div>
+        <div class="body">
+          <h4>가짜 논문 자동 차단</h4>
+          <p>실시간 학술지 검색을 통해 근거 있는 글과 참고 문헌 생성.</p>
+        </div>
+      </div>
+      <div class="howto-card">
+        <div class="icon"><span class="material-symbols-outlined" aria-hidden="true">verified</span></div>
+        <div class="body">
+          <h4>의료법 자동 준수</h4>
+          <p>의료법 56·57조, 시행령 23·24조 고지문 자동 삽입. 발행 후 신고 위험 0.</p>
+        </div>
+      </div>
+      <div class="howto-card">
+        <div class="icon"><span class="material-symbols-outlined" aria-hidden="true">task_alt</span></div>
+        <div class="body">
+          <h4>발행 누락 자동 감지</h4>
+          <p>네이버 발행 자동 확인. 글이 누락됐을 때 즉시 알림.</p>
+        </div>
+      </div>
+    </div>
+  </div>
 </section>
 
 <!-- ── Trust ──────────────────────────────────────────────── -->
